@@ -317,7 +317,7 @@ fun OwnerFieldDetailScreen(
                 state = tabPagerState,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(400.dp) // Cố định height để tránh infinite constraints
+                    .height(600.dp) // Tăng height từ 400.dp lên 600.dp để hiển thị đầy đủ khung giờ
             ) { page ->
                 when (page) {
                     0 -> DetailInfoCourt(field = field)// Hiển thị thông tin chi tiết sân
@@ -329,13 +329,7 @@ fun OwnerFieldDetailScreen(
                     3 -> {
                         // Debug: Kiểm tra xem có vào được case này không
                         Column {
-                            Text(
-                                text = "DEBUG: Đang ở tab Khung giờ (page: $page)",
-                                color = MaterialTheme.colorScheme.primary,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(16.dp)
-                            )
+
                             // Gọi trực tiếp TimeSlots thay vì qua wrapper
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                                 TimeSlots()
