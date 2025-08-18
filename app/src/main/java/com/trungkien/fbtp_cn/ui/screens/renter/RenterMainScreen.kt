@@ -63,39 +63,9 @@ fun RenterMainScreen(
                     )
                 }
                 RenterNavScreen.Search -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = "🔍 Tìm kiếm sân thể thao",
-                            style = MaterialTheme.typography.headlineLarge,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        
-                        Spacer(modifier = Modifier.height(16.dp))
-                        
-                        Text(
-                            text = "Tìm kiếm sân theo vị trí, loại sân, giá cả...",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                        
-                        Spacer(modifier = Modifier.height(32.dp))
-                        
-                        Button(
-                            onClick = { /* TODO: Open search */ },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary
-                            )
-                        ) {
-                            Text("Bắt đầu tìm kiếm")
-                        }
-                    }
+                    RenterFieldSearchScreen(
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
                 RenterNavScreen.Map -> {
                     Column(
