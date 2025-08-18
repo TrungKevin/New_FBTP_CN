@@ -28,14 +28,10 @@ fun RenterMainScreen(
         modifier = modifier,
         containerColor = Color.White,
         topBar = {
+            // Luôn giữ một TopAppBar giống nhau trên mọi tab như Owner
             RenterTopAppBar(
-                currentScreen = selectedScreen,
-                onProfileClick = {
-                    selectedScreen = RenterNavScreen.Profile
-                },
-                onNotificationClick = {
-                    // TODO: Handle notifications
-                }
+                onMenuClick = { /* TODO open drawer or menu */ },
+                onProfileClick = { selectedScreen = RenterNavScreen.Profile }
             )
         },
         bottomBar = {
