@@ -1,0 +1,378 @@
+package com.trungkien.fbtp_cn.ui.components.renter.booking
+
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.trungkien.fbtp_cn.R
+import com.trungkien.fbtp_cn.data.MockData
+import com.trungkien.fbtp_cn.model.Booking
+import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
+
+@Composable
+fun RenterBookingCard(
+    booking: Booking,
+    onDetailClick: (Booking) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val field = remember(booking.fieldId) { MockData.getFieldById(booking.fieldId) }
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(
+                elevation = 12.dp,
+                shape = RoundedCornerShape(24.dp),
+                spotColor = Color.Black.copy(alpha = 0.08f)
+            )
+            .animateContentSize(
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessLow
+                )
+            ),
+        shape = RoundedCornerShape(24.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // Enhanced Banner with gradient overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(160.dp)
+                    .background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.1f)
+                            )
+                        ),
+                        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+                    ),
+                contentAlignment = Alignment.TopStart
+            ) {
+                // Floating rating chip with glassmorphism effect
+                field?.let { f ->
+                    Surface(
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .graphicsLayer {
+                                alpha = 0.95f
+                            },
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color.White.copy(alpha = 0.9f),
+                        shadowElevation = 4.dp
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.star),
+                                contentDescription = null,
+                                tint = Color(0xFFFFA000),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = String.format("%.1f", f.averageRating ?: 4.5f),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+
+                // Enhanced center icon with ripple effect
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.White.copy(alpha = 0.95f),
+                        shadowElevation = 8.dp,
+                        modifier = Modifier.size(72.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.stadium),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                }
+
+                // Decorative corner accent
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(end = 16.dp, top = 16.dp)
+                        .size(6.dp)
+                        .background(
+                            Color(0xFF00C853).copy(alpha = 0.8f),
+                            CircleShape
+                        )
+                )
+            }
+
+            // Enhanced Info section with better spacing and typography
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = booking.fieldName,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            lineHeight = 28.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = field?.type ?: booking.fieldType.ifBlank { "—" },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    FilledTonalButton(
+                        onClick = { onDetailClick(booking) },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = Color(0xFF00C853),
+                            contentColor = Color.White
+                        ),
+                        modifier = Modifier
+                            .shadow(
+                                elevation = 6.dp,
+                                shape = RoundedCornerShape(16.dp),
+                                spotColor = Color(0xFF00C853).copy(alpha = 0.3f)
+                            ),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                    ) {
+                        Text(
+                            "Chi tiết",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Enhanced info pills with better visual hierarchy
+                val address = booking.fieldAddress.ifBlank { field?.address ?: "—" }
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        EnhancedInfoPill(
+                            icon = R.drawable.map,
+                            text = address,
+                            modifier = Modifier.weight(1f),
+                            iconTint = Color(0xFF2196F3)
+                        )
+                        EnhancedInfoPill(
+                            icon = R.drawable.event,
+                            text = "${booking.date}",
+                            modifier = Modifier.weight(0.8f),
+                            iconTint = Color(0xFF9C27B0)
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        EnhancedInfoPill(
+                            icon = R.drawable.event,
+                            text = booking.timeRange,
+                            modifier = Modifier.weight(1f),
+                            iconTint = Color(0xFFFF9800)
+                        )
+                        EnhancedInfoPill(
+                            icon = R.drawable.bartchar,
+                            text = "${booking.totalPrice}₫",
+                            modifier = Modifier.weight(1f),
+                            iconTint = Color(0xFF4CAF50),
+                            isPrice = true
+                        )
+                    }
+
+                    // Enhanced status chip positioned separately
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        EnhancedStatusChip(status = booking.status)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EnhancedStatusChip(status: String) {
+    data class StatusStyle(val bg: Color, val fg: Color, val label: String, val iconRes: Int)
+    val style = when (status.lowercase()) {
+        "confirmed", "upcoming" -> StatusStyle(
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+            MaterialTheme.colorScheme.primary,
+            "Sắp diễn ra",
+            R.drawable.event
+        )
+        "completed" -> StatusStyle(
+            MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f),
+            MaterialTheme.colorScheme.secondary,
+            "Hoàn thành",
+            R.drawable.star
+        )
+        else -> StatusStyle(
+            MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
+            MaterialTheme.colorScheme.error,
+            "Đã hủy",
+            R.drawable.bookmark
+        )
+    }
+
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = style.bg,
+        modifier = Modifier.shadow(
+            elevation = 2.dp,
+            shape = RoundedCornerShape(16.dp),
+            spotColor = style.fg.copy(alpha = 0.2f)
+        )
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+        ) {
+            Icon(
+                painter = painterResource(id = style.iconRes),
+                contentDescription = null,
+                tint = style.fg,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = style.label,
+                color = style.fg,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+@Composable
+private fun EnhancedInfoPill(
+    icon: Int,
+    text: String,
+    modifier: Modifier = Modifier,
+    maxLines: Int = 1,
+    iconTint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    isPrice: Boolean = false
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.6f),
+        shape = RoundedCornerShape(16.dp),
+        modifier = modifier
+            .shadow(
+                elevation = 2.dp,
+                shape = RoundedCornerShape(16.dp),
+                spotColor = iconTint.copy(alpha = 0.1f)
+            ),
+        tonalElevation = 1.dp
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = iconTint.copy(alpha = 0.15f),
+                modifier = Modifier.size(28.dp)
+            ) {
+                Icon(
+                    painter = painterResource(id = icon),
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.padding(6.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = text,
+                style = if (isPrice) MaterialTheme.typography.labelLarge else MaterialTheme.typography.bodySmall,
+                color = if (isPrice) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface,
+                maxLines = maxLines,
+                overflow = TextOverflow.Ellipsis,
+                fontWeight = if (isPrice) FontWeight.Bold else FontWeight.Medium
+            )
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun RenterBookingCardPreview() {
+    FBTP_CNTheme {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFFF8F9FA))
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            RenterBookingCard(
+                booking = Booking(
+                    id = "b1", fieldId = "f1", fieldName = "Court 1 - Tennis Premium",
+                    timeRange = "18:00 - 19:00", status = "Confirmed",
+                    date = "2024-01-15", totalPrice = 250000
+                ),
+                onDetailClick = {}
+            )
+            RenterBookingCard(
+                booking = Booking(
+                    id = "b2", fieldId = "f2", fieldName = "Sân bóng đá mini ABC",
+                    timeRange = "20:00 - 22:00", status = "Completed",
+                    date = "2024-01-10", totalPrice = 400000
+                ),
+                onDetailClick = {}
+            )
+        }
+    }
+}

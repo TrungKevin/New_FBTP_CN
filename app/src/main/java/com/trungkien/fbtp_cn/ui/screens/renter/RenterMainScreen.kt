@@ -103,39 +103,7 @@ fun RenterMainScreen(
                     }
                 }
                 RenterNavScreen.Booking -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = "📅 Lịch sử đặt sân",
-                            style = MaterialTheme.typography.headlineLarge,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        
-                        Spacer(modifier = Modifier.height(16.dp))
-                        
-                        Text(
-                            text = "Xem và quản lý các lịch đặt sân của bạn",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                        
-                        Spacer(modifier = Modifier.height(32.dp))
-                        
-                        Button(
-                            onClick = { /* TODO: Show booking history */ },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary
-                            )
-                        ) {
-                            Text("Xem lịch sử")
-                        }
-                    }
+                    RenterBookingScreen(modifier = Modifier.fillMaxSize())
                 }
                 RenterNavScreen.Profile -> {
                     Column(
