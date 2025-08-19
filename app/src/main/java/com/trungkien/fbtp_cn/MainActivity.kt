@@ -29,6 +29,9 @@ class MainActivity : ComponentActivity() {
                     RenterMainScreen(
                         modifier = Modifier.fillMaxSize()
                     )
+//                    OwnerMainScreen(
+//                        modifier = Modifier.fillMaxSize()
+//                    )
                 }
             }
         }

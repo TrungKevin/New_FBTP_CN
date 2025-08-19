@@ -63,9 +63,19 @@ fun RenterMainScreen(
                     )
                 }
                 RenterNavScreen.Search -> {
-                    RenterFieldSearchScreen(
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    var showOrder by remember { mutableStateOf<String?>(null) }
+                    if (showOrder == null) {
+                        RenterFieldSearchScreen(
+                            modifier = Modifier.fillMaxSize(),
+                            onBookClick = { fieldId -> showOrder = fieldId }
+                        )
+                    } else {
+                        RenterOrderDetailScreen(
+                            fieldId = showOrder!!,
+                            onBackClick = { showOrder = null },
+                            onBookNow = { /* TODO: proceed booking */ }
+                        )
+                    }
                 }
                 RenterNavScreen.Map -> {
                     RenterMapScreen(
@@ -81,39 +91,11 @@ fun RenterMainScreen(
                     RenterBookingScreen(modifier = Modifier.fillMaxSize())
                 }
                 RenterNavScreen.Profile -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = "👤 Hồ sơ cá nhân",
-                            style = MaterialTheme.typography.headlineLarge,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        
-                        Spacer(modifier = Modifier.height(16.dp))
-                        
-                        Text(
-                            text = "Quản lý thông tin cá nhân và cài đặt",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                        
-                        Spacer(modifier = Modifier.height(32.dp))
-                        
-                        Button(
-                            onClick = { /* TODO: Edit profile */ },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary
-                            )
-                        ) {
-                            Text("Chỉnh sửa hồ sơ")
-                        }
-                    }
+                    RenterProfileScreen(
+                        modifier = Modifier.fillMaxSize(),
+                        onEditProfileClick = { /* TODO: Navigate to edit profile */ },
+                        onLogoutClick = { /* TODO: logout */ }
+                    )
                 }
             }
         }

@@ -33,7 +33,7 @@ fun RenterFieldTypeFilter(
     onTypeSelected: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val fieldTypes = remember {
+    val fieldTypes = remember(selectedType) {
         listOf(
             FieldTypeFilter("all", "Tất cả", R.drawable.star, selectedType == null),
             FieldTypeFilter("football", "Bóng đá", R.drawable.football, selectedType == "football"),

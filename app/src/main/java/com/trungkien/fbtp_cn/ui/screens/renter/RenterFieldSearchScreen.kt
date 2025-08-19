@@ -15,7 +15,8 @@ import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 
 @Composable
 fun RenterFieldSearchScreen(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onBookClick: (String) -> Unit = {}
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf<String?>(null) }
@@ -89,7 +90,7 @@ fun RenterFieldSearchScreen(
             isLoading = false,
             onFieldClick = { },
             onFavoriteClick = { },
-            onBookClick = { /* TODO: navigate to booking flow with fieldId */ },
+            onBookClick = onBookClick,
             onLoadMore = { },
             modifier = Modifier.weight(1f)
         )
