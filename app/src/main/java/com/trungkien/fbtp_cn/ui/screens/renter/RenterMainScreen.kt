@@ -13,6 +13,7 @@ import com.trungkien.fbtp_cn.ui.components.renter.RenterNavScreen
 import com.trungkien.fbtp_cn.ui.components.renter.RenterBottomNavBar
 import com.trungkien.fbtp_cn.ui.components.renter.RenterTopAppBar
 import com.trungkien.fbtp_cn.ui.screens.renter.RenterHomeScreen
+import com.trungkien.fbtp_cn.ui.screens.renter.RenterOrderDetailScreen
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.Color
@@ -23,16 +24,21 @@ fun RenterMainScreen(
     modifier: Modifier = Modifier
 ) {
     var selectedScreen by remember { mutableStateOf(RenterNavScreen.Home) }
+    // If not null, we're viewing order detail inside Search tab
+    var activeOrderDetailFieldId by remember { mutableStateOf<String?>(null) }
     
     Scaffold(
         modifier = modifier,
         containerColor = Color.White,
         topBar = {
-            // Luôn giữ một TopAppBar giống nhau trên mọi tab như Owner
-            RenterTopAppBar(
-                onMenuClick = { /* TODO open drawer or menu */ },
-                onProfileClick = { selectedScreen = RenterNavScreen.Profile }
-            )
+            // Ẩn TopAppBar khi đang hiển thị RenterOrderDetailScreen trong tab Search
+            val shouldShowTop = !(selectedScreen == RenterNavScreen.Search && activeOrderDetailFieldId != null)
+            if (shouldShowTop) {
+                RenterTopAppBar(
+                    onMenuClick = { /* TODO open drawer or menu */ },
+                    onProfileClick = { selectedScreen = RenterNavScreen.Profile }
+                )
+            }
         },
         bottomBar = {
             RenterBottomNavBar(
@@ -63,16 +69,15 @@ fun RenterMainScreen(
                     )
                 }
                 RenterNavScreen.Search -> {
-                    var showOrder by remember { mutableStateOf<String?>(null) }
-                    if (showOrder == null) {
+                    if (activeOrderDetailFieldId == null) {
                         RenterFieldSearchScreen(
                             modifier = Modifier.fillMaxSize(),
-                            onBookClick = { fieldId -> showOrder = fieldId }
+                            onBookClick = { fieldId -> activeOrderDetailFieldId = fieldId }
                         )
                     } else {
                         RenterOrderDetailScreen(
-                            fieldId = showOrder!!,
-                            onBackClick = { showOrder = null },
+                            fieldId = activeOrderDetailFieldId!!,
+                            onBackClick = { activeOrderDetailFieldId = null },
                             onBookNow = { /* TODO: proceed booking */ }
                         )
                     }
