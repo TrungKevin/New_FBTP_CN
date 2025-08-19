@@ -68,39 +68,14 @@ fun RenterMainScreen(
                     )
                 }
                 RenterNavScreen.Map -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = "🗺️ Bản đồ sân thể thao",
-                            style = MaterialTheme.typography.headlineLarge,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        
-                        Spacer(modifier = Modifier.height(16.dp))
-                        
-                        Text(
-                            text = "Xem vị trí các sân thể thao gần bạn",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                        
-                        Spacer(modifier = Modifier.height(32.dp))
-                        
-                        Button(
-                            onClick = { /* TODO: Open map */ },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary
-                            )
-                        ) {
-                            Text("Mở bản đồ")
-                        }
-                    }
+                    RenterMapScreen(
+                        onBackClick = { selectedScreen = RenterNavScreen.Home },
+                        onFieldClick = { field ->
+                            // TODO: Navigate to field detail
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                        showHeader = false // Không hiển thị header riêng vì đã có RenterTopAppBar
+                    )
                 }
                 RenterNavScreen.Booking -> {
                     RenterBookingScreen(modifier = Modifier.fillMaxSize())

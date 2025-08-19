@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
@@ -18,15 +17,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.tooling.preview.Preview
 import com.trungkien.fbtp_cn.model.Field
 import com.trungkien.fbtp_cn.model.PriceRange
 import com.trungkien.fbtp_cn.model.PriceDetail
 import androidx.compose.ui.res.painterResource
 import com.trungkien.fbtp_cn.R
-import com.trungkien.fbtp_cn.data.MockData
-import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 
 @Composable
 fun RenterFeaturedFields(

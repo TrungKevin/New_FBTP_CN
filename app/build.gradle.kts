@@ -68,6 +68,10 @@ dependencies {
     // For HorizontalPager (foundation) and coroutines used by tab syncing
     implementation(libs.androidx.foundation)
     implementation(libs.coroutines.android)
+    
+    // OpenStreetMap support
+    implementation("org.osmdroid:osmdroid-android:6.1.18")
+    
     // implementation(libs.hilt.android)
     // ksp(libs.hilt.compiler)
     // implementation(libs.androidx.hilt.navigation.compose)
