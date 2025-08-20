@@ -9,7 +9,9 @@ import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import com.trungkien.fbtp_cn.ui.screens.MainSplashScreen
 import com.trungkien.fbtp_cn.ui.screens.owner.OwnerMainScreen
 import com.trungkien.fbtp_cn.ui.screens.renter.RenterMainScreen
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
@@ -25,13 +27,30 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    // Test RenterMainScreen thay vì OwnerMainScreen
-                    RenterMainScreen(
-                        modifier = Modifier.fillMaxSize()
-                    )
-//                    OwnerMainScreen(
-//                        modifier = Modifier.fillMaxSize()
-//                    )
+                    var currentScreen by remember { mutableStateOf("splash") }
+                    
+                    when (currentScreen) {
+                        "splash" -> {
+                            MainSplashScreen(
+                                onNavigateToOwner = {
+                                    currentScreen = "owner"
+                                },
+                                onNavigateToRenter = {
+                                    currentScreen = "renter"
+                                }
+                            )
+                        }
+                        "owner" -> {
+                            OwnerMainScreen(
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        "renter" -> {
+                            RenterMainScreen(
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
                 }
             }
         }
