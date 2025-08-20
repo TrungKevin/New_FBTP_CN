@@ -75,11 +75,21 @@ fun RenterMainScreen(
                             onBookClick = { fieldId -> activeOrderDetailFieldId = fieldId }
                         )
                     } else {
-                        RenterOrderDetailScreen(
-                            fieldId = activeOrderDetailFieldId!!,
-                            onBackClick = { activeOrderDetailFieldId = null },
-                            onBookNow = { /* TODO: proceed booking */ }
-                        )
+                        var goCheckout by remember { mutableStateOf(false) }
+                        if (!goCheckout) {
+                            RenterOrderDetailScreen(
+                                fieldId = activeOrderDetailFieldId!!,
+                                onBackClick = { activeOrderDetailFieldId = null },
+                                onBookNow = { goCheckout = true }
+                            )
+                        } else {
+                            RenterBookingCheckoutScreen(
+                                fieldId = activeOrderDetailFieldId!!,
+                                basePricePerHour = 150000,
+                                onBackClick = { goCheckout = false },
+                                onConfirmBooking = { /* TODO: finalize booking */ }
+                            )
+                        }
                     }
                 }
                 RenterNavScreen.Map -> {

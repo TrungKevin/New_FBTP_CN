@@ -1,4 +1,4 @@
-package com.trungkien.fbtp_cn.ui.components.renter.booking
+package com.trungkien.fbtp_cn.ui.components.renter.bookinghis
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*

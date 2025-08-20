@@ -14,9 +14,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.trungkien.fbtp_cn.data.MockData
 import com.trungkien.fbtp_cn.model.Booking
-import com.trungkien.fbtp_cn.ui.components.renter.booking.RenterBookingCard
-import com.trungkien.fbtp_cn.ui.components.renter.booking.RenterBookingDetailSheet
-import com.trungkien.fbtp_cn.ui.components.renter.booking.RenterBookingHeader
+import com.trungkien.fbtp_cn.ui.components.renter.bookinghis.RenterBookingCard
+import com.trungkien.fbtp_cn.ui.components.renter.bookinghis.RenterBookingDetailSheet
+import com.trungkien.fbtp_cn.ui.components.renter.bookinghis.RenterBookingHeader
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 
 @RequiresApi(Build.VERSION_CODES.O)
