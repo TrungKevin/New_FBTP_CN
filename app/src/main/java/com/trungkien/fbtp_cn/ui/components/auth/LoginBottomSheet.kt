@@ -43,8 +43,8 @@ fun LoginBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color(0xFF96EC96), // Dark background color
-        scrimColor = Color.Black.copy(alpha = 0.5f),
+        containerColor = Background,
+        scrimColor = Color.Black.copy(alpha = 0.2f),
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         dragHandle = { BottomSheetDefaults.DragHandle() }
     ) {
@@ -68,25 +68,25 @@ fun LoginBottomSheet(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
-                        tint = Color.White,
+                        tint = OnSecondary,
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Quay", color = Color.White, fontSize = 16.sp)
+                    Text(text = "Quay", color = OnSecondary, fontSize = 16.sp)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     repeat(2) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = null,
-                            tint = OrangeSecondary,
+                            tint = GreenPrimary,
                             modifier = Modifier.size(16.dp)
                         )
                     }
                 }
                 Text(
                     text = "Đăng ký",
-                    color = Color.White,
+                    color = OnSecondary,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.clickable { onSwitchToRegister() }
@@ -99,18 +99,18 @@ fun LoginBottomSheet(
                 onValueChange = { username = it },
                 label = { Text("Tên đăng nhập") },
                 leadingIcon = {
-                    Icon(imageVector = Icons.Filled.Person, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(20.dp))
+                    Icon(imageVector = Icons.Filled.Person, contentDescription = null, tint = OnSecondary.copy(alpha = 0.8f), modifier = Modifier.size(20.dp))
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 16.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = GreenPrimary,
-                    unfocusedBorderColor = Color.Gray,
+                    unfocusedBorderColor = OnSecondary.copy(alpha = 0.25f),
                     focusedLabelColor = GreenPrimary,
-                    unfocusedLabelColor = Color.Gray,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
+                    unfocusedLabelColor = OnSecondary.copy(alpha = 0.8f),
+                    focusedTextColor = OnSecondary,
+                    unfocusedTextColor = OnSecondary,
                     cursorColor = GreenPrimary
                 ),
                 shape = RoundedCornerShape(12.dp),
@@ -126,14 +126,14 @@ fun LoginBottomSheet(
                 onValueChange = { password = it },
                 label = { Text("Mật khẩu") },
                 leadingIcon = {
-                    Icon(imageVector = Icons.Filled.Lock, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(20.dp))
+                    Icon(imageVector = Icons.Filled.Lock, contentDescription = null, tint = OnSecondary.copy(alpha = 0.8f), modifier = Modifier.size(20.dp))
                 },
                 trailingIcon = {
                     IconButton(onClick = { passwordVisible = !passwordVisible }) {
                         Icon(
                             imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
                             contentDescription = null,
-                            tint = Color.Gray
+                            tint = OnSecondary.copy(alpha = 0.8f)
                         )
                     }
                 },
@@ -143,11 +143,11 @@ fun LoginBottomSheet(
                     .padding(bottom = 16.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = GreenPrimary,
-                    unfocusedBorderColor = Color.Gray,
+                    unfocusedBorderColor = OnSecondary.copy(alpha = 0.25f),
                     focusedLabelColor = GreenPrimary,
-                    unfocusedLabelColor = Color.Gray,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
+                    unfocusedLabelColor = OnSecondary.copy(alpha = 0.8f),
+                    focusedTextColor = OnSecondary,
+                    unfocusedTextColor = OnSecondary,
                     cursorColor = GreenPrimary
                 ),
                 shape = RoundedCornerShape(12.dp),
@@ -170,15 +170,15 @@ fun LoginBottomSheet(
                         checked = rememberAccount,
                         onCheckedChange = { rememberAccount = it },
                         colors = CheckboxDefaults.colors(
-                            checkedColor = OrangeSecondary,
-                            uncheckedColor = Color.Gray
+                            checkedColor = GreenPrimary,
+                            uncheckedColor = OnSecondary.copy(alpha = 0.4f)
                         )
                     )
-                    Text(text = "Nhớ tài khoản và mật khẩu", color = Color.White, fontSize = 14.sp)
+                    Text(text = "Nhớ tài khoản và mật khẩu", color = OnSecondary, fontSize = 14.sp)
                 }
                 Text(
                     text = "Quên mật khẩu?",
-                    color = Color.White,
+                    color = OnSecondary,
                     fontSize = 14.sp,
                     modifier = Modifier.clickable { onForgotPassword() }
                 )
@@ -190,14 +190,14 @@ fun LoginBottomSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = OrangeSecondary),
+                colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary, contentColor = Color.White),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Text(
                     text = "Click để đăng nhập",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF263238)
+                    color = Color.White
                 )
             }
         }

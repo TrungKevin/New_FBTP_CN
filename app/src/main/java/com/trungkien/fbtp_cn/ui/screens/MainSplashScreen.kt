@@ -72,7 +72,7 @@ fun MainSplashScreen(
     if (showRegisterSheet) {
         RegisterBottomSheet(
             onDismiss = { showRegisterSheet = false },
-            onRegister = { _, _ ->
+            onRegister = { _, _, _, _, _ ->
                 showRegisterSheet = false
                 onNavigateToRenter()
             },
