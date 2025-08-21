@@ -23,6 +23,7 @@ import com.trungkien.fbtp_cn.ui.components.animation.FallingCoin
 import com.trungkien.fbtp_cn.ui.components.animation.FallingBall
 import com.trungkien.fbtp_cn.ui.components.animation.FallingStar
 import com.trungkien.fbtp_cn.ui.components.animation.LogoBreathing
+import com.trungkien.fbtp_cn.ui.components.animation.CircleLogoSpinner
 import com.trungkien.fbtp_cn.ui.theme.*
 import kotlin.random.Random
 
@@ -43,7 +44,7 @@ fun SplashScreen(
             Background
         )
     )
-    
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -62,7 +63,7 @@ fun SplashScreen(
                 size = 8f
             )
         }
-        
+
         // Floating balls tản ra toàn màn hình với các tâm xoay khác nhau
         repeat(10) { index ->
             FloatingBall(
@@ -80,7 +81,7 @@ fun SplashScreen(
                 centerY = Random.nextFloat() * 800f + 200f  // Tâm Y ngẫu nhiên
             )
         }
-        
+
         // Falling coins (đồng xu rơi)
         repeat(12) { index ->
             FallingCoin(
@@ -89,7 +90,7 @@ fun SplashScreen(
                 size = 12f
             )
         }
-        
+
         // Thêm hiệu ứng các loại bóng rơi tản ra toàn màn hình
         repeat(8) { index ->
             FallingBall(
@@ -105,7 +106,7 @@ fun SplashScreen(
                 startX = Random.nextFloat() * 800f // Vị trí khởi đầu ngẫu nhiên trên trục X
             )
         }
-        
+
         // Thêm hiệu ứng ngôi sao rơi tản ra toàn màn hình
         repeat(10) { index ->
             FallingStar(
@@ -116,7 +117,7 @@ fun SplashScreen(
                 startX = Random.nextFloat() * 800f // Vị trí khởi đầu ngẫu nhiên trên trục X
             )
         }
-        
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -124,18 +125,23 @@ fun SplashScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.height(80.dp))
-            
-            // Logo FBTP with breathing effect
-            LogoBreathing( // chức năng: tạo hiệu ứng thở cho logo
-                modifier = Modifier.padding(bottom = 40.dp),
-                onLogoClick = { /* Logo click */ }
-            )
-            
+
+            // Logo breathing + circle spinner overlay
+            Box(contentAlignment = Alignment.Center) {
+                LogoBreathing(
+                    modifier = Modifier.padding(bottom = 40.dp),
+                    onLogoClick = { /* Logo click */ }
+                )
+            }
+            Spacer(modifier = Modifier.height(20.dp))
+            // Circle spinner ở giữa khoảng trắng
+            CircleLogoSpinner(modifier = Modifier, sizeDp = 64, speedMs = 1600)
+
             // Thêm hiệu ứng trái bóng và ngôi sao rơi từ trên xuống
             Spacer(modifier = Modifier.height(40.dp))
-            
+
             Spacer(modifier = Modifier.weight(1f))
-            
+
             // Main action buttons
             Column( // chức năng: tạo các nút chính cho đăng nhập và đăng ký
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -158,9 +164,9 @@ fun SplashScreen(
                         color = Color.White
                     )
                 }
-                
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 Button(
                     onClick = onRegisterClick,
                     modifier = Modifier
@@ -179,7 +185,7 @@ fun SplashScreen(
                     )
                 }
             }
-            
+
             // Separator
             Text(
                 text = "Or",
@@ -187,7 +193,7 @@ fun SplashScreen(
                 fontSize = 14.sp,
                 modifier = Modifier.padding(bottom = 24.dp)
             )
-            
+
             // Utility icons
             Row(
                 horizontalArrangement = Arrangement.SpaceEvenly,
@@ -197,26 +203,26 @@ fun SplashScreen(
             ) {
                 UtilityIcon(
                     icon = "🎧",
-                    label = "CSKH",
+                    label = "Listens",
                     onClick = onCustomerServiceClick
                 )
                 UtilityIcon(
                     icon = "📱",
-                    label = "Tải APP",
+                    label = "Phone",
                     onClick = onDownloadAppClick
                 )
                 UtilityIcon(
                     icon = "🎮",
-                    label = "Chơi thử",
+                    label = "PS4/5",
                     onClick = onTryPlayingClick
                 )
                 UtilityIcon(
                     icon = "💻",
-                    label = "Máy tính",
+                    label = "Computer",
                     onClick = onComputerVersionClick
                 )
             }
-            
+
             // Preview page button
             OutlinedButton(
                 onClick = { /* Preview page */ },
@@ -234,7 +240,7 @@ fun SplashScreen(
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text(
-                    text = "Xem trước trang",
+                    text = "Wellcome to FBTP",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium
                 )
