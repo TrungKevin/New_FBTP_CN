@@ -24,6 +24,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import com.trungkien.fbtp_cn.ui.theme.*
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,7 +37,8 @@ fun LoginBottomSheet(
     onSwitchToRegister: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var username by remember { mutableStateOf("Roro123") }
+    val context = LocalContext.current
+    var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var rememberAccount by remember { mutableStateOf(true) }
@@ -93,11 +96,11 @@ fun LoginBottomSheet(
                 )
             }
 
-            // Username
+            // Email
             OutlinedTextField(
                 value = username,
                 onValueChange = { username = it },
-                label = { Text("Tên đăng nhập") },
+                label = { Text("Email") },
                 leadingIcon = {
                     Icon(imageVector = Icons.Filled.Person, contentDescription = null, tint = OnSecondary.copy(alpha = 0.8f), modifier = Modifier.size(20.dp))
                 },
@@ -186,7 +189,16 @@ fun LoginBottomSheet(
 
             // Login button
             Button(
-                onClick = { onLogin(username, password) },
+                onClick = {
+                    val emailOk = username.matches(Regex("^[A-Za-z0-9._%+-]+@gmail\\.com$"))
+                    val passwordOk = password.isNotBlank()
+                    when {
+                        username.isBlank() -> Toast.makeText(context, "Vui lòng nhập email", Toast.LENGTH_SHORT).show()
+                        !emailOk -> Toast.makeText(context, "Email phải có định dạng hợp lệ @gmail.com", Toast.LENGTH_SHORT).show()
+                        !passwordOk -> Toast.makeText(context, "Vui lòng nhập mật khẩu", Toast.LENGTH_SHORT).show()
+                        else -> onLogin(username, password)
+                    }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),

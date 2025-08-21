@@ -4,6 +4,8 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     // alias(libs.plugins.dagger.hilt)
     // id("com.google.devtools.ksp") version "2.0.21-1.0.27"
+    // THÊM PLUGIN GOOGLE SERVICES
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -72,6 +74,14 @@ dependencies {
     
     // OpenStreetMap support
     implementation("org.osmdroid:osmdroid-android:6.1.18")
+    
+    // THÊM FIREBASE DEPENDENCIES
+    implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
+    implementation("com.google.firebase:firebase-analytics-ktx")
+    implementation("com.google.firebase:firebase-auth-ktx")
+    implementation("com.google.firebase:firebase-firestore-ktx")
+    implementation("com.google.firebase:firebase-storage-ktx")
+    implementation("com.google.firebase:firebase-messaging-ktx")
     
     // implementation(libs.hilt.android)
     // ksp(libs.hilt.compiler)

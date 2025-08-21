@@ -26,15 +26,19 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import com.trungkien.fbtp_cn.ui.theme.*
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterBottomSheet(
     onDismiss: () -> Unit,
     onRegister: (String, String, String, String, String) -> Unit,
-    onSwitchToLogin: () -> Unit
+    onSwitchToLogin: () -> Unit,
+    isLoading: Boolean = false
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val context = LocalContext.current
     var username by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
@@ -81,12 +85,7 @@ fun RegisterBottomSheet(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(text = "Quay", color = OnSecondary, fontSize = 16.sp)
                 }
-                Text(
-                    text = "Đăng Nhập",
-                    color = OnSecondary,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium
-                )
+
             }
 
             // Username
@@ -106,7 +105,8 @@ fun RegisterBottomSheet(
                     cursorColor = GreenPrimary
                 ),
                 shape = RoundedCornerShape(12.dp),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Next)
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Next),
+                enabled = !isLoading
             )
 
             // (Moved) Role selector will be placed near register button
@@ -128,7 +128,8 @@ fun RegisterBottomSheet(
                     cursorColor = GreenPrimary
                 ),
                 shape = RoundedCornerShape(12.dp),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next)
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
+                enabled = !isLoading
             )
 
             // Phone
@@ -148,11 +149,12 @@ fun RegisterBottomSheet(
                     cursorColor = GreenPrimary
                 ),
                 shape = RoundedCornerShape(12.dp),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next)
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next),
+                enabled = !isLoading
             )
 
             // Password
-            OutlinedTextField(
+            OutlinedTextField( // dùng để nhập mật khẩu và kiểm tra mật khẩu hiển thị
                 value = password,
                 onValueChange = { password = it },
                 label = { Text("Mật khẩu") },
@@ -174,11 +176,12 @@ fun RegisterBottomSheet(
                     cursorColor = GreenPrimary
                 ),
                 shape = RoundedCornerShape(12.dp),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next)
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
+                enabled = !isLoading
             )
 
             // Confirm password
-            OutlinedTextField(
+            OutlinedTextField( // dùng để nhập lại mật khẩu và kiểm tra mật khẩu hiển thị
                 value = confirm,
                 onValueChange = { confirm = it },
                 label = { Text("Nhập lại mật khẩu") },
@@ -200,11 +203,12 @@ fun RegisterBottomSheet(
                     cursorColor = GreenPrimary
                 ),
                 shape = RoundedCornerShape(12.dp),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done)
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                enabled = !isLoading
             )
 
             // Role selector (above checkbox)
-            ExposedDropdownMenuBox(
+            ExposedDropdownMenuBox( // dùng để chọn vai trò người dùng
                 expanded = roleExpanded,
                 onExpandedChange = { roleExpanded = !roleExpanded },
                 modifier = Modifier
@@ -231,6 +235,7 @@ fun RegisterBottomSheet(
                     modifier = Modifier
                         .menuAnchor()
                         .fillMaxWidth(),
+                    enabled = !isLoading
                 )
                 ExposedDropdownMenu(
                     expanded = roleExpanded,
@@ -249,37 +254,54 @@ fun RegisterBottomSheet(
             }
 
             // Agree terms (label on the right reflects the purpose)
-            Row(
+            Row( // dùng để đồng ý với điều khoản sử dụng
                 modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Checkbox(
                     checked = agreeTerms,
                     onCheckedChange = { agreeTerms = it },
-                    colors = CheckboxDefaults.colors(checkedColor = GreenPrimary, uncheckedColor = OnSecondary.copy(alpha = 0.4f))
+                    colors = CheckboxDefaults.colors(checkedColor = GreenPrimary, uncheckedColor = OnSecondary.copy(alpha = 0.4f)),
+                    enabled = !isLoading
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(text = if (agreeTerms) "Đã đồng ý điều khoản sử dụng" else "Tôi đồng ý với điều khoản sử dụng", color = OnSecondary, fontSize = 14.sp)
             }
 
             // Register button
-            Button(
+            Button( // dùng để đăng ký tài khoản
                 onClick = {
-                    if (
-                        username.isNotBlank() &&
-                        email.isNotBlank() &&
-                        phone.isNotBlank() &&
-                        password.isNotEmpty() &&
-                        password == confirm && agreeTerms
-                    ) {
-                        onRegister(username, password, email, phone, selectedRole)
+                    val phoneOk = phone.matches(Regex("^\\d{10,11}$"))
+                    val emailOk = email.matches(Regex("^[A-Za-z0-9._%+-]+@gmail\\.com$"))
+                    val passwordOk = password.length >= 6
+                    val confirmOk = confirm == password
+
+                    when {
+                        username.isBlank() -> Toast.makeText(context, "Vui lòng nhập tên đăng nhập", Toast.LENGTH_SHORT).show()
+                        !emailOk -> Toast.makeText(context, "Email phải đúng định dạng và có đuôi @gmail.com", Toast.LENGTH_SHORT).show()
+                        !phoneOk -> Toast.makeText(context, "Số điện thoại phải là 10-11 chữ số", Toast.LENGTH_SHORT).show()
+                        !passwordOk -> Toast.makeText(context, "Mật khẩu phải có ít nhất 6 ký tự", Toast.LENGTH_SHORT).show()
+                        !confirmOk -> Toast.makeText(context, "Nhập lại mật khẩu không khớp", Toast.LENGTH_SHORT).show()
+                        !agreeTerms -> Toast.makeText(context, "Bạn cần đồng ý điều khoản sử dụng", Toast.LENGTH_SHORT).show()
+                        else -> onRegister(username, password, email, phone, selectedRole)
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary, contentColor = Color.White),
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(16.dp),
+                enabled = !isLoading
             ) {
-                Text(text = "Click để đăng ký", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "Đang đăng ký...", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                } else {
+                    Text(text = "Click để đăng ký", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
@@ -288,7 +310,12 @@ fun RegisterBottomSheet(
 @Preview
 @Composable
 private fun RegisterBottomSheetPreview() {
-    RegisterBottomSheet(onDismiss = {}, onRegister = { _, _, _, _, _ -> }, onSwitchToLogin = {})
+    RegisterBottomSheet(
+        onDismiss = {}, 
+        onRegister = { _, _, _, _, _ -> }, 
+        onSwitchToLogin = {},
+        isLoading = false
+    )
 }
 
 

@@ -163,7 +163,6 @@ fun OwnerFieldDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
         ) {
             // Hero Image Section with Image Carousel
             Box(

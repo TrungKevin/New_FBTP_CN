@@ -1,7 +1,11 @@
 package com.trungkien.fbtp_cn
 
 import android.app.Application
-// import dagger.hilt.android.HiltAndroidApp
+import com.google.firebase.FirebaseApp
 
-// @HiltAndroidApp
-class FBTPApp : Application() 
+class FBTPApp : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        FirebaseApp.initializeApp(this)
+    }
+}

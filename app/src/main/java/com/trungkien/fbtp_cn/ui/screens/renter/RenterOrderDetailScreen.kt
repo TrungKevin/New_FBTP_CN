@@ -102,7 +102,6 @@ fun RenterOrderDetailScreen(
                 .padding(
                     innerPadding
                 )
-                .verticalScroll(rememberScrollState())
         ) {
             // Hero images
             Box(
