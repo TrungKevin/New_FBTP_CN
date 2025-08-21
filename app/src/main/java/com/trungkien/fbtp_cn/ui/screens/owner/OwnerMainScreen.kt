@@ -25,7 +25,8 @@ import androidx.compose.ui.graphics.Color
 @Composable
 fun OwnerMainScreen(
     modifier: Modifier = Modifier,
-    navController: NavHostController = rememberNavController()
+    navController: NavHostController = rememberNavController(),
+    onLogoutToSplash: () -> Unit = {}
 ) {
     // State để quản lý tab đang được chọn
     var currentScreen by remember { mutableStateOf(OwnerNavScreen.Home) }
@@ -154,7 +155,8 @@ fun OwnerMainScreen(
                         navController.navigate("owner_stats") {
                             popUpTo("owner_profile") { inclusive = true }
                         }
-                    }
+                    },
+                    onLogoutClick = onLogoutToSplash
                 )
             }
             

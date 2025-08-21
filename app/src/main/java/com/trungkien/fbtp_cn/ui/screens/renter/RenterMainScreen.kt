@@ -21,7 +21,8 @@ import androidx.compose.ui.graphics.Color
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun RenterMainScreen(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onLogoutToSplash: () -> Unit = {}
 ) {
     var selectedScreen by remember { mutableStateOf(RenterNavScreen.Home) }
     // If not null, we're viewing order detail inside Search tab
@@ -109,7 +110,7 @@ fun RenterMainScreen(
                     RenterProfileScreen(
                         modifier = Modifier.fillMaxSize(),
                         onEditProfileClick = { /* TODO: Navigate to edit profile */ },
-                        onLogoutClick = { /* TODO: logout */ }
+                        onLogoutClick = onLogoutToSplash
                     )
                 }
             }

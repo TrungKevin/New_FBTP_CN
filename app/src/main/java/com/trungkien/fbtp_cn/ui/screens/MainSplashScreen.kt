@@ -52,19 +52,21 @@ fun MainSplashScreen(
     // Observe auth state
     val authState by authViewModel.authState.collectAsState()
     
-    // Handle auth state changes
-    LaunchedEffect(authState) {
-        when {
-            authState.isSuccess -> {
-                showRegisterSheet = false
-                Toast.makeText(context, "Đăng ký thành công!", Toast.LENGTH_SHORT).show()
-                // Không tự đăng nhập; chỉ mở Login sheet để người dùng thao tác tiếp
-                authViewModel.handleEvent(AuthEvent.ResetState)
-                showLoginSheet = true
-            }
-            authState.error != null -> {
-                Toast.makeText(context, authState.error ?: "Đăng ký thất bại", Toast.LENGTH_SHORT).show()
-                authViewModel.handleEvent(AuthEvent.ResetState)
+    // Handle REGISTER result only (không thông báo khi LOGIN)
+    LaunchedEffect(authState.isSuccess, authState.error, authState.op) {
+        if (authState.op == "REGISTER") {
+            when {
+                authState.isSuccess -> {
+                    showRegisterSheet = false
+                    // Không cần thông báo khi đăng nhập; chỉ báo khi đăng ký thành công? Theo yêu cầu: bỏ toast đăng ký
+                    // Mở màn Login để người dùng thao tác tiếp
+                    authViewModel.handleEvent(AuthEvent.ResetState)
+                    showLoginSheet = true
+                }
+                !authState.isLoading && authState.error != null -> {
+                    Toast.makeText(context, authState.error ?: "Đăng ký thất bại", Toast.LENGTH_SHORT).show()
+                    authViewModel.handleEvent(AuthEvent.ResetState)
+                }
             }
         }
     }

@@ -42,12 +42,14 @@ class MainActivity : ComponentActivity() {
                         }
                         "owner" -> {
                             OwnerMainScreen(
-                                modifier = Modifier.fillMaxSize()
+                                modifier = Modifier.fillMaxSize(),
+                                onLogoutToSplash = { currentScreen = "splash" }
                             )
                         }
                         "renter" -> {
                             RenterMainScreen(
-                                modifier = Modifier.fillMaxSize()
+                                modifier = Modifier.fillMaxSize(),
+                                onLogoutToSplash = { currentScreen = "splash" }
                             )
                         }
                     }

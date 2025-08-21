@@ -24,6 +24,7 @@ fun OwnerProfileScreen(
     onNavigateToFieldList: () -> Unit,
     onNavigateToBookingList: () -> Unit,
     onNavigateToStats: () -> Unit,
+    onLogoutClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -68,7 +69,7 @@ fun OwnerProfileScreen(
                     onAccountSettings = { /* TODO: Navigate to account settings */ },
                     onPrivacySettings = { /* TODO: Navigate to privacy settings */ },
                     onHelpSupport = { /* TODO: Navigate to help support */ },
-                    onLogout = { /* TODO: Handle logout */ }
+                    onLogout = onLogoutClick
                 )
             }
         }

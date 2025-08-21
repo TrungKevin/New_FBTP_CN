@@ -26,6 +26,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import com.trungkien.fbtp_cn.ui.theme.*
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
+import android.content.Context
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,10 +39,11 @@ fun LoginBottomSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val context = LocalContext.current
-    var username by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+    val prefs = context.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)
+    var username by remember { mutableStateOf(prefs.getString("email", "") ?: "") }
+    var password by remember { mutableStateOf(prefs.getString("password", "") ?: "") }
     var passwordVisible by remember { mutableStateOf(false) }
-    var rememberAccount by remember { mutableStateOf(true) }
+    var rememberAccount by remember { mutableStateOf(prefs.getBoolean("remember", true)) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -196,7 +198,18 @@ fun LoginBottomSheet(
                         username.isBlank() -> Toast.makeText(context, "Vui lòng nhập email", Toast.LENGTH_SHORT).show()
                         !emailOk -> Toast.makeText(context, "Email phải có định dạng hợp lệ @gmail.com", Toast.LENGTH_SHORT).show()
                         !passwordOk -> Toast.makeText(context, "Vui lòng nhập mật khẩu", Toast.LENGTH_SHORT).show()
-                        else -> onLogin(username, password)
+                        else -> {
+                            if (rememberAccount) {
+                                prefs.edit()
+                                    .putBoolean("remember", true)
+                                    .putString("email", username)
+                                    .putString("password", password)
+                                    .apply()
+                            } else {
+                                prefs.edit().clear().apply()
+                            }
+                            onLogin(username, password)
+                        }
                     }
                 },
                 modifier = Modifier
