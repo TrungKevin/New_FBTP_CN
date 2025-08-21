@@ -20,6 +20,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.trungkien.fbtp_cn.R
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.trungkien.fbtp_cn.viewmodel.AuthViewModel
+import androidx.compose.runtime.LaunchedEffect
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
@@ -29,6 +32,11 @@ fun RenterHomeScreen(
     onSearchClick: () -> Unit = {},
     onMapClick: () -> Unit = {}
 ) {
+    val authViewModel: AuthViewModel = viewModel()
+    val user = authViewModel.currentUser.collectAsState().value
+    LaunchedEffect(Unit) {
+        if (user == null) authViewModel.fetchProfile()
+    }
     val scrollState = rememberScrollState()
     
     Column(
@@ -39,7 +47,8 @@ fun RenterHomeScreen(
         // Header với search bar
         RenterHomeHeader(
             onSearchClick = onSearchClick,
-            onMapClick = onMapClick
+            onMapClick = onMapClick,
+            renterName = user?.name ?: ""
         )
         
         Spacer(modifier = Modifier.height(16.dp))

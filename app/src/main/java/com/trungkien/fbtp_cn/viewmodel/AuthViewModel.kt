@@ -3,6 +3,8 @@ package com.trungkien.fbtp_cn.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.trungkien.fbtp_cn.repository.AuthRepository
+import com.trungkien.fbtp_cn.repository.UserRepository
+import com.trungkien.fbtp_cn.model.User
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,11 +39,14 @@ sealed class AuthEvent {
 }
 
 class AuthViewModel(
-    private val authRepository: AuthRepository = AuthRepository()
+    private val authRepository: AuthRepository = AuthRepository(),
+    private val userRepository: UserRepository = UserRepository()
 ) : ViewModel() {
 
     private val _authState = MutableStateFlow(AuthState())
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
+    private val _currentUser = MutableStateFlow<User?>(null)
+    val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
 
     fun handleEvent(event: AuthEvent) {
         when (event) {
@@ -108,12 +113,20 @@ class AuthViewModel(
                 password = password,
                 onSuccess = { role ->
                     _authState.value = _authState.value.copy(isLoading = false, isSuccess = true, role = role)
+                    fetchProfile()
                 },
                 onError = { e ->
                     _authState.value = _authState.value.copy(isLoading = false, error = e.message ?: "Đăng nhập thất bại")
                 }
             )
         }
+    }
+
+    fun fetchProfile() {
+        userRepository.getCurrentUserProfile(
+            onSuccess = { user -> _currentUser.value = user },
+            onError = { }
+        )
     }
 
     private fun resetPassword(email: String) {

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
@@ -17,6 +18,9 @@ import com.trungkien.fbtp_cn.ui.components.owner.profile.ProfileHeader
 import com.trungkien.fbtp_cn.ui.components.owner.profile.ProfileStats
 import com.trungkien.fbtp_cn.ui.components.owner.profile.ProfileMenuSection
 import com.trungkien.fbtp_cn.ui.components.owner.profile.ProfileSettingsSection
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.trungkien.fbtp_cn.viewmodel.AuthViewModel
+import androidx.compose.runtime.LaunchedEffect
 
 @Composable
 fun OwnerProfileScreen(
@@ -27,6 +31,11 @@ fun OwnerProfileScreen(
     onLogoutClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val authViewModel: AuthViewModel = viewModel()
+    val user = authViewModel.currentUser.collectAsState().value
+    LaunchedEffect(Unit) {
+        if (user == null) authViewModel.fetchProfile()
+    }
     Scaffold(
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
@@ -39,9 +48,9 @@ fun OwnerProfileScreen(
         ) {
             item {
                 ProfileHeader(
-                    ownerName = "Kien",
-                    ownerEmail = "kien@example.com",
-                    ownerPhone = "0926666357",
+                    ownerName = user?.name ?: "",
+                    ownerEmail = user?.email ?: "",
+                    ownerPhone = user?.phone ?: "",
                     onEditProfile = onEditProfileClick
                 )
             }

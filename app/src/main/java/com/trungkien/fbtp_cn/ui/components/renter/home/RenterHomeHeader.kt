@@ -25,7 +25,8 @@ import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 fun RenterHomeHeader(
     onSearchClick: () -> Unit = {},
     onMapClick: () -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    renterName: String = ""
 ) {
     Column(
         modifier = modifier
@@ -53,7 +54,7 @@ fun RenterHomeHeader(
         }
         
         Text(
-            text = "Nguyễn Văn A",
+            text = if (renterName.isNotBlank()) renterName else "",
             style = MaterialTheme.typography.headlineSmall.copy(
                 fontWeight = FontWeight.Bold,
                 fontSize = 24.sp

@@ -16,6 +16,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,6 +40,9 @@ import com.trungkien.fbtp_cn.ui.components.owner.home.HomeSummary
 import com.trungkien.fbtp_cn.ui.components.owner.home.HomeSummaryCard
 import com.trungkien.fbtp_cn.ui.components.owner.home.HomeUpcomingBookings
 import kotlinx.coroutines.launch
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.trungkien.fbtp_cn.viewmodel.AuthViewModel
+import androidx.compose.runtime.LaunchedEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,6 +50,11 @@ fun OwnerHomeScreen(
     onNavigateToFieldDetail: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val authViewModel: AuthViewModel = viewModel()
+    val user = authViewModel.currentUser.collectAsState().value
+    LaunchedEffect(Unit) {
+        if (user == null) authViewModel.fetchProfile()
+    }
     val fields = remember { mockFields() }
     val bookings = remember { mockBookings() }
     val summary by remember { mutableStateOf(HomeSummary(2, 5, 1, 1250000)) }
@@ -74,7 +83,7 @@ fun OwnerHomeScreen(
     ) {
         item {// màn hình đầu tiên hiển thị tiêu đề, avatar và nút lịch
             HomeHeader(
-                ownerName = "Kien",
+                ownerName = user?.name ?: "",
                 onCalendarClick = {
                     coroutineScope.launch { setShowSheet(true) }
                 }
