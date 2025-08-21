@@ -12,13 +12,7 @@ import androidx.navigation.compose.rememberNavController
 import com.trungkien.fbtp_cn.ui.components.owner.OwnerBottomNavBar
 import com.trungkien.fbtp_cn.ui.components.owner.OwnerTopAppBar
 import com.trungkien.fbtp_cn.ui.components.owner.OwnerNavScreen
-import com.trungkien.fbtp_cn.ui.screens.owner.OwnerHomeScreen
-import com.trungkien.fbtp_cn.ui.screens.owner.OwnerFieldManagementScreen
-import com.trungkien.fbtp_cn.ui.screens.owner.OwnerBookingListScreen
-import com.trungkien.fbtp_cn.ui.screens.owner.OwnerStatisticsScreen
-import com.trungkien.fbtp_cn.ui.screens.owner.OwnerProfileScreen
-import com.trungkien.fbtp_cn.ui.screens.owner.EditProfileScreen
-import com.trungkien.fbtp_cn.ui.screens.owner.OwnerFieldDetailScreen
+import com.trungkien.fbtp_cn.ui.screens.EditProfileScreen
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 import androidx.compose.ui.graphics.Color
 
@@ -136,6 +130,8 @@ fun OwnerMainScreen(
             composable("owner_profile") {
                 OwnerProfileScreen(
                     onEditProfileClick = {
+                        showTopAppBar = false
+                        showBottomNavBar = false
                         navController.navigate("owner_edit_profile")
                     },
                     onNavigateToFieldList = {
@@ -164,6 +160,8 @@ fun OwnerMainScreen(
             composable("owner_edit_profile") {
                 EditProfileScreen(
                     onBackClick = {
+                        showTopAppBar = true
+                        showBottomNavBar = true
                         navController.navigateUp()
                     }
                 )

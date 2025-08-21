@@ -5,17 +5,13 @@ import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import com.trungkien.fbtp_cn.ui.components.renter.RenterNavScreen
 import com.trungkien.fbtp_cn.ui.components.renter.RenterBottomNavBar
 import com.trungkien.fbtp_cn.ui.components.renter.RenterTopAppBar
-import com.trungkien.fbtp_cn.ui.screens.renter.RenterHomeScreen
-import com.trungkien.fbtp_cn.ui.screens.renter.RenterOrderDetailScreen
+import com.trungkien.fbtp_cn.ui.screens.EditProfileScreen
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.Color
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -27,13 +23,14 @@ fun RenterMainScreen(
     var selectedScreen by remember { mutableStateOf(RenterNavScreen.Home) }
     // If not null, we're viewing order detail inside Search tab
     var activeOrderDetailFieldId by remember { mutableStateOf<String?>(null) }
+    var isEditingProfile by remember { mutableStateOf(false) }
     
     Scaffold(
         modifier = modifier,
         containerColor = Color.White,
         topBar = {
             // Ẩn TopAppBar khi đang hiển thị RenterOrderDetailScreen trong tab Search
-            val shouldShowTop = !(selectedScreen == RenterNavScreen.Search && activeOrderDetailFieldId != null)
+            val shouldShowTop = !(selectedScreen == RenterNavScreen.Search && activeOrderDetailFieldId != null) && !isEditingProfile
             if (shouldShowTop) {
                 RenterTopAppBar(
                     onMenuClick = { /* TODO open drawer or menu */ },
@@ -42,12 +39,14 @@ fun RenterMainScreen(
             }
         },
         bottomBar = {
-            RenterBottomNavBar(
-                currentScreen = selectedScreen,
-                onTabSelected = { screen ->
-                    selectedScreen = screen
-                }
-            )
+            if (!isEditingProfile) {
+                RenterBottomNavBar(
+                    currentScreen = selectedScreen,
+                    onTabSelected = { screen ->
+                        selectedScreen = screen
+                    }
+                )
+            }
         }
     ) { paddingValues ->
         Box(
@@ -55,7 +54,9 @@ fun RenterMainScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            when (selectedScreen) {
+            if (isEditingProfile) {
+                EditProfileScreen(onBackClick = { isEditingProfile = false })
+            } else when (selectedScreen) {
                 RenterNavScreen.Home -> {
                     RenterHomeScreen(
                         onFieldClick = { fieldId ->
@@ -109,7 +110,7 @@ fun RenterMainScreen(
                 RenterNavScreen.Profile -> {
                     RenterProfileScreen(
                         modifier = Modifier.fillMaxSize(),
-                        onEditProfileClick = { /* TODO: Navigate to edit profile */ },
+                        onEditProfileClick = { isEditingProfile = true },
                         onLogoutClick = onLogoutToSplash
                     )
                 }

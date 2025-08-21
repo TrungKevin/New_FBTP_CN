@@ -129,6 +129,33 @@ class AuthViewModel(
         )
     }
 
+    fun updateProfile(
+        name: String? = null,
+        email: String? = null,
+        phone: String? = null,
+        address: String? = null,
+        avatarUrl: String? = null,
+        onDone: (Boolean, String?) -> Unit
+    ) {
+        _authState.value = _authState.value.copy(isLoading = true, error = null)
+        userRepository.updateCurrentUserProfile(
+            name = name,
+            email = email,
+            phone = phone,
+            address = address,
+            avatarUrl = avatarUrl,
+            onSuccess = { user ->
+                _currentUser.value = user
+                _authState.value = _authState.value.copy(isLoading = false, isSuccess = true)
+                onDone(true, null)
+            },
+            onError = { e ->
+                _authState.value = _authState.value.copy(isLoading = false, error = e.message)
+                onDone(false, e.message)
+            }
+        )
+    }
+
     private fun resetPassword(email: String) {
         viewModelScope.launch {
             _authState.value = _authState.value.copy(isLoading = true, error = null, isSuccess = false)
