@@ -89,7 +89,16 @@ fun MainSplashScreen(
                 authViewModel.handleEvent(AuthEvent.Login(email = email, password = password))
             },
             onGoogleLogin = {},
-            onForgotPassword = {},
+            onForgotPassword = {
+                // Lấy lại email đang nhập từ SharedPreferences
+                val email = context.getSharedPreferences("auth_prefs", android.content.Context.MODE_PRIVATE)
+                    .getString("email", "") ?: ""
+                if (email.matches(Regex("^[A-Za-z0-9._%+-]+@gmail\\.com$"))) {
+                    authViewModel.handleEvent(AuthEvent.ForgotPassword(email))
+                } else {
+                    Toast.makeText(context, "Hãy nhập email hợp lệ trước", Toast.LENGTH_SHORT).show()
+                }
+            },
             onSwitchToRegister = {
                 showLoginSheet = false
                 showRegisterSheet = true
@@ -135,8 +144,15 @@ fun MainSplashScreen(
             if (role == "OWNER") onNavigateToOwner() else onNavigateToRenter()
             authViewModel.handleEvent(AuthEvent.ResetState)
         }
+        if (authState.isSuccess && authState.op == "FORGOT") {
+            Toast.makeText(context, "Đã gửi email khôi phục mật khẩu", Toast.LENGTH_SHORT).show()
+            authViewModel.handleEvent(AuthEvent.ResetState)
+        }
         if (!authState.isLoading && authState.error != null && authState.op == "LOGIN") {
             Toast.makeText(context, authState.error ?: "Đăng nhập thất bại", Toast.LENGTH_SHORT).show()
+        }
+        if (!authState.isLoading && authState.error != null && authState.op == "FORGOT") {
+            Toast.makeText(context, authState.error ?: "Gửi email khôi phục thất bại", Toast.LENGTH_SHORT).show()
         }
     }
 }

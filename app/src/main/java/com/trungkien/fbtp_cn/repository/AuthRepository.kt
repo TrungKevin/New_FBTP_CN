@@ -90,6 +90,19 @@ class AuthRepository(
             }
             .addOnFailureListener { e -> onError(e) }
     }
+
+    /**
+     * Sends password reset email to the given address.
+     */
+    fun sendPasswordReset(
+        email: String,
+        onSuccess: () -> Unit,
+        onError: (Throwable) -> Unit
+    ) {
+        firebaseAuth.sendPasswordResetEmail(email)
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { e -> onError(e) }
+    }
 }
 
 

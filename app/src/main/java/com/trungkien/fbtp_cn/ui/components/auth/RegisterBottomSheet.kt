@@ -27,7 +27,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import com.trungkien.fbtp_cn.ui.theme.*
 import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import com.trungkien.fbtp_cn.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,16 +68,16 @@ fun RegisterBottomSheet(
                 .padding(24.dp)
         ) {
             // Header
-            Row(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 24.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(bottom = 24.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clickable { onSwitchToLogin() }
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .clickable { onSwitchToLogin() }
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -85,7 +88,13 @@ fun RegisterBottomSheet(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(text = "Quay", color = OnSecondary, fontSize = 16.sp)
                 }
-
+                Image(
+                    painter = painterResource(id = R.drawable.title),
+                    contentDescription = "Title",
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .height(40.dp)
+                )
             }
 
             // Username

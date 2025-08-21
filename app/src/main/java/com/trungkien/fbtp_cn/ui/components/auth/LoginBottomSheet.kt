@@ -27,6 +27,9 @@ import com.trungkien.fbtp_cn.ui.theme.*
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import android.content.Context
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import com.trungkien.fbtp_cn.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,16 +82,11 @@ fun LoginBottomSheet(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(text = "Quay", color = OnSecondary, fontSize = 16.sp)
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    repeat(2) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = null,
-                            tint = GreenPrimary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
+                Image(
+                    painter = painterResource(id = R.drawable.title),
+                    contentDescription = "Title",
+                    modifier = Modifier.height(40.dp)
+                )
                 Text(
                     text = "Đăng ký",
                     color = OnSecondary,
@@ -185,7 +183,18 @@ fun LoginBottomSheet(
                     text = "Quên mật khẩu?",
                     color = OnSecondary,
                     fontSize = 14.sp,
-                    modifier = Modifier.clickable { onForgotPassword() }
+                    modifier = Modifier.clickable {
+                        if (username.matches(Regex("^[A-Za-z0-9._%+-]+@gmail\\.com$"))) {
+                            // Dùng callback để tầng trên gửi email reset
+                            Toast.makeText(context, "Đang gửi email khôi phục...", Toast.LENGTH_SHORT).show()
+                            // Tạm dùng onLogin callback đặc thù? Không, ta không có callback email riêng ở đây.
+                            // Gọi broadcast qua LocalContext? Thay vào đó, đơn giản ta mở intent email reset bằng AuthEvent từ trên.
+                            // Để không đổi API, ta phát một local broadcast bằng Compose không tiện; nên hiển thị toast hướng dẫn.
+                        } else {
+                            Toast.makeText(context, "Nhập email hợp lệ để khôi phục", Toast.LENGTH_SHORT).show()
+                        }
+                        onForgotPassword()
+                    }
                 )
             }
 

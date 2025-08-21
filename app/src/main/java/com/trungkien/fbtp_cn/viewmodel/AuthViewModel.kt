@@ -29,6 +29,9 @@ sealed class AuthEvent {
         val email: String,
         val password: String
     ) : AuthEvent()
+    data class ForgotPassword(
+        val email: String
+    ) : AuthEvent()
     
     object ResetState : AuthEvent()
 }
@@ -49,6 +52,10 @@ class AuthViewModel(
             is AuthEvent.Login -> {
                 _authState.value = _authState.value.copy(op = "LOGIN")
                 login(event.email, event.password)
+            }
+            is AuthEvent.ForgotPassword -> {
+                _authState.value = _authState.value.copy(op = "FORGOT")
+                resetPassword(event.email)
             }
             is AuthEvent.ResetState -> {
                 _authState.value = AuthState()
@@ -104,6 +111,21 @@ class AuthViewModel(
                 },
                 onError = { e ->
                     _authState.value = _authState.value.copy(isLoading = false, error = e.message ?: "Đăng nhập thất bại")
+                }
+            )
+        }
+    }
+
+    private fun resetPassword(email: String) {
+        viewModelScope.launch {
+            _authState.value = _authState.value.copy(isLoading = true, error = null, isSuccess = false)
+            authRepository.sendPasswordReset(
+                email = email,
+                onSuccess = {
+                    _authState.value = _authState.value.copy(isLoading = false, isSuccess = true)
+                },
+                onError = { e ->
+                    _authState.value = _authState.value.copy(isLoading = false, error = e.message ?: "Gửi email khôi phục thất bại")
                 }
             )
         }
