@@ -1,22 +1,12 @@
 package com.trungkien.fbtp_cn.ui.components.owner.info
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,6 +15,7 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -35,93 +26,172 @@ import com.trungkien.fbtp_cn.model.GeoLocation
 
 @Composable
 fun DetailInfoCourt(field: Field, modifier: Modifier = Modifier) {
-    Column(modifier = modifier.padding(18.dp)) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)
+    ) {
         // Thông tin cơ bản
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(18.dp), // Hình tròn góc
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),// Màu nền của Card
-            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp) // Độ cao của Card
+        InfoCard(
+            title = "Thông tin cơ bản",
+            icon = Icons.Default.Info
         ) {
-            Column(Modifier.padding(22.dp)) {// Padding bên trong Card
-                Text(
-                    text = "Thông tin cơ bản",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
+            InfoRowItem(
+                icon = Icons.Default.SportsSoccer,
+                label = "Loại sân",
+                value = field.sports.joinToString(", ").uppercase(),
+                valueColor = MaterialTheme.colorScheme.primary
+            )
+            InfoRowItem(
+                icon = Icons.Default.Star,
+                label = "Điểm đánh giá",
+                value = "${String.format("%.1f", field.averageRating)}/5.0 (${field.totalReviews} đánh giá)",
+                valueColor = Color(0xFFFFB800)
+            )
+            InfoRowItem(
+                icon = Icons.Default.Schedule,
+                label = "Thời gian slot",
+                value = "${field.slotMinutes} phút"
+            )
+            if (field.description.isNotEmpty()) {
                 InfoRowItem(
-                    painter = painterResource(id = R.drawable.stadium),
-                    label = "Loại sân",
-                    value = field.sports.joinToString(", ")
-                )
-                InfoRowItem(
-                    label = "Điểm đánh giá",
-                    value = "${field.averageRating}/5.0 (${field.totalReviews} đánh giá)",
-                    valueColor = MaterialTheme.colorScheme.primary,
-                    isPrice = false
+                    icon = Icons.Default.Description,
+                    label = "Mô tả",
+                    value = field.description
                 )
             }
         }
-        Spacer(modifier = Modifier.height(18.dp))
+        
+        Spacer(modifier = Modifier.height(16.dp))
 
         // Thông tin liên hệ
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+        InfoCard(
+            title = "Thông tin liên hệ",
+            icon = Icons.Default.ContactPhone
         ) {
-            Column(Modifier.padding(22.dp)) {
-                Text(
-                    text = "Thông tin liên hệ",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(bottom = 16.dp)
+            if (field.address.isNotEmpty()) {
+                InfoRowItem(
+                    icon = Icons.Default.LocationOn,
+                    label = "Địa chỉ",
+                    value = field.address
                 )
-                if (field.address.isNotEmpty()) {
+            }
+            if (field.openHours.start.isNotEmpty() && field.openHours.end.isNotEmpty()) {
+                InfoRowItem(
+                    icon = Icons.Default.AccessTime,
+                    label = "Giờ hoạt động",
+                    value = "${field.openHours.start} - ${field.openHours.end}"
+                )
+            }
+            if (field.contactPhone.isNotEmpty()) {
+                InfoRowItem(
+                    icon = Icons.Default.Phone,
+                    label = "Số điện thoại",
+                    value = field.contactPhone,
+                    valueColor = MaterialTheme.colorScheme.primary
+                )
+            }
+            if (field.geo.lat != 0.0 && field.geo.lng != 0.0) {
+                InfoRowItem(
+                    icon = Icons.Default.MyLocation,
+                    label = "Tọa độ",
+                    value = "${String.format("%.4f", field.geo.lat)}, ${String.format("%.4f", field.geo.lng)}"
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Tiện ích và dịch vụ
+        if (field.amenities.isNotEmpty()) {
+            InfoCard(
+                title = "Tiện ích & Dịch vụ",
+                icon = Icons.Default.LocalOffer
+            ) {
+                field.amenities.forEach { amenity ->
                     InfoRowItem(
-                        icon = Icons.Default.LocationOn,
-                        label = "Địa chỉ",
-                        value = field.address
-                    )
-                }
-                if (field.openHours.start.isNotEmpty() && field.openHours.end.isNotEmpty()) {
-                    InfoRowItem(
-                        painter = painterResource(id = R.drawable.schedule),
-                        label = "Giờ hoạt động",
-                        value = "${field.openHours.start} - ${field.openHours.end}"
-                    )
-                }
-                if (field.contactPhone.isNotEmpty()) {
-                    InfoRowItem(
-                        icon = Icons.Default.Phone,
-                        label = "Số điện thoại",
-                        value = field.contactPhone
-                    )
-                }
-                if (field.geo.lat != 0.0 && field.geo.lng != 0.0) {
-                    InfoRowItem(
-                        icon = Icons.Default.LocationOn,
-                        label = "Vị trí",
-                        value = "${String.format("%.4f", field.geo.lat)}, ${String.format("%.4f", field.geo.lng)}"
+                        icon = getAmenityIcon(amenity),
+                        label = "Tiện ích",
+                        value = getAmenityDisplayName(amenity),
+                        valueColor = MaterialTheme.colorScheme.secondary
                     )
                 }
             }
+            Spacer(modifier = Modifier.height(16.dp))
         }
-        Spacer(modifier = Modifier.height(28.dp))
+
+        // Trạng thái hoạt động
+        InfoCard(
+            title = "Trạng thái",
+            icon = Icons.Default.Circle
+        ) {
+            InfoRowItem(
+                icon = if (field.isActive) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                label = "Trạng thái hoạt động",
+                value = if (field.isActive) "Đang hoạt động" else "Tạm ngưng",
+                valueColor = if (field.isActive) Color(0xFF4CAF50) else Color(0xFFF44336)
+            )
+            
+            if (field.isActive) {
+                InfoRowItem(
+                    icon = Icons.Default.Visibility,
+                    label = "Hiển thị công khai",
+                    value = "Có",
+                    valueColor = Color(0xFF4CAF50)
+                )
+            }
+        }
     }
 }
 
 @Composable
-fun InfoRowItem(// Hàm để hiển thị một dòng thông tin
-    icon: ImageVector? = null, // Biểu tượng để hiển thị, nếu có
-    painter: Painter? = null,// Biểu tượng hoặc hình ảnh để hiển thị
+private fun InfoCard(
+    title: String,
+    icon: ImageVector,
+    content: @Composable () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(bottom = 16.dp)
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            content()
+        }
+    }
+}
+
+@Composable
+fun InfoRowItem(
+    icon: ImageVector? = null,
+    painter: Painter? = null,
     label: String,
     value: String,
-    valueColor: Color = MaterialTheme.colorScheme.onSurface, // Màu sắc của giá trị
+    valueColor: Color = MaterialTheme.colorScheme.onSurface,
     isPrice: Boolean = false
 ) {
     Row(
@@ -148,11 +218,17 @@ fun InfoRowItem(// Hàm để hiển thị một dòng thông tin
                 )
             }
             else -> {
-                Text(text = "💰", fontSize = 16.sp, modifier = Modifier.size(20.dp))
+                Text(
+                    text = "💰",
+                    fontSize = 16.sp,
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
         Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodySmall,
@@ -164,28 +240,65 @@ fun InfoRowItem(// Hàm để hiển thị một dòng thông tin
                 style = MaterialTheme.typography.bodyLarge,
                 color = valueColor,
                 fontWeight = if (isPrice) FontWeight.Bold else FontWeight.Normal,
-                modifier = Modifier.padding(top = 2.dp)
+                modifier = Modifier.padding(top = 2.dp),
+                textAlign = TextAlign.Start
             )
         }
+    }
+}
+
+private fun getAmenityIcon(amenity: String): ImageVector {
+    return when (amenity.uppercase()) {
+        "PARKING" -> Icons.Default.LocalParking
+        "SHOWER" -> Icons.Default.Shower
+        "EQUIPMENT" -> Icons.Default.Sports
+        "WIFI" -> Icons.Default.Wifi
+        "AC" -> Icons.Default.AcUnit
+        "FOOD" -> Icons.Default.Restaurant
+        "DRINKS" -> Icons.Default.LocalCafe
+        "LOCKER" -> Icons.Default.Lock
+        else -> Icons.Default.Star
+    }
+}
+
+private fun getAmenityDisplayName(amenity: String): String {
+    return when (amenity.uppercase()) {
+        "PARKING" -> "Bãi đỗ xe"
+        "SHOWER" -> "Phòng tắm"
+        "EQUIPMENT" -> "Thiết bị thể thao"
+        "WIFI" -> "WiFi miễn phí"
+        "AC" -> "Điều hòa"
+        "FOOD" -> "Dịch vụ ăn uống"
+        "DRINKS" -> "Nước giải khát"
+        "LOCKER" -> "Tủ khóa"
+        else -> amenity
     }
 }
 
 @Preview
 @Composable
 fun DetailInfoCourtPreview() {
-    DetailInfoCourt(
-        field = Field(
-            fieldId = "1",
-            name = "Sân bóng đá ABC",
-            sports = listOf("FOOTBALL"),
-            address = "123 Đường ABC, Quận 1, TP.HCM",
-            openHours = OpenHours(start = "08:00", end = "22:00"),
-            contactPhone = "0123456789",
-            geo = GeoLocation(lat = 10.7829, lng = 106.6992),
-            averageRating = 4.5f,
-            totalReviews = 128
+    MaterialTheme {
+        DetailInfoCourt(
+            field = Field(
+                fieldId = "1",
+                ownerId = "owner123",
+                name = "Sân bóng đá ABC",
+                address = "123 Đường ABC, Quận 1, TP.HCM",
+                geo = GeoLocation(lat = 10.7829, lng = 106.6992),
+                sports = listOf("FOOTBALL", "BADMINTON"),
+                images = com.trungkien.fbtp_cn.model.FieldImages(),
+                slotMinutes = 30,
+                openHours = OpenHours(start = "08:00", end = "22:00", isOpen24h = false),
+                amenities = listOf("PARKING", "SHOWER", "EQUIPMENT", "WIFI"),
+                description = "Sân bóng đá mini chất lượng cao với đầy đủ tiện ích hiện đại, phù hợp cho các trận đấu giao hữu và tập luyện.",
+                contactPhone = "0123456789",
+                averageRating = 4.5f,
+                totalReviews = 128,
+                isActive = true
+            )
         )
-    )
+    }
 }
 
 

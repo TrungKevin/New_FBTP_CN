@@ -21,7 +21,7 @@ import com.trungkien.fbtp_cn.model.FieldImages
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 
 @Composable
-fun HomeMyFieldsSection(
+    fun HomeMyFieldsSection(
     fields: List<Field>,
     onFieldClick: (Field) -> Unit,
     modifier: Modifier = Modifier

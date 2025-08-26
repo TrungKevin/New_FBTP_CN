@@ -111,37 +111,13 @@ fun OwnerMainScreen(
                         showTopAppBar = false
                         showBottomNavBar = false
                         navController.navigate("owner_add_field")
-                    }
+                    },
+                    fieldViewModel = fieldViewModel // TRUYỀN VIEWMODEL ĐỂ CHIA SẺ DỮ LIỆU
                 )
             }
             
-            // Màn hình quản lý sân - SỬ DỤNG CÙNG FIELDVIEWMODEL VỚI OWNERHOMESCREEN
+            // Màn hình quản lý sân - TỰ ĐỘNG LOAD DỮ LIỆU TỪ FIREBASE
             composable("owner_field_list") {
-                // Sử dụng shared FieldViewModel để lấy dữ liệu fields từ Firebase
-                val uiState by fieldViewModel.uiState.collectAsState()
-                val fields = uiState.fields // Lấy fields từ Firebase
-                
-                // Lấy AuthViewModel trong composable context
-                val authViewModel: com.trungkien.fbtp_cn.viewmodel.AuthViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
-                val currentUser by authViewModel.currentUser.collectAsState()
-                
-                // Load fields khi màn hình được navigate đến (nếu chưa có dữ liệu)
-                LaunchedEffect(currentUser?.userId, fields.isEmpty()) {
-                    val userId = currentUser?.userId
-                    if (userId != null && fields.isEmpty()) {
-                        println("DEBUG: Loading fields for ownerId: $userId in OwnerMainScreen (fields was empty)")
-                        fieldViewModel.handleEvent(com.trungkien.fbtp_cn.viewmodel.FieldEvent.LoadFieldsByOwner(userId))
-                    }
-                }
-                
-                // Debug logging
-                LaunchedEffect(fields) {
-                    println("DEBUG: OwnerMainScreen - fields count: ${fields.size}")
-                    if (fields.isNotEmpty()) {
-                        println("DEBUG: OwnerMainScreen - first field: ${fields.first().name}")
-                    }
-                }
-                
                 OwnerFieldManagementScreen(
                     onFieldClick = { fieldId ->
                         showTopAppBar = false
@@ -153,7 +129,6 @@ fun OwnerMainScreen(
                         showBottomNavBar = false
                         navController.navigate("owner_add_field")
                     },
-                    fields = fields, // TRUYỀN DỮ LIỆU FIELDS TỪ FIREBASE
                     fieldViewModel = fieldViewModel // TRUYỀN VIEWMODEL ĐỂ LOAD DỮ LIỆU
                 )
             }

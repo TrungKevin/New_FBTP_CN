@@ -279,14 +279,14 @@ fun FieldCard(
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Enhanced badges
+                        // Enhanced badges - Hiển thị thông tin cart thực tế từ Firebase
                         Surface(
                             shape = RoundedCornerShape(20.dp),
                             color = GreenAccent,
                             shadowElevation = CommonShadows.Badge
                         ) {
                             Text(
-                                text = "Đơn ngày",
+                                text = if (field.isActive) "Đang hoạt động" else "Tạm ngưng",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
@@ -300,7 +300,7 @@ fun FieldCard(
                             shadowElevation = CommonShadows.Badge
                         ) {
                             Text(
-                                text = "Sự kiện",
+                                text = "${field.sports.size} loại sân",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
@@ -322,50 +322,69 @@ fun FieldCard(
                     modifier = Modifier.padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Header row with avatar and field name
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        // Enhanced owner avatar
-                        Surface(
-                            shape = CircleShape,
-                            shadowElevation = CommonShadows.Button,
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                            // Header row with avatar and field name
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Image(
-                                painter = painterResource(id = ownerAvatar),
-                                contentDescription = "Owner avatar",
-                                modifier = Modifier
-                                    .size(42.dp)
-                                    .padding(2.dp)
-                                    .clip(CircleShape),
-                                contentScale = ContentScale.Crop
-                            )
-                        }
+                            // Enhanced owner avatar
+                            Surface(
+                                shape = CircleShape,
+                                shadowElevation = CommonShadows.Button,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                            ) {
+                                Image(
+                                    painter = painterResource(id = ownerAvatar),
+                                    contentDescription = "Owner avatar",
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .padding(2.dp)
+                                        .clip(CircleShape),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
 
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(horizontal = 12.dp)
-                        ) {
-                            Text(
-                                text = field.name,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = field.sports.firstOrNull() ?: "N/A",
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(horizontal = 12.dp)
+                            ) {
+                                Text(
+                                    text = field.name,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = field.sports.firstOrNull() ?: "N/A",
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    
+                                    // Status indicator
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (field.isActive) GreenAccent else RedAccent,
+                                        modifier = Modifier.size(8.dp)
+                                    ) {}
+                                    
+                                    Text(
+                                        text = if (field.isActive) "Hoạt động" else "Tạm ngưng",
+                                        fontSize = 11.sp,
+                                        color = if (field.isActive) GreenAccent else RedAccent,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
 
                         // Enhanced view details button
                         Button(
@@ -424,19 +443,54 @@ fun FieldCard(
                             )
                         }
 
-                        // Third row: Rating (full width for emphasis) - SỬ DỤNG DỮ LIỆU THỰC TỪ FIREBASE
+                        // Third row: Rating và thông tin cart - SỬ DỤNG DỮ LIỆU THỰC TỪ FIREBASE
                         InfoItemWithDrawable(
                             iconRes = R.drawable.star,
                             text = "${field.averageRating}/5.0 (${field.totalReviews} đánh giá)",
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.weight(1f)
+                        )
+                        
+                        // Thông tin cart bổ sung
+                        InfoItemWithDrawable(
+                            iconRes = R.drawable.schedule,
+                            text = "Slot: ${field.slotMinutes} phút",
+                            modifier = Modifier.weight(1f)
                         )
 
-                        // Fourth row: Address (full width for complete display)
-                        InfoItem(
-                            icon = Icons.Default.LocationOn,
-                            text = field.address,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        // Fourth row: Address và amenities (full width for complete display)
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            InfoItem(
+                                icon = Icons.Default.LocationOn,
+                                text = field.address,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            
+                            // Hiển thị amenities nếu có
+                            if (field.amenities.isNotEmpty()) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    field.amenities.take(3).forEach { amenity ->
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = MaterialTheme.colorScheme.secondaryContainer,
+                                            modifier = Modifier.padding(vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = amenity,
+                                                fontSize = 10.sp,
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     // Action button row

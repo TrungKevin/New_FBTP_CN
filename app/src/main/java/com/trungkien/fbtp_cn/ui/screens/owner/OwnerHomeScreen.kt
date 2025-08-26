@@ -55,12 +55,13 @@ import androidx.compose.runtime.LaunchedEffect
 fun OwnerHomeScreen(
     onNavigateToFieldDetail: (String) -> Unit,
     onNavigateToAddField: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    fieldViewModel: FieldViewModel? = null // NHẬN VIEWMODEL TỪ PARENT
 ) {
     val authViewModel: AuthViewModel = viewModel()
-    val fieldViewModel: FieldViewModel = viewModel()
+    val localFieldViewModel: FieldViewModel = fieldViewModel ?: viewModel() // SỬ DỤNG VIEWMODEL TỪ PARENT
     val user = authViewModel.currentUser.collectAsState().value
-    val uiState by fieldViewModel.uiState.collectAsState()
+    val uiState by localFieldViewModel.uiState.collectAsState()
     
     LaunchedEffect(Unit) {
         if (user == null) authViewModel.fetchProfile()
@@ -69,7 +70,7 @@ fun OwnerHomeScreen(
     // Load fields khi user có sẵn
     LaunchedEffect(user?.userId) {
         user?.userId?.let { ownerId ->
-            fieldViewModel.handleEvent(FieldEvent.LoadFieldsByOwner(ownerId))
+            localFieldViewModel.handleEvent(FieldEvent.LoadFieldsByOwner(ownerId))
         }
     }
     
@@ -78,7 +79,7 @@ fun OwnerHomeScreen(
         uiState.success?.let { success ->
             if (success.contains("Thêm sân thành công")) {
                 user?.userId?.let { ownerId ->
-                    fieldViewModel.handleEvent(FieldEvent.LoadFieldsByOwner(ownerId))
+                    localFieldViewModel.handleEvent(FieldEvent.LoadFieldsByOwner(ownerId))
                 }
             }
         }
@@ -86,6 +87,17 @@ fun OwnerHomeScreen(
     
     val fields = uiState.fields // Sử dụng dữ liệu thực từ Firebase
     val bookings = remember { mockBookings() }
+    
+    // Debug logging để kiểm tra việc load dữ liệu
+    LaunchedEffect(fields, uiState.isLoading, uiState.error) {
+        println("DEBUG: 🏠 OwnerHomeScreen - fields count: ${fields.size}")
+        println("DEBUG: 🏠 OwnerHomeScreen - isLoading: ${uiState.isLoading}")
+        println("DEBUG: 🏠 OwnerHomeScreen - error: ${uiState.error}")
+        println("DEBUG: 🏠 OwnerHomeScreen - fieldViewModel from parent: ${fieldViewModel != null}")
+        if (fields.isNotEmpty()) {
+            println("DEBUG: 🏠 OwnerHomeScreen - first field: ${fields.first().name}")
+        }
+    }
     
     // Tạo summary động dựa trên dữ liệu thực từ Firebase
     val summary by remember(fields) { 

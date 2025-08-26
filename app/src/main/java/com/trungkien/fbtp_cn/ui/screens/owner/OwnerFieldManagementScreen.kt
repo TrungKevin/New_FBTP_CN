@@ -8,12 +8,14 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
+import com.trungkien.fbtp_cn.ui.components.common.LoadingDialog
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trungkien.fbtp_cn.ui.components.owner.FieldCard
 import com.trungkien.fbtp_cn.model.Field
@@ -32,14 +34,12 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
     onAddFieldClick: () -> Unit, // Callback khi click vào nút thêm sân
     modifier: Modifier = Modifier, // Modifier truyền từ ngoài vào
     testMode: Boolean = false, // Test mode để hiển thị mock data
-    fields: List<Field> = emptyList(), // NHẬN DỮ LIỆU TỪ PARENT (giống như HomeMyFieldsSection)
     fieldViewModel: FieldViewModel? = null // NHẬN VIEWMODEL TỪ PARENT ĐỂ LOAD DỮ LIỆU
 ) {
-    // CÁCH HOẠT ĐỘNG GIỐNG NHƯ HomeMyFieldsSection:
-    // 1. NHẬN DỮ LIỆU TỪ PARENT thay vì tự load (giống như HomeMyFieldsSection)
-    // 2. Sử dụng FieldViewModel từ parent để load dữ liệu từ Firebase (backup)
-    // 3. Sử dụng AuthViewModel để lấy thông tin user hiện tại
-    // 4. Hiển thị danh sách sân bằng FieldCard (giống như HomeMyFieldsSection)
+    // CÁCH HOẠT ĐỘNG GIỐNG NHƯ OwnerHomeScreen:
+    // 1. Sử dụng FieldViewModel để load dữ liệu từ Firebase
+    // 2. LaunchedEffect để tự động load khi có user
+    // 3. Hiển thị danh sách sân bằng FieldCard
     
     // Sử dụng ViewModel từ parent nếu có, nếu không thì tạo mới
     val localFieldViewModel: FieldViewModel = fieldViewModel ?: viewModel()
@@ -47,43 +47,67 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
     val uiState by localFieldViewModel.uiState.collectAsState()
     val currentUser by authViewModel.currentUser.collectAsState()
     
-    // Sử dụng dữ liệu từ parent TRƯỚC, sau đó mới dùng Firebase (giống như HomeMyFieldsSection)
-    val displayFields = if (testMode) getMockFields() else (fields.ifEmpty { uiState.fields })
-    val isLoading = if (testMode) false else (fields.isEmpty() && uiState.isLoading)
-    val error = if (testMode) null else (if (fields.isEmpty()) uiState.error else null)
+    // Lấy dữ liệu từ Firebase giống như OwnerHomeScreen
+    val fields = if (testMode) getMockFields() else uiState.fields
+    val isLoading = if (testMode) false else uiState.isLoading
+    val error = if (testMode) null else uiState.error
     
-    // Load fields khi screen khởi tạo (chỉ khi không có dữ liệu từ parent)
-    LaunchedEffect(currentUser?.userId, fields.isEmpty()) {
-        if (fields.isEmpty() && currentUser?.userId != null) {
-            println("DEBUG: Loading fields for ownerId: ${currentUser?.userId} (no parent data)")
+    // Debug để kiểm tra ViewModel được sử dụng
+    LaunchedEffect(Unit) {
+        println("DEBUG: 🔍 OwnerFieldManagementScreen - fieldViewModel from parent: ${fieldViewModel != null}")
+        println("DEBUG: 🔍 OwnerFieldManagementScreen - localFieldViewModel: ${localFieldViewModel.hashCode()}")
+        println("DEBUG: 🔍 OwnerFieldManagementScreen - uiState.fields count: ${uiState.fields.size}")
+    }
+    
+    // LUÔN LUÔN LOAD DỮ LIỆU THỰC TỪ FIREBASE
+    LaunchedEffect(currentUser?.userId) {
+        if (currentUser?.userId != null) {
+            println("DEBUG: 🔥 LOADING FIELDS FROM FIREBASE for ownerId: ${currentUser?.userId}")
             localFieldViewModel.handleEvent(FieldEvent.LoadFieldsByOwner(currentUser?.userId!!))
+        } else {
+            println("DEBUG: ❌ No current user - cannot load fields")
         }
     }
     
-    // Auto-reload fields khi có sân mới được thêm (chỉ khi không có dữ liệu từ parent)
-    LaunchedEffect(uiState.success, fields.isEmpty()) {
-        if (fields.isEmpty() && uiState.success?.contains("Thêm sân thành công") == true) {
+    // Auto-reload fields khi có sân mới được thêm
+    LaunchedEffect(uiState.success) {
+        if (uiState.success?.contains("Thêm sân thành công") == true || 
+            uiState.success?.contains("Cập nhật sân thành công") == true ||
+            uiState.success?.contains("Xóa sân thành công") == true) {
             currentUser?.userId?.let { ownerId ->
-                println("DEBUG: Reloading fields after success for ownerId: $ownerId (no parent data)")
+                println("DEBUG: 🔄 Reloading fields after success for ownerId: $ownerId")
                 localFieldViewModel.handleEvent(FieldEvent.LoadFieldsByOwner(ownerId))
             }
         }
     }
     
-    // Debug logging
+
+    
+    // Debug logging chi tiết để theo dõi việc load dữ liệu từ Firebase
     LaunchedEffect(uiState, fields) {
-        println("DEBUG: UI State updated - isLoading: ${uiState.isLoading}, fields count: ${uiState.fields.size}, error: ${uiState.error}")
-        println("DEBUG: Parent fields count: ${fields.size}")
-        println("DEBUG: Display fields count: ${displayFields.size}")
+        println("=== 🔥 FIREBASE DIRECT LOADING DEBUG ===")
+        println("DEBUG: 🚀 Test mode: $testMode")
+        println("DEBUG: 👤 Current user: ${currentUser?.userId}")
+        println("DEBUG: 📊 UI State - isLoading: ${uiState.isLoading}, fields count: ${uiState.fields.size}")
+        println("DEBUG: 🎯 Display fields count: ${fields.size}")
+        
         if (uiState.error != null) {
-            println("DEBUG: Error details: ${uiState.error}")
+            println("DEBUG: ❌ Firebase Error: ${uiState.error}")
         }
+        
+        if (uiState.fields.isNotEmpty()) {
+            println("DEBUG: ✅ Firebase fields loaded: ${uiState.fields.map { "${it.name} (${it.fieldId})" }}")
+            println("DEBUG: 🎯 Using Firebase data for display")
+        } else {
+            println("DEBUG: ⚠️ No Firebase fields loaded yet")
+        }
+        
         if (fields.isNotEmpty()) {
-            println("DEBUG: Parent fields names: ${fields.map { it.name }}")
+            println("DEBUG: 🎉 Display fields ready: ${fields.map { "${it.name} (${it.fieldId})" }}")
+        } else {
+            println("DEBUG: 🔍 No display fields - waiting for Firebase data...")
         }
-        if (displayFields.isNotEmpty()) {
-            println("DEBUG: Display fields names: ${displayFields.map { it.name }}")
-        }
+        println("=== END DEBUG ===")
     }
     
     // Debug currentUser
@@ -107,11 +131,23 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
                     fontWeight = FontWeight.Bold
                 )
                 if (!isLoading && error == null) {
-                    Text(
-                        text = "${displayFields.size} sân",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Column {
+                        Text(
+                            text = "${fields.size} sân",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        // Thống kê nhanh về các sân
+                        if (fields.isNotEmpty()) {
+                            val activeFields = fields.count { it.isActive }
+                            val totalSports = fields.flatMap { it.sports }.distinct().size
+                            Text(
+                                text = "$activeFields đang hoạt động • $totalSports loại sân",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             }
             IconButton(onClick = { /* Tìm kiếm */ }) {
@@ -121,24 +157,7 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
 
         // Nội dung chính
         if (isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    CircularProgressIndicator()
-                    Text(
-                        text = "Đang tải danh sách sân...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+            LoadingDialog(message = "Đang tải danh sách sân...")
         } else if (error != null) {
             // Hiển thị error message
             Box(
@@ -173,7 +192,7 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
                     }
                 }
             }
-        } else if (displayFields.isEmpty()) { // Không có dữ liệu
+        } else if (fields.isEmpty()) { // Không có dữ liệu
             Box( // Hộp căn giữa
                 modifier = Modifier
                     .fillMaxSize() // Chiếm toàn bộ màn hình
@@ -199,37 +218,66 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Button(
-                        onClick = onAddFieldClick,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
+                    
+                    // Thông tin trạng thái Firebase
+                    if (uiState.isLoading) {
+                        LoadingDialog(message = "🔥 Đang tải dữ liệu từ Firebase...")
+                    }
+                    
+                    if (uiState.error != null) {
+                        Text(
+                            text = "❌ Lỗi Firebase: ${uiState.error}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
                         )
+                    }
+                    
+                    if (!uiState.isLoading && uiState.fields.isEmpty() && uiState.error == null) {
+                        Text(
+                            text = "ℹ️ Chưa có sân nào trong Firebase",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Thêm sân đầu tiên")
+                        Button(
+                            onClick = onAddFieldClick,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Thêm sân đầu tiên")
+                        }
+                        
+
                     }
                 }
             }
-        } else { // Có dữ liệu (giống như HomeMyFieldsSection)
+        } else { // Có dữ liệu - Hiển thị danh sách sân
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp) // Giống như HomeMyFieldsSection
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Hiển thị thông báo thành công
-                if (displayFields.isNotEmpty()) {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                        )
+                // Hiển thị thông báo thành công với thông tin cart chi tiết
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
                     ) {
                         Row(
-                            modifier = Modifier.padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
@@ -238,22 +286,57 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
                                 tint = MaterialTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "🔥 Dữ liệu từ Firebase",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Tìm thấy ${fields.size} sân",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                        
+                        // Thông tin cart bổ sung
+                        Spacer(modifier = Modifier.height(8.dp))
+                        val activeFields = fields.count { it.isActive }
+                        val totalSports = fields.flatMap { it.sports }.distinct()
+                        val avgRating = fields.map { it.averageRating }.average()
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
                             Text(
-                                text = "Tìm thấy ${displayFields.size} sân",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary
+                                text = "🟢 $activeFields hoạt động",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "⭐ ${String.format("%.1f", avgRating)}/5.0",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "🏟️ ${totalSports.size} loại",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
                 }
                 
-                // Hiển thị danh sách sân bằng LazyColumn (giống như HomeMyFieldsSection)
+                // Hiển thị danh sách sân bằng LazyColumn
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(vertical = 8.dp)
                 ) {
-                    items(displayFields) { field ->
+                    items(fields) { field ->
                         FieldCard(
                             field = field,
                             onClick = { clickedField -> onFieldClick(clickedField.fieldId) },
@@ -361,8 +444,7 @@ fun OwnerFieldManagerPreview() { // Hàm xem trước UI màn hình quản lý s
             onFieldClick = { /* Preview callback */ },
             onAddFieldClick = { /* Preview callback */ },
             modifier = Modifier.fillMaxSize(), // Chiếm toàn bộ diện tích
-            testMode = true, // Sử dụng test mode để hiển thị mock data
-            fields = getMockFields() // Truyền mock data để test UI
+            testMode = true // Sử dụng test mode để hiển thị mock data
         )
     }
 }
@@ -375,8 +457,7 @@ fun OwnerFieldManagerWithDataPreview() { // Preview với dữ liệu thực
             onFieldClick = { /* Preview callback */ },
             onAddFieldClick = { /* Preview callback */ },
             modifier = Modifier.fillMaxSize(),
-            testMode = false, // Không dùng test mode
-            fields = getMockFields() // Truyền mock data qua parameter fields
+            testMode = false // Không dùng test mode
         )
     }
 }
