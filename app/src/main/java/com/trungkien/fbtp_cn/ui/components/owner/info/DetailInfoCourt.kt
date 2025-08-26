@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trungkien.fbtp_cn.R
 import com.trungkien.fbtp_cn.model.Field
+import com.trungkien.fbtp_cn.model.OpenHours
+import com.trungkien.fbtp_cn.model.GeoLocation
 
 @Composable
 fun DetailInfoCourt(field: Field, modifier: Modifier = Modifier) {
@@ -52,13 +54,13 @@ fun DetailInfoCourt(field: Field, modifier: Modifier = Modifier) {
                 InfoRowItem(
                     painter = painterResource(id = R.drawable.stadium),
                     label = "Loại sân",
-                    value = field.type
+                    value = field.sports.joinToString(", ")
                 )
                 InfoRowItem(
-                    label = "Giá thuê",
-                    value = "${String.format("%,d", field.price)} VND/giờ",
+                    label = "Điểm đánh giá",
+                    value = "${field.averageRating}/5.0 (${field.totalReviews} đánh giá)",
                     valueColor = MaterialTheme.colorScheme.primary,
-                    isPrice = true
+                    isPrice = false
                 )
             }
         }
@@ -86,11 +88,11 @@ fun DetailInfoCourt(field: Field, modifier: Modifier = Modifier) {
                         value = field.address
                     )
                 }
-                if (field.operatingHours.isNotEmpty()) {
+                if (field.openHours.start.isNotEmpty() && field.openHours.end.isNotEmpty()) {
                     InfoRowItem(
                         painter = painterResource(id = R.drawable.schedule),
                         label = "Giờ hoạt động",
-                        value = field.operatingHours
+                        value = "${field.openHours.start} - ${field.openHours.end}"
                     )
                 }
                 if (field.contactPhone.isNotEmpty()) {
@@ -100,11 +102,11 @@ fun DetailInfoCourt(field: Field, modifier: Modifier = Modifier) {
                         value = field.contactPhone
                     )
                 }
-                if (field.distance.isNotEmpty()) {
+                if (field.geo.lat != 0.0 && field.geo.lng != 0.0) {
                     InfoRowItem(
                         icon = Icons.Default.LocationOn,
-                        label = "Khoảng cách",
-                        value = field.distance
+                        label = "Vị trí",
+                        value = "${String.format("%.4f", field.geo.lat)}, ${String.format("%.4f", field.geo.lng)}"
                     )
                 }
             }
@@ -173,17 +175,15 @@ fun InfoRowItem(// Hàm để hiển thị một dòng thông tin
 fun DetailInfoCourtPreview() {
     DetailInfoCourt(
         field = Field(
-            id = "1",
+            fieldId = "1",
             name = "Sân bóng đá ABC",
-            type = "Sân cỏ nhân tạo",
-            price = 200000,
+            sports = listOf("FOOTBALL"),
             address = "123 Đường ABC, Quận 1, TP.HCM",
-            operatingHours = "08:00 - 22:00",
+            openHours = OpenHours(start = "08:00", end = "22:00"),
             contactPhone = "0123456789",
-            imageUrl = TODO(),
-            status = TODO(),
-            isAvailable = TODO(),
-            distance = TODO()
+            geo = GeoLocation(lat = 10.7829, lng = 106.6992),
+            averageRating = 4.5f,
+            totalReviews = 128
         )
     )
 }

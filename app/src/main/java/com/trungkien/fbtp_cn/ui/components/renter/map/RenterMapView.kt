@@ -66,12 +66,12 @@ fun RenterMapView(
                     
                     // Add markers for fields
                     fields.forEach { field ->
-                        field.latitude?.let { lat ->
-                            field.longitude?.let { lng ->
+                        field.geo.lat.let { lat ->
+                            field.geo.lng.let { lng ->
                                 val marker = Marker(this).apply {
                                     position = GeoPoint(lat, lng)
                                     title = field.name
-                                    snippet = "${field.type} • ${field.price}₫/giờ"
+                                    snippet = "${field.sports.firstOrNull() ?: "Thể thao"} • ${field.averageRating}⭐"
                                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                                     
                                     // Handle marker click

@@ -143,7 +143,7 @@ fun RenterBookingCard(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = booking.fieldName,
+                            text = "Sân ${booking.fieldId}",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
@@ -153,7 +153,7 @@ fun RenterBookingCard(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = field?.type ?: booking.fieldType.ifBlank { "—" },
+                            text = "Tennis",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Medium
@@ -188,7 +188,7 @@ fun RenterBookingCard(
                 Spacer(modifier = Modifier.height(20.dp))
 
                 // Enhanced info pills with better visual hierarchy
-                val address = booking.fieldAddress.ifBlank { field?.address ?: "—" }
+                val address = field?.address ?: "—"
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -214,7 +214,7 @@ fun RenterBookingCard(
                     ) {
                         EnhancedInfoPill(
                             icon = R.drawable.event,
-                            text = booking.timeRange,
+                            text = "${booking.startAt} - ${booking.endAt}",
                             modifier = Modifier.weight(1f),
                             iconTint = Color(0xFFFF9800)
                         )
@@ -356,17 +356,37 @@ private fun RenterBookingCardPreview() {
         ) {
             RenterBookingCard(
                 booking = Booking(
-                    id = "b1", fieldId = "f1", fieldName = "Court 1 - Tennis Premium",
-                    timeRange = "18:00 - 19:00", status = "Confirmed",
-                    date = "2024-01-15", totalPrice = 250000
+                    bookingId = "b1",
+                    renterId = "user_001",
+                    ownerId = "owner_001",
+                    fieldId = "f1",
+                    date = "2024-01-15",
+                    startAt = "18:00",
+                    endAt = "19:00",
+                    slotsCount = 2,
+                    minutes = 60,
+                    basePrice = 250000,
+                    servicePrice = 0,
+                    totalPrice = 250000,
+                    status = "PAID"
                 ),
                 onDetailClick = {}
             )
             RenterBookingCard(
                 booking = Booking(
-                    id = "b2", fieldId = "f2", fieldName = "Sân bóng đá mini ABC",
-                    timeRange = "20:00 - 22:00", status = "Completed",
-                    date = "2024-01-10", totalPrice = 400000
+                    bookingId = "b2",
+                    renterId = "user_001",
+                    ownerId = "owner_002",
+                    fieldId = "f2",
+                    date = "2024-01-10",
+                    startAt = "20:00",
+                    endAt = "22:00",
+                    slotsCount = 2,
+                    minutes = 120,
+                    basePrice = 400000,
+                    servicePrice = 0,
+                    totalPrice = 400000,
+                    status = "DONE"
                 ),
                 onDetailClick = {}
             )

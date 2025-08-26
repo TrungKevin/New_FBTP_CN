@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trungkien.fbtp_cn.R
 import com.trungkien.fbtp_cn.model.Booking
-import com.trungkien.fbtp_cn.model.ServiceOrder
+import com.trungkien.fbtp_cn.model.ServiceLine
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,9 +71,9 @@ fun RenterBookingDetailSheet(
                 title = "🏟️ Thông tin sân",
                 titleColor = Color(0xFF059669)
             ) {
-                InfoRow(R.drawable.stadium, "Tên sân", booking.fieldName, valueColor = Color(0xFF1F2937))
-                InfoRow(R.drawable.map, "Địa chỉ", booking.fieldAddress.ifBlank { "—" }, valueColor = Color(0xFF6B7280))
-                InfoRow(R.drawable.bartchar, "Giá", "${booking.fieldPrice}₫/giờ", valueColor = Color(0xFFDC2626))
+                InfoRow(R.drawable.stadium, "Tên sân", "Sân ${booking.fieldId}", valueColor = Color(0xFF1F2937))
+                InfoRow(R.drawable.map, "Địa chỉ", "—", valueColor = Color(0xFF6B7280))
+                InfoRow(R.drawable.bartchar, "Giá", "${booking.basePrice}₫/giờ", valueColor = Color(0xFFDC2626))
                 InfoRow(R.drawable.star, "Đánh giá", "⭐4.5 (128 đánh giá)", valueColor = Color(0xFFF59E0B))
             }
 
@@ -83,7 +83,7 @@ fun RenterBookingDetailSheet(
                 titleColor = Color(0xFF7C3AED)
             ) {
                 InfoRow(R.drawable.event, "Ngày", booking.date, valueColor = Color(0xFF1F2937))
-                InfoRow(R.drawable.event, "Giờ", booking.timeRange, valueColor = Color(0xFF1F2937))
+                InfoRow(R.drawable.event, "Giờ", "${booking.startAt} - ${booking.endAt}", valueColor = Color(0xFF1F2937))
             }
 
             // Dịch vụ thêm với card style
@@ -91,17 +91,17 @@ fun RenterBookingDetailSheet(
                 title = "🛒 Dịch vụ thêm",
                 titleColor = Color(0xFFEA580C)
             ) {
-                if (booking.services.isEmpty()) {
+                if (booking.serviceLines.isEmpty()) {
                     Text(
                         "Không có dịch vụ thêm",
                         color = Color(0xFF9CA3AF),
                         style = MaterialTheme.typography.bodyMedium
                     )
                 } else {
-                    booking.services.forEach { service ->
+                    booking.serviceLines.forEach { service ->
                         InfoRow(
                             R.drawable.bookmark,
-                            service.serviceName,
+                            service.name,
                             "+${service.price}₫ x${service.quantity}",
                             valueColor = Color(0xFF059669)
                         )
@@ -252,29 +252,35 @@ private fun InfoRow(
 @Composable
 fun RenterBookingDetailSheetPreview() {
     val sampleBooking = Booking(
-        id = "booking_preview_001",
+        bookingId = "booking_preview_001",
+        renterId = "renter_preview_001",
+        ownerId = "owner_preview_001",
         fieldId = "field_preview_001",
-        fieldName = "Sân bóng ABC",
-        timeRange = "18:00 - 20:00",
-        status = "Confirmed",
-        fieldAddress = "123 Đường XYZ, Quận 1, TP.HCM",
-        fieldPrice = 200000,
         date = "2024-01-01",
-        totalPrice = 400000,
-        services = listOf(
-            ServiceOrder(
-                id = "order_1",
+        startAt = "18:00",
+        endAt = "20:00",
+        slotsCount = 2,
+        minutes = 120,
+        basePrice = 200000,
+        servicePrice = 60000,
+        totalPrice = 460000,
+        status = "PAID",
+        serviceLines = listOf(
+            ServiceLine(
                 serviceId = "svc_water",
-                serviceName = "Nước uống",
+                name = "Nước uống",
+                billingType = "PER_UNIT",
+                price = 10000,
                 quantity = 2,
-                price = 10000
+                lineTotal = 20000
             ),
-            ServiceOrder(
-                id = "order_2",
+            ServiceLine(
                 serviceId = "svc_ball",
-                serviceName = "Bóng đá",
+                name = "Bóng đá",
+                billingType = "FLAT_PER_BOOKING",
+                price = 50000,
                 quantity = 1,
-                price = 50000
+                lineTotal = 50000
             )
         )
     )

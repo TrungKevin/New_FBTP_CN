@@ -52,7 +52,7 @@ fun BookingListItem(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = booking.fieldName,
+                        text = "Sân ${booking.fieldId}",
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -67,7 +67,7 @@ fun BookingListItem(
                             modifier = Modifier.size(16.dp)
                         )
                         Text(
-                            text = booking.timeRange,
+                            text = "${booking.startAt} - ${booking.endAt}",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
                         )
@@ -95,11 +95,19 @@ fun BookingListItem(
 @Composable
 fun BookingListItemPreview() {
     val booking = Booking(
-        id = "1",
-        fieldName = "Sân bóng A",
-        timeRange = "18:00 - 19:00",
-        status = "Đã xác nhận",
-        fieldId = TODO()
+        bookingId = "1",
+        renterId = "user_001",
+        ownerId = "owner_001",
+        fieldId = "field_001",
+        date = "2024-01-15",
+        startAt = "18:00",
+        endAt = "19:00",
+        slotsCount = 2,
+        minutes = 60,
+        basePrice = 150000,
+        servicePrice = 0,
+        totalPrice = 150000,
+        status = "PAID"
     )
     BookingListItem(booking = booking, modifier = Modifier.padding(16.dp))
 }

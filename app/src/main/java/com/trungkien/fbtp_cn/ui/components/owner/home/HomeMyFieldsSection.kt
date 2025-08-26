@@ -12,9 +12,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.trungkien.fbtp_cn.model.Field
+import com.trungkien.fbtp_cn.model.OpenHours
+import com.trungkien.fbtp_cn.model.GeoLocation
 import com.trungkien.fbtp_cn.ui.components.owner.FieldCard
 import androidx.compose.ui.tooling.preview.Preview
 import com.trungkien.fbtp_cn.R
+import com.trungkien.fbtp_cn.model.FieldImages
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 
 @Composable
@@ -73,7 +76,11 @@ fun HomeMyFieldsSection(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 fields.forEach { field ->
-                    FieldCard(field = field, onClick = onFieldClick)
+                    FieldCard(
+                        field = field, 
+                        onClick = onFieldClick,
+                        onViewDetailsClick = { onFieldClick(field) }
+                    )
                 }
             }
         }
@@ -87,30 +94,37 @@ fun PreviewHomeMyFieldsSection() {
         HomeMyFieldsSection(
             fields = listOf(
                 Field(
-                    id = "1",
+                    fieldId = "1",
+                    ownerId = "owner123",
                     name = "POC Pickleball",
-                    type = "Pickleball",
-                    price = 150000,
-                    imageUrl = "",
-                    status = "Available",
-                    isAvailable = true,
+                    sports = listOf("PICKLEBALL"),
                     address = "25 Tú Xương, TP. Thủ Đức",
-                    operatingHours = "05:00 - 23:00",
+                    geo = GeoLocation(lat = 10.7769, lng = 106.7009),
+                    images = FieldImages(
+                        mainImage = "",
+                        image1 = "",
+                        image2 = "",
+                        image3 = ""
+                    ),
+                    slotMinutes = 30,
+                    openHours = OpenHours(start = "05:00", end = "23:00", isOpen24h = false),
+                    amenities = listOf("PARKING", "SHOWER"),
+                    description = "Sân Pickleball chất lượng cao",
                     contactPhone = "0926666357",
-                    distance = "835m"
+                    averageRating = 4.5f,
+                    totalReviews = 128,
+                    isActive = true
                 ),
                 Field(
-                    id = "2",
+                    fieldId = "2",
                     name = "Sân Cầu Lông ABC",
-                    type = "Cầu Lông",
-                    price = 120000,
-                    imageUrl = "",
-                    status = "Booked",
-                    isAvailable = false,
+                    sports = listOf("BADMINTON"),
                     address = "Quận 1, TP.HCM",
-                    operatingHours = "06:00 - 22:00",
+                    openHours = OpenHours(start = "06:00", end = "22:00"),
                     contactPhone = "0901234567",
-                    distance = "1.2km"
+                    geo = GeoLocation(lat = 10.7829, lng = 106.6992),
+                    averageRating = 4.2f,
+                    totalReviews = 89
                 )
             ),
             onFieldClick = {}

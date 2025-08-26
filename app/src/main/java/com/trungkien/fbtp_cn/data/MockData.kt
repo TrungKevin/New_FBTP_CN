@@ -8,427 +8,772 @@ import java.time.LocalTime
 
 object MockData {
     
-    // Mock User (Renter)
-    val mockUser = User(
-        id = "user_001",
-        name = "Nguyễn Văn A",
-        email = "nguyenvana@email.com",
-        phone = "0123456789",
-        avatar = "",
-        address = "123 ABC Street, District 1, HCMC",
-        totalBookings = 15,
-        totalReviews = 8,
-        averageRating = 4.2f
+    // Mock Users
+    val mockUsers = listOf(
+        User(
+            userId = "user_001",
+            role = "RENTER",
+            name = "Nguyễn Văn A",
+            email = "nguyenvana@gmail.com",
+            phone = "0123456789",
+            avatarUrl = "",
+            address = "123 ABC Street, District 1, HCMC",
+            dateOfBirth = "1990-01-01",
+            gender = "MALE",
+            isVerified = true,
+            createdAt = System.currentTimeMillis() - (365 * 24 * 60 * 60 * 1000),
+            updatedAt = System.currentTimeMillis() - (30 * 24 * 60 * 60 * 1000)
+        ),
+        User(
+            userId = "owner_001",
+            role = "OWNER",
+            name = "Tennis Club HCMC",
+            email = "tennisclub@gmail.com",
+            phone = "0987654321",
+            avatarUrl = "",
+            address = "123 Tennis Street, District 1, HCMC",
+            dateOfBirth = "",
+            gender = "",
+            isVerified = true,
+            createdAt = System.currentTimeMillis() - (500 * 24 * 60 * 60 * 1000),
+            updatedAt = System.currentTimeMillis() - (10 * 24 * 60 * 60 * 1000)
+        ),
+        User(
+            userId = "owner_002",
+            role = "OWNER",
+            name = "Badminton Center",
+            email = "badmintoncenter@gmail.com",
+            phone = "0555666777",
+            avatarUrl = "",
+            address = "456 Badminton Avenue, District 3, HCMC",
+            dateOfBirth = "",
+            gender = "",
+            isVerified = true,
+            createdAt = System.currentTimeMillis() - (400 * 24 * 60 * 60 * 1000),
+            updatedAt = System.currentTimeMillis() - (15 * 24 * 60 * 60 * 1000)
+        )
     )
     
     // Mock Fields
     val mockFields = listOf(
         Field(
-            id = "field_001",
+            fieldId = "field_001",
+            ownerId = "owner_001",
             name = "Court 1 - Tennis",
-            type = "Tennis",
-            price = 120000,
-            imageUrl = "https://example.com/court1.jpg",
-            status = "Available",
-            isAvailable = true,
             address = "123 Tennis Street, District 1, HCMC",
-            operatingHours = "5:00 - 23:00",
+            geo = GeoLocation(
+                lat = 10.7769,
+                lng = 106.7009,
+                geohash = "w3gx4"
+            ),
+            sports = listOf("TENNIS"),
+            images = FieldImages(
+                mainImage = "https://example.com/court1_main.jpg",
+                image1 = "https://example.com/court1_1.jpg",
+                image2 = "https://example.com/court1_2.jpg",
+                image3 = "https://example.com/court1_3.jpg"
+            ),
+            slotMinutes = 30,
+            openHours = OpenHours(
+                start = "05:00",
+                end = "23:00",
+                isOpen24h = false
+            ),
+            amenities = listOf("PARKING", "SHOWER", "EQUIPMENT", "LIGHTING"),
+            description = "Sân tennis chất lượng cao với mặt sân cứng, có đèn chiếu sáng ban đêm",
             contactPhone = "0123456789",
-            distance = "2.5km",
-            latitude = 10.7769,
-            longitude = 106.7009,
             averageRating = 4.5f,
             totalReviews = 128,
-            description = "Sân tennis chất lượng cao với mặt sân cứng, có đèn chiếu sáng ban đêm",
-            facilities = listOf("Parking", "Shower", "Equipment", "Lighting"),
-            images = listOf(
-                "https://example.com/court1_1.jpg",
-                "https://example.com/court1_2.jpg",
-                "https://example.com/court1_3.jpg"
-            ),
-            ownerId = "owner_001",
-            ownerName = "Tennis Club HCMC",
-            priceRange = PriceRange(
-                weekday = PriceDetail(morning = 120000, afternoon = 120000, evening = 170000),
-                weekend = PriceDetail(morning = 120000, afternoon = 120000, evening = 170000)
-            ),
-            isFavorite = false
+            isActive = true
         ),
         Field(
-            id = "field_002",
+            fieldId = "field_002",
+            ownerId = "owner_002",
             name = "Court 2 - Badminton",
-            type = "Badminton",
-            price = 80000,
-            imageUrl = "https://example.com/court2.jpg",
-            status = "Available",
-            isAvailable = true,
             address = "456 Badminton Avenue, District 3, HCMC",
-            operatingHours = "6:00 - 22:00",
+            geo = GeoLocation(
+                lat = 10.7829,
+                lng = 106.6992,
+                geohash = "w3gx5"
+            ),
+            sports = listOf("BADMINTON"),
+            images = FieldImages(
+                mainImage = "https://example.com/court2_main.jpg",
+                image1 = "https://example.com/court2_1.jpg",
+                image2 = "https://example.com/court2_2.jpg",
+                image3 = "https://example.com/court2_3.jpg"
+            ),
+            slotMinutes = 30,
+            openHours = OpenHours(
+                start = "06:00",
+                end = "22:00",
+                isOpen24h = false
+            ),
+            amenities = listOf("PARKING", "AIR_CONDITIONING", "EQUIPMENT"),
+            description = "Sân cầu lông chuyên nghiệp với sàn gỗ cao cấp",
             contactPhone = "0987654321",
-            distance = "3.2km",
-            latitude = 10.7829,
-            longitude = 106.6992,
             averageRating = 4.2f,
             totalReviews = 89,
-            description = "Sân cầu lông chuyên nghiệp với sàn gỗ cao cấp",
-            facilities = listOf("Parking", "Air Conditioning", "Equipment"),
-            images = listOf(
-                "https://example.com/court2_1.jpg",
-                "https://example.com/court2_2.jpg"
-            ),
-            ownerId = "owner_002",
-            ownerName = "Badminton Center",
-            priceRange = PriceRange(
-                weekday = PriceDetail(morning = 80000, afternoon = 80000, evening = 120000),
-                weekend = PriceDetail(morning = 80000, afternoon = 80000, evening = 120000)
-            ),
-            isFavorite = true
+            isActive = true
         ),
         Field(
-            id = "field_003",
+            fieldId = "field_003",
+            ownerId = "owner_001",
             name = "Court 3 - Tennis Premium",
-            type = "Tennis",
-            price = 200000,
-            imageUrl = "https://example.com/court3.jpg",
-            status = "Available",
-            isAvailable = true,
             address = "789 Premium Road, District 7, HCMC",
-            operatingHours = "5:00 - 24:00",
+            geo = GeoLocation(
+                lat = 10.7308,
+                lng = 106.7263,
+                geohash = "w3gx6"
+            ),
+            sports = listOf("TENNIS"),
+            images = FieldImages(
+                mainImage = "https://example.com/court3_main.jpg",
+                image1 = "https://example.com/court3_1.jpg",
+                image2 = "https://example.com/court3_2.jpg",
+                image3 = "https://example.com/court3_3.jpg"
+            ),
+            slotMinutes = 30,
+            openHours = OpenHours(
+                start = "05:00",
+                end = "24:00",
+                isOpen24h = false
+            ),
+            amenities = listOf("PREMIUM_PARKING", "LOCKER_ROOM", "PRO_SHOP", "RESTAURANT", "LIGHTING"),
+            description = "Sân tennis cao cấp với mặt sân đất nện, có phòng thay đồ riêng biệt",
             contactPhone = "0555666777",
-            distance = "5.8km",
-            latitude = 10.7308,
-            longitude = 106.7263,
             averageRating = 4.8f,
             totalReviews = 256,
-            description = "Sân tennis cao cấp với mặt sân đất nện, có phòng thay đồ riêng biệt",
-            facilities = listOf("Premium Parking", "Locker Room", "Pro Shop", "Restaurant", "Lighting"),
-            images = listOf(
-                "https://example.com/court3_1.jpg",
-                "https://example.com/court3_2.jpg",
-                "https://example.com/court3_3.jpg",
-                "https://example.com/court3_4.jpg"
-            ),
-            ownerId = "owner_003",
-            ownerName = "Premium Tennis Club",
-            priceRange = PriceRange(
-                weekday = PriceDetail(morning = 200000, afternoon = 200000, evening = 250000),
-                weekend = PriceDetail(morning = 200000, afternoon = 200000, evening = 250000)
-            ),
-            isFavorite = false
+            isActive = true
         ),
         Field(
-            id = "field_004",
+            fieldId = "field_004",
+            ownerId = "owner_002",
             name = "Court 4 - Multi-Sport",
-            type = "Multi-Sport",
-            price = 150000,
-            imageUrl = "https://example.com/court4.jpg",
-            status = "Available",
-            isAvailable = true,
             address = "321 Sports Complex, District 2, HCMC",
-            operatingHours = "6:00 - 23:00",
+            geo = GeoLocation(
+                lat = 10.7870,
+                lng = 106.7490,
+                geohash = "w3gx7"
+            ),
+            sports = listOf("TENNIS", "BADMINTON", "PICKLEBALL"),
+            images = FieldImages(
+                mainImage = "https://example.com/court4_main.jpg",
+                image1 = "https://example.com/court4_1.jpg",
+                image2 = "https://example.com/court4_2.jpg",
+                image3 = "https://example.com/court4_3.jpg"
+            ),
+            slotMinutes = 30,
+            openHours = OpenHours(
+                start = "06:00",
+                end = "23:00",
+                isOpen24h = false
+            ),
+            amenities = listOf("PARKING", "EQUIPMENT", "CHANGING_ROOM"),
+            description = "Sân đa năng có thể chuyển đổi giữa tennis, badminton và pickleball",
             contactPhone = "0333444555",
-            distance = "4.1km",
-            latitude = 10.7870,
-            longitude = 106.7490,
             averageRating = 4.0f,
             totalReviews = 67,
-            description = "Sân đa năng có thể chuyển đổi giữa tennis, badminton và bóng bàn",
-            facilities = listOf("Parking", "Equipment", "Changing Room"),
-            images = listOf(
-                "https://example.com/court4_1.jpg",
-                "https://example.com/court4_2.jpg"
-            ),
-            ownerId = "owner_004",
-            ownerName = "Multi-Sport Complex",
-            priceRange = PriceRange(
-                weekday = PriceDetail(morning = 150000, afternoon = 150000, evening = 180000),
-                weekend = PriceDetail(morning = 150000, afternoon = 150000, evening = 180000)
-            ),
-            isFavorite = false
+            isActive = true
         )
     )
     
-    // Mock Services
+    // Mock Services (Master Services)
     val mockServices = listOf(
         Service(
-            id = "service_001",
+            serviceId = "service_001",
             name = "Thuê vợt tennis",
+            defaultBillingType = "PER_UNIT",
+            defaultAllowQuantity = true,
             description = "Vợt tennis chuyên nghiệp Wilson",
-            price = 20000,
-            unit = "Cái",
-            category = "Equipment",
-            isAvailable = true,
-            imageUrl = "https://example.com/racket.jpg",
-            fieldId = "field_001"
+            category = "EQUIPMENT",
+            isActive = true
         ),
         Service(
-            id = "service_002",
+            serviceId = "service_002",
             name = "Thuê vợt cầu lông",
+            defaultBillingType = "PER_UNIT",
+            defaultAllowQuantity = true,
             description = "Vợt cầu lông Yonex chất lượng cao",
-            price = 15000,
-            unit = "Cái",
-            category = "Equipment",
-            isAvailable = true,
-            imageUrl = "https://example.com/badminton_racket.jpg",
-            fieldId = "field_002"
+            category = "EQUIPMENT",
+            isActive = true
         ),
         Service(
-            id = "service_003",
+            serviceId = "service_003",
             name = "Hộp banh tennis",
+            defaultBillingType = "PER_UNIT",
+            defaultAllowQuantity = true,
             description = "Banh tennis Wilson chính hãng",
-            price = 180000,
-            unit = "Hộp",
-            category = "Equipment",
-            isAvailable = true,
-            imageUrl = "https://example.com/tennis_balls.jpg",
-            fieldId = "field_001"
+            category = "EQUIPMENT",
+            isActive = true
         ),
         Service(
-            id = "service_004",
+            serviceId = "service_004",
             name = "Nước suối",
+            defaultBillingType = "PER_UNIT",
+            defaultAllowQuantity = true,
             description = "Nước suối tinh khiết 500ml",
-            price = 10000,
-            unit = "Chai",
-            category = "Beverage",
-            isAvailable = true,
-            imageUrl = "https://example.com/water.jpg",
-            fieldId = "field_001"
+            category = "BEVERAGE",
+            isActive = true
         ),
         Service(
-            id = "service_005",
+            serviceId = "service_005",
             name = "Red Bull",
+            defaultBillingType = "PER_UNIT",
+            defaultAllowQuantity = true,
             description = "Nước tăng lực Red Bull 250ml",
-            price = 25000,
-            unit = "Chai",
-            category = "Beverage",
-            isAvailable = true,
-            imageUrl = "https://example.com/redbull.jpg",
-            fieldId = "field_001"
+            category = "BEVERAGE",
+            isActive = true
         ),
         Service(
-            id = "service_006",
+            serviceId = "service_006",
             name = "Hướng dẫn viên",
+            defaultBillingType = "PER_HOUR",
+            defaultAllowQuantity = false,
             description = "HLV chuyên nghiệp 1-1",
-            price = 300000,
-            unit = "Giờ",
-            category = "Training",
-            isAvailable = true,
-            imageUrl = "https://example.com/coach.jpg",
-            fieldId = "field_001"
+            category = "TRAINING",
+            isActive = true
         )
     )
     
-    // Mock Time Slots
-    @RequiresApi(Build.VERSION_CODES.O)
-    val mockTimeSlots = listOf(
-        TimeSlot(
-            id = "slot_001",
+    // Mock Field Services (Services specific to each field)
+    val mockFieldServices = listOf(
+        FieldService(
+            fieldServiceId = "fs_001",
             fieldId = "field_001",
-            startTime = LocalTime.of(6, 0),
-            endTime = LocalTime.of(7, 0),
+            serviceId = "service_001",
+            name = "Thuê vợt tennis",
+            price = 20000,
+            billingType = "PER_UNIT",
+            allowQuantity = true,
+            description = "Vợt tennis chuyên nghiệp Wilson",
+            imageUrl = "https://example.com/racket.jpg",
             isAvailable = true,
-            price = 120000,
-            isBooked = false
+            stockQuantity = 10
         ),
-        TimeSlot(
-            id = "slot_002",
+        FieldService(
+            fieldServiceId = "fs_002",
             fieldId = "field_001",
-            startTime = LocalTime.of(7, 0),
-            endTime = LocalTime.of(8, 0),
+            serviceId = "service_003",
+            name = "Hộp banh tennis",
+            price = 180000,
+            billingType = "PER_UNIT",
+            allowQuantity = true,
+            description = "Banh tennis Wilson chính hãng",
+            imageUrl = "https://example.com/tennis_balls.jpg",
             isAvailable = true,
-            price = 120000,
-            isBooked = false
+            stockQuantity = 5
         ),
-        TimeSlot(
-            id = "slot_003",
+        FieldService(
+            fieldServiceId = "fs_003",
             fieldId = "field_001",
-            startTime = LocalTime.of(8, 0),
-            endTime = LocalTime.of(9, 0),
+            serviceId = "service_004",
+            name = "Nước suối",
+            price = 10000,
+            billingType = "PER_UNIT",
+            allowQuantity = true,
+            description = "Nước suối tinh khiết 500ml",
+            imageUrl = "https://example.com/water.jpg",
             isAvailable = true,
-            price = 120000,
-            isBooked = false
+            stockQuantity = 50
         ),
-        TimeSlot(
-            id = "slot_004",
+        FieldService(
+            fieldServiceId = "fs_004",
             fieldId = "field_001",
-            startTime = LocalTime.of(9, 0),
-            endTime = LocalTime.of(10, 0),
+            serviceId = "service_005",
+            name = "Red Bull",
+            price = 25000,
+            billingType = "PER_UNIT",
+            allowQuantity = true,
+            description = "Nước tăng lực Red Bull 250ml",
+            imageUrl = "https://example.com/redbull.jpg",
             isAvailable = true,
-            price = 120000,
-            isBooked = false
+            stockQuantity = 20
         ),
-        TimeSlot(
-            id = "slot_005",
+        FieldService(
+            fieldServiceId = "fs_005",
             fieldId = "field_001",
-            startTime = LocalTime.of(17, 0),
-            endTime = LocalTime.of(18, 0),
+            serviceId = "service_006",
+            name = "Hướng dẫn viên",
+            price = 300000,
+            billingType = "PER_HOUR",
+            allowQuantity = false,
+            description = "HLV chuyên nghiệp 1-1",
+            imageUrl = "https://example.com/coach.jpg",
+            isAvailable = true
+        ),
+        FieldService(
+            fieldServiceId = "fs_006",
+            fieldId = "field_002",
+            serviceId = "service_002",
+            name = "Thuê vợt cầu lông",
+            price = 15000,
+            billingType = "PER_UNIT",
+            allowQuantity = true,
+            description = "Vợt cầu lông Yonex chất lượng cao",
+            imageUrl = "https://example.com/badminton_racket.jpg",
             isAvailable = true,
+            stockQuantity = 15
+        )
+    )
+    
+    // Mock Pricing Rules
+    val mockPricingRules = listOf(
+        PricingRule(
+            ruleId = "rule_001",
+            fieldId = "field_001",
+            dayType = "WEEKDAY",
+            slots = 2,
+            minutes = 60,
+            price = 120000,
+            calcMode = "CEIL_TO_RULE",
+            description = "Giá ngày thường - 1 giờ",
+            isActive = true
+        ),
+        PricingRule(
+            ruleId = "rule_002",
+            fieldId = "field_001",
+            dayType = "WEEKDAY",
+            slots = 4,
+            minutes = 120,
+            price = 220000,
+            calcMode = "CEIL_TO_RULE",
+            description = "Giá ngày thường - 2 giờ",
+            isActive = true
+        ),
+        PricingRule(
+            ruleId = "rule_003",
+            fieldId = "field_001",
+            dayType = "WEEKEND",
+            slots = 2,
+            minutes = 60,
             price = 170000,
+            calcMode = "CEIL_TO_RULE",
+            description = "Giá cuối tuần - 1 giờ",
+            isActive = true
+        ),
+        PricingRule(
+            ruleId = "rule_004",
+            fieldId = "field_002",
+            dayType = "WEEKDAY",
+            slots = 2,
+            minutes = 60,
+            price = 80000,
+            calcMode = "CEIL_TO_RULE",
+            description = "Giá ngày thường - 1 giờ",
+            isActive = true
+        ),
+        PricingRule(
+            ruleId = "rule_005",
+            fieldId = "field_002",
+            dayType = "WEEKEND",
+            slots = 2,
+            minutes = 60,
+            price = 120000,
+            calcMode = "CEIL_TO_RULE",
+            description = "Giá cuối tuần - 1 giờ",
+            isActive = true
+        )
+    )
+    
+    // Mock Slots
+    val mockSlots = listOf(
+        Slot(
+            slotId = "slot_001",
+            fieldId = "field_001",
+            date = "2024-01-15",
+            startAt = "06:00",
+            endAt = "06:30",
+            isAvailable = true,
+            price = 60000,
             isBooked = false
         ),
-        TimeSlot(
-            id = "slot_006",
+        Slot(
+            slotId = "slot_002",
             fieldId = "field_001",
-            startTime = LocalTime.of(18, 0),
-            endTime = LocalTime.of(19, 0),
+            date = "2024-01-15",
+            startAt = "06:30",
+            endAt = "07:00",
+            isAvailable = true,
+            price = 60000,
+            isBooked = false
+        ),
+        Slot(
+            slotId = "slot_003",
+            fieldId = "field_001",
+            date = "2024-01-15",
+            startAt = "07:00",
+            endAt = "07:30",
+            isAvailable = true,
+            price = 60000,
+            isBooked = false
+        ),
+        Slot(
+            slotId = "slot_004",
+            fieldId = "field_001",
+            date = "2024-01-15",
+            startAt = "18:00",
+            endAt = "18:30",
             isAvailable = false,
-            price = 170000,
+            price = 85000,
             isBooked = true,
             bookingId = "booking_001"
         ),
-        TimeSlot(
-            id = "slot_007",
+        Slot(
+            slotId = "slot_005",
             fieldId = "field_001",
-            startTime = LocalTime.of(19, 0),
-            endTime = LocalTime.of(20, 0),
-            isAvailable = true,
+            date = "2024-01-15",
+            startAt = "18:30",
+            endAt = "19:00",
+            isAvailable = false,
+            price = 85000,
+            isBooked = true,
+            bookingId = "booking_001"
+        )
+    )
+    
+    // Mock Matches
+    val mockMatches = listOf(
+        Match(
+            rangeKey = "field_0012024011518001900",
+            fieldId = "field_001",
+            date = "2024-01-15",
+            startAt = "18:00",
+            endAt = "19:00",
+            capacity = 2,
+            occupiedCount = 1,
+            participants = listOf(
+                MatchParticipant(
+                    bookingId = "booking_001",
+                    renterId = "user_001",
+                    side = "A"
+                )
+            ),
             price = 170000,
-            isBooked = false
+            totalPrice = 195000,
+            status = "WAITING_OPPONENT",
+            matchType = "SINGLE"
         )
     )
     
     // Mock Bookings
-    @RequiresApi(Build.VERSION_CODES.O)
     val mockBookings = listOf(
         Booking(
-            id = "booking_001",
+            bookingId = "booking_001",
+            renterId = "user_001",
+            ownerId = "owner_001",
             fieldId = "field_001",
-            fieldName = "Court 1 - Tennis",
-            timeRange = "18:00 - 19:00",
-            status = "Confirmed",
-            userId = "user_001",
-            userName = "Nguyễn Văn A",
             date = "2024-01-15",
-            startTime = "18:00",
-            endTime = "19:00",
-            totalPrice = 195000,
-            fieldPrice = 170000,
-            servicesPrice = 25000,
-            services = listOf(
-                ServiceOrder(
-                    id = "order_001",
+            startAt = "18:00",
+            endAt = "19:00",
+            slotsCount = 2,
+            minutes = 60,
+            matchId = "field_0012024011518001900",
+            matchSide = "A",
+            opponentMode = "WAITING_OPPONENT",
+            basePrice = 170000,
+            serviceLines = listOf(
+                ServiceLine(
                     serviceId = "service_005",
-                    serviceName = "Red Bull",
+                    name = "Red Bull",
+                    billingType = "PER_UNIT",
+                    price = 25000,
                     quantity = 1,
-                    price = 25000
+                    lineTotal = 25000
                 )
             ),
-            createdAt = LocalDateTime.now().minusDays(1),
-            updatedAt = LocalDateTime.now().minusDays(1),
+            servicePrice = 25000,
+            totalPrice = 195000,
+            status = "PAID",
             notes = "Cần chuẩn bị sẵn nước uống",
-            fieldImage = "https://example.com/court1.jpg",
-            fieldAddress = "123 Tennis Street, District 1, HCMC",
-            fieldType = "Tennis"
+            paymentStatus = "PAID",
+            paymentMethod = "MOMO"
         ),
         Booking(
-            id = "booking_002",
+            bookingId = "booking_002",
+            renterId = "user_001",
+            ownerId = "owner_002",
             fieldId = "field_002",
-            fieldName = "Court 2 - Badminton",
-            timeRange = "20:00 - 21:00",
-            status = "Completed",
-            userId = "user_001",
-            userName = "Nguyễn Văn A",
             date = "2024-01-10",
-            startTime = "20:00",
-            endTime = "21:00",
+            startAt = "20:00",
+            endAt = "21:00",
+            slotsCount = 2,
+            minutes = 60,
+            basePrice = 120000,
+            serviceLines = emptyList(),
+            servicePrice = 0,
             totalPrice = 120000,
-            fieldPrice = 120000,
-            servicesPrice = 0,
-            services = emptyList(),
-            createdAt = LocalDateTime.now().minusDays(6),
-            updatedAt = LocalDateTime.now().minusDays(6),
+            status = "DONE",
             notes = "",
-            fieldImage = "https://example.com/court2.jpg",
-            fieldAddress = "456 Badminton Avenue, District 3, HCMC",
-            fieldType = "Badminton"
+            paymentStatus = "PAID",
+            paymentMethod = "CASH"
         )
     )
     
     // Mock Reviews
-    @RequiresApi(Build.VERSION_CODES.O)
     val mockReviews = listOf(
         Review(
-            id = "review_001",
+            reviewId = "review_001",
             fieldId = "field_001",
-            fieldName = "Court 1 - Tennis",
-            userId = "user_001",
-            userName = "Nguyễn Văn A",
-            userAvatar = "",
-            rating = 5.0f,
+            renterId = "user_001",
+            renterName = "Nguyễn Văn A",
+            renterAvatar = "",
+            rating = 5,
             comment = "Sân tennis rất tốt! Mặt sân bằng phẳng, đèn chiếu sáng rõ ràng. Nhân viên phục vụ nhiệt tình. Sẽ quay lại đặt sân thường xuyên!",
-            createdAt = LocalDateTime.now().minusDays(2),
             images = listOf("https://example.com/review1_1.jpg"),
             likes = 12,
+            likedBy = listOf("user_002", "user_003"),
+            shares = 3,
+            reportCount = 0,
             replies = listOf(
-                Reply(
-                    id = "reply_001",
+                ReviewReply(
+                    replyId = "reply_001",
                     userId = "owner_001",
                     userName = "Tennis Club HCMC",
                     userAvatar = "",
+                    userRole = "OWNER",
                     comment = "Cảm ơn bạn đã đánh giá tích cực! Chúng tôi luôn cố gắng mang đến trải nghiệm tốt nhất cho khách hàng.",
-                    createdAt = LocalDateTime.now().minusDays(1),
+                    images = emptyList(),
+                    likes = 5,
+                    likedBy = listOf("user_001"),
                     isOwner = true
                 )
-            )
+            ),
+            tags = listOf("CHẤT LƯỢNG", "DỊCH VỤ"),
+            helpfulCount = 8,
+            helpfulBy = listOf("user_002", "user_003", "user_004"),
+            isAnonymous = false,
+            status = "ACTIVE",
+            isVerified = false
         ),
         Review(
-            id = "review_002",
+            reviewId = "review_002",
             fieldId = "field_002",
-            fieldName = "Court 2 - Badminton",
-            userId = "user_001",
-            userName = "Nguyễn Văn A",
-            userAvatar = "",
-            rating = 4.0f,
+            renterId = "user_001",
+            renterName = "Nguyễn Văn A",
+            renterAvatar = "",
+            rating = 4,
             comment = "Sân cầu lông ổn, sàn gỗ tốt. Tuy nhiên cần cải thiện hệ thống điều hòa.",
-            createdAt = LocalDateTime.now().minusDays(7),
             images = emptyList(),
             likes = 5,
+            likedBy = listOf("user_002"),
+            shares = 1,
+            reportCount = 0,
             replies = listOf(
-                Reply(
-                    id = "reply_002",
+                ReviewReply(
+                    replyId = "reply_002",
                     userId = "owner_002",
                     userName = "Badminton Center",
                     userAvatar = "",
+                    userRole = "OWNER",
                     comment = "Cảm ơn phản hồi của bạn. Chúng tôi sẽ kiểm tra và cải thiện hệ thống điều hòa.",
-                    createdAt = LocalDateTime.now().minusDays(6),
+                    images = emptyList(),
+                    likes = 3,
+                    likedBy = listOf("user_001"),
                     isOwner = true
+                )
+            ),
+            tags = listOf("CHẤT LƯỢNG", "GIÁ CẢ"),
+            helpfulCount = 4,
+            helpfulBy = listOf("user_002", "user_003"),
+            isAnonymous = false,
+            status = "ACTIVE",
+            isVerified = false
+        )
+    )
+    
+    // Mock Notifications
+    val mockNotifications = listOf(
+        Notification(
+            notificationId = "notif_001",
+            toUserId = "user_001",
+            type = "BOOKING_CREATED",
+            title = "Đặt sân thành công",
+            body = "Bạn đã đặt sân Court 1 - Tennis thành công cho ngày 15/01/2024",
+            data = NotificationData(
+                bookingId = "booking_001",
+                fieldId = "field_001"
+            ),
+            isRead = false,
+            channel = "IN_APP",
+            priority = "NORMAL"
+        ),
+        Notification(
+            notificationId = "notif_002",
+            toUserId = "user_001",
+            type = "OPPONENT_JOINED",
+            title = "Có đối thủ tham gia",
+            body = "Đã có người tham gia vào trận đấu của bạn",
+            data = NotificationData(
+                bookingId = "booking_001",
+                fieldId = "field_001",
+                matchId = "field_0012024011518001900"
+            ),
+            isRead = true,
+            channel = "IN_APP",
+            priority = "HIGH"
+        )
+    )
+    
+    // Mock User Devices
+    val mockUserDevices = listOf(
+        UserDevice(
+            deviceId = "device_001",
+            userId = "user_001",
+            fcmToken = "fcm_token_user_001",
+            platform = "ANDROID",
+            lastSeenAt = System.currentTimeMillis() - (2 * 60 * 60 * 1000),
+            deviceModel = "Samsung Galaxy S21",
+            appVersion = "1.0.0",
+            isActive = true
+        ),
+        UserDevice(
+            deviceId = "device_002",
+            userId = "owner_001",
+            fcmToken = "fcm_token_owner_001",
+            platform = "ANDROID",
+            lastSeenAt = System.currentTimeMillis() - (1 * 60 * 60 * 1000),
+            deviceModel = "iPhone 13",
+            appVersion = "1.0.0",
+            isActive = true
+        )
+    )
+    
+    // Mock Public Price Board
+    val mockPublicPriceBoard = listOf(
+        PublicPriceBoard(
+            boardId = "board_001",
+            fieldId = "field_001",
+            previewRules = listOf(
+                PricePreviewRule(
+                    slots = 2,
+                    minutes = 60,
+                    price = 120000
+                ),
+                PricePreviewRule(
+                    slots = 4,
+                    minutes = 120,
+                    price = 220000
+                )
+            ),
+            previewServices = listOf(
+                PricePreviewService(
+                    name = "Thuê vợt tennis",
+                    price = 20000,
+                    billingType = "PER_UNIT"
+                ),
+                PricePreviewService(
+                    name = "Nước suối",
+                    price = 10000,
+                    billingType = "PER_UNIT"
                 )
             )
         )
     )
     
+    // Mock Payments
+    val mockPayments = listOf(
+        Payment(
+            paymentId = "payment_001",
+            bookingId = "booking_001",
+            userId = "user_001",
+            amount = 195000,
+            currency = "VND",
+            paymentMethod = "MOMO",
+            status = "SUCCESS",
+            transactionId = "momo_txn_001",
+            paymentDate = System.currentTimeMillis() - (24 * 60 * 60 * 1000),
+            gatewayResponse = "Success"
+        ),
+        Payment(
+            paymentId = "payment_002",
+            bookingId = "booking_002",
+            userId = "user_001",
+            amount = 120000,
+            currency = "VND",
+            paymentMethod = "CASH",
+            status = "SUCCESS",
+            paymentDate = System.currentTimeMillis() - (6 * 24 * 60 * 60 * 1000)
+        )
+    )
+    
+    // Mock Field Operating Schedule
+    val mockFieldOperatingSchedule = listOf(
+        FieldOperatingSchedule(
+            scheduleId = "schedule_001",
+            fieldId = "field_001",
+            dayOfWeek = 1, // Chủ nhật
+            isOpen = true,
+            openTime = "06:00",
+            closeTime = "23:00",
+            isSpecialDay = false
+        ),
+        FieldOperatingSchedule(
+            scheduleId = "schedule_002",
+            fieldId = "field_001",
+            dayOfWeek = 2, // Thứ 2
+            isOpen = true,
+            openTime = "05:00",
+            closeTime = "23:00",
+            isSpecialDay = false
+        ),
+        FieldOperatingSchedule(
+            scheduleId = "schedule_003",
+            fieldId = "field_001",
+            dayOfWeek = 1, // Chủ nhật
+            isOpen = true,
+            openTime = "06:00",
+            closeTime = "23:00",
+            isSpecialDay = true,
+            specialNote = "Ngày lễ - Giảm giá 20%"
+        )
+    )
+    
     // Helper functions
-    fun getFieldById(id: String): Field? {
-        return mockFields.find { it.id == id }
+    fun getUserById(userId: String): User? {
+        return mockUsers.find { it.userId == userId }
     }
     
-    fun getServicesByFieldId(fieldId: String): List<Service> {
-        return mockServices.filter { it.fieldId == fieldId }
+    fun getFieldById(fieldId: String): Field? {
+        return mockFields.find { it.fieldId == fieldId }
     }
     
-    @RequiresApi(Build.VERSION_CODES.O)
-    fun getTimeSlotsByFieldId(fieldId: String): List<TimeSlot> {
-        return mockTimeSlots.filter { it.fieldId == fieldId }
+    fun getServicesByFieldId(fieldId: String): List<FieldService> {
+        return mockFieldServices.filter { it.fieldId == fieldId }
     }
     
-    @RequiresApi(Build.VERSION_CODES.O)
+    fun getPricingRulesByFieldId(fieldId: String): List<PricingRule> {
+        return mockPricingRules.filter { it.fieldId == fieldId }
+    }
+    
+    fun getSlotsByFieldId(fieldId: String, date: String): List<Slot> {
+        return mockSlots.filter { it.fieldId == fieldId && it.date == date }
+    }
+    
     fun getBookingsByUserId(userId: String): List<Booking> {
-        return mockBookings.filter { it.userId == userId }
+        return mockBookings.filter { it.renterId == userId }
     }
     
-    @RequiresApi(Build.VERSION_CODES.O)
+    fun getBookingsByOwnerId(ownerId: String): List<Booking> {
+        return mockBookings.filter { it.ownerId == ownerId }
+    }
+    
     fun getReviewsByFieldId(fieldId: String): List<Review> {
         return mockReviews.filter { it.fieldId == fieldId }
     }
     
-    fun searchFields(query: String, type: String? = null, maxPrice: Int? = null): List<Field> {
+    fun getNotificationsByUserId(userId: String): List<Notification> {
+        return mockNotifications.filter { it.toUserId == userId }
+    }
+    
+    fun searchFields(query: String, sports: List<String>? = null, maxPrice: Int? = null): List<Field> {
         return mockFields.filter { field ->
             val matchesQuery = field.name.contains(query, ignoreCase = true) ||
                     field.address.contains(query, ignoreCase = true)
-            val matchesType = type == null || field.type == type
-            val matchesPrice = maxPrice == null || field.price <= maxPrice
+            val matchesSports = sports == null || sports.isEmpty() || 
+                    sports.any { sport -> field.sports.contains(sport) }
             
-            matchesQuery && matchesType && matchesPrice
+            matchesQuery && matchesSports
         }
     }
 }

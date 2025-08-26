@@ -4,6 +4,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.trungkien.fbtp_cn.model.User
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.Timestamp
 
 class UserRepository(
     private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
@@ -24,24 +25,44 @@ class UserRepository(
                 val emailFromAuth = authUser?.email
                 val displayNameFromAuth = authUser?.displayName
                 val avatarFromAuth = authUser?.photoUrl?.toString()
+                
+                // Safely handle timestamp fields that might have different types
+                val createdAt = when (val createdAtValue = doc.get("createdAt")) {
+                    is Long -> createdAtValue
+                    is Timestamp -> createdAtValue.seconds * 1000
+                    is Number -> createdAtValue.toLong()
+                    else -> System.currentTimeMillis()
+                }
+                
+                val updatedAt = when (val updatedAtValue = doc.get("updatedAt")) {
+                    is Long -> updatedAtValue
+                    is Timestamp -> updatedAtValue.seconds * 1000
+                    is Number -> updatedAtValue.toLong()
+                    else -> System.currentTimeMillis()
+                }
+                
                 val user = User(
-                    id = uid,
+                    userId = uid,
+                    role = doc.getString("role") ?: "RENTER",
                     name = doc.getString("name")
                         ?: doc.getString("username")
                         ?: displayNameFromAuth
                         ?: (emailFromAuth?.substringBefore('@') ?: ""),
                     email = doc.getString("email") ?: emailFromAuth ?: "",
                     phone = doc.getString("phone") ?: "",
-                    avatar = doc.getString("avatarUrl") ?: avatarFromAuth ?: "",
+                    avatarUrl = doc.getString("avatarUrl") ?: avatarFromAuth ?: "",
                     address = doc.getString("address") ?: "",
-                    totalBookings = (doc.getLong("totalBookings") ?: 0L).toInt(),
-                    totalReviews = (doc.getLong("totalReviews") ?: 0L).toInt(),
-                    averageRating = (doc.getDouble("averageRating") ?: 0.0).toFloat()
+                    dateOfBirth = doc.getString("dateOfBirth") ?: "",
+                    gender = doc.getString("gender") ?: "",
+                    isVerified = doc.getBoolean("isVerified") ?: false,
+                    createdAt = createdAt,
+                    updatedAt = updatedAt
                 )
                 onSuccess(user)
             }
             .addOnFailureListener { e -> onError(e) }
     }
+    
     fun updateCurrentUserProfile(
         name: String? = null,
         email: String? = null,
@@ -62,6 +83,7 @@ class UserRepository(
         if (phone != null) updates["phone"] = phone
         if (address != null) updates["address"] = address
         if (avatarUrl != null) updates["avatarUrl"] = avatarUrl
+        updates["updatedAt"] = System.currentTimeMillis()
 
         firestore.collection("users").document(uid)
             .set(updates, SetOptions.merge())

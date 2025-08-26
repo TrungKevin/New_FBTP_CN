@@ -19,10 +19,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
 import com.trungkien.fbtp_cn.model.Field
-import com.trungkien.fbtp_cn.model.PriceRange
-import com.trungkien.fbtp_cn.model.PriceDetail
+import com.trungkien.fbtp_cn.model.OpenHours
+import com.trungkien.fbtp_cn.model.GeoLocation
 import androidx.compose.ui.res.painterResource
 import com.trungkien.fbtp_cn.R
+import com.trungkien.fbtp_cn.model.FieldImages
 
 @Composable
 fun RenterFeaturedFields(
@@ -314,74 +315,44 @@ fun RenterFieldCard(
 fun RenterFeaturedFieldsPreview() {
     val mockFields = listOf(
         Field(
-            id = "1",
+            fieldId = "1",
             name = "Sân bóng đá ABC",
-            type = "Bóng đá",
-            imageUrl = "https://via.placeholder.com/200",
+            sports = listOf("Bóng đá"),
+            images = FieldImages(
+                mainImage = "https://via.placeholder.com/200",
+                image1 = "https://via.placeholder.com/200",
+                image2 = "https://via.placeholder.com/200",
+                image3 = "https://via.placeholder.com/200"
+            ),
             averageRating = 4.5f,
             totalReviews = 120,
-            distance = "2.5km",
-            price = 50000,
-            isFavorite = false,
-            status = "Available",
-            isAvailable = true,
             address = "123 Đường ABC, Quận 1, TP.HCM",
-            operatingHours = "06:00 - 22:00",
+            openHours = OpenHours("06:00", "22:00"),
             contactPhone = "0123456789",
-            latitude = 10.762622,
-            longitude = 106.660172,
+            geo = GeoLocation(10.762622, 106.660172),
             description = "Sân bóng đá chất lượng cao",
-            facilities = listOf("Đèn chiếu sáng", "Chỗ để xe", "Nhà vệ sinh"),
-            images = listOf("https://via.placeholder.com/400x300"),
-            ownerId = "owner1",
-            ownerName = "Chủ sân ABC",
-            priceRange = PriceRange(
-                weekday = PriceDetail(
-                    morning = 50000,
-                    afternoon = 60000,
-                    evening = 70000
-                ),
-                weekend = PriceDetail(
-                    morning = 60000,
-                    afternoon = 70000,
-                    evening = 80000
-                )
-            )
+            amenities = listOf("Đèn chiếu sáng", "Chỗ để xe", "Nhà vệ sinh"),
+            ownerId = "owner1"
         ),
         Field(
-            id = "2",
+            fieldId = "2",
             name = "Sân tennis XYZ",
-            type = "Tennis",
-            imageUrl = "https://via.placeholder.com/200",
+            sports = listOf("Tennis"),
+            images = FieldImages(
+                mainImage = "https://via.placeholder.com/200",
+                image1 = "https://via.placeholder.com/200",
+                image2 = "https://via.placeholder.com/200",
+                image3 = "https://via.placeholder.com/200"
+            ),
             averageRating = 4.8f,
             totalReviews = 80,
-            distance = "1.2km",
-            price = 70000,
-            isFavorite = true,
-            status = "Available",
-            isAvailable = true,
             address = "456 Đường XYZ, Quận 2, TP.HCM",
-            operatingHours = "07:00 - 21:00",
+            openHours = OpenHours("07:00", "21:00"),
             contactPhone = "0987654321",
-            latitude = 10.787989,
-            longitude = 106.749810,
+            geo = GeoLocation(10.787989, 106.749810),
             description = "Sân tennis chuyên nghiệp",
-            facilities = listOf("Đèn chiếu sáng", "Chỗ để xe", "Nhà vệ sinh", "Vợt thuê"),
-            images = listOf("https://via.placeholder.com/400x300"),
-            ownerId = "owner2",
-            ownerName = "Chủ sân XYZ",
-            priceRange = PriceRange(
-                weekday = PriceDetail(
-                    morning = 70000,
-                    afternoon = 80000,
-                    evening = 90000
-                ),
-                weekend = PriceDetail(
-                    morning = 80000,
-                    afternoon = 90000,
-                    evening = 100000
-                )
-            )
+            amenities = listOf("Đèn chiếu sáng", "Chỗ để xe", "Nhà vệ sinh", "Vợt thuê"),
+            ownerId = "owner2"
         )
     )
 

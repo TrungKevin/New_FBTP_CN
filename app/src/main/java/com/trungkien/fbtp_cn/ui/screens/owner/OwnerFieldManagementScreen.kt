@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -13,20 +14,85 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trungkien.fbtp_cn.ui.components.owner.FieldCard
 import com.trungkien.fbtp_cn.model.Field
+import com.trungkien.fbtp_cn.model.OpenHours
+import com.trungkien.fbtp_cn.model.GeoLocation
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
+import com.trungkien.fbtp_cn.viewmodel.FieldViewModel
+import com.trungkien.fbtp_cn.viewmodel.FieldUiState
+import com.trungkien.fbtp_cn.viewmodel.FieldEvent
+import com.trungkien.fbtp_cn.viewmodel.AuthViewModel
 
 @OptIn(ExperimentalMaterial3Api::class) // Cho phép dùng API experimental của Material3
 @Composable // Định nghĩa một composable function
 fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở hữu
     onFieldClick: (String) -> Unit, // Callback khi click vào sân
-    modifier: Modifier = Modifier // Modifier truyền từ ngoài vào
+    onAddFieldClick: () -> Unit, // Callback khi click vào nút thêm sân
+    modifier: Modifier = Modifier, // Modifier truyền từ ngoài vào
+    testMode: Boolean = false, // Test mode để hiển thị mock data
+    fields: List<Field> = emptyList(), // NHẬN DỮ LIỆU TỪ PARENT (giống như HomeMyFieldsSection)
+    fieldViewModel: FieldViewModel? = null // NHẬN VIEWMODEL TỪ PARENT ĐỂ LOAD DỮ LIỆU
 ) {
-    var fields by remember { mutableStateOf(getMockFields()) } // State lưu danh sách sân (dữ liệu mẫu)
+    // CÁCH HOẠT ĐỘNG GIỐNG NHƯ HomeMyFieldsSection:
+    // 1. NHẬN DỮ LIỆU TỪ PARENT thay vì tự load (giống như HomeMyFieldsSection)
+    // 2. Sử dụng FieldViewModel từ parent để load dữ liệu từ Firebase (backup)
+    // 3. Sử dụng AuthViewModel để lấy thông tin user hiện tại
+    // 4. Hiển thị danh sách sân bằng FieldCard (giống như HomeMyFieldsSection)
+    
+    // Sử dụng ViewModel từ parent nếu có, nếu không thì tạo mới
+    val localFieldViewModel: FieldViewModel = fieldViewModel ?: viewModel()
+    val authViewModel: AuthViewModel = viewModel()
+    val uiState by localFieldViewModel.uiState.collectAsState()
+    val currentUser by authViewModel.currentUser.collectAsState()
+    
+    // Sử dụng dữ liệu từ parent TRƯỚC, sau đó mới dùng Firebase (giống như HomeMyFieldsSection)
+    val displayFields = if (testMode) getMockFields() else (fields.ifEmpty { uiState.fields })
+    val isLoading = if (testMode) false else (fields.isEmpty() && uiState.isLoading)
+    val error = if (testMode) null else (if (fields.isEmpty()) uiState.error else null)
+    
+    // Load fields khi screen khởi tạo (chỉ khi không có dữ liệu từ parent)
+    LaunchedEffect(currentUser?.userId, fields.isEmpty()) {
+        if (fields.isEmpty() && currentUser?.userId != null) {
+            println("DEBUG: Loading fields for ownerId: ${currentUser?.userId} (no parent data)")
+            localFieldViewModel.handleEvent(FieldEvent.LoadFieldsByOwner(currentUser?.userId!!))
+        }
+    }
+    
+    // Auto-reload fields khi có sân mới được thêm (chỉ khi không có dữ liệu từ parent)
+    LaunchedEffect(uiState.success, fields.isEmpty()) {
+        if (fields.isEmpty() && uiState.success?.contains("Thêm sân thành công") == true) {
+            currentUser?.userId?.let { ownerId ->
+                println("DEBUG: Reloading fields after success for ownerId: $ownerId (no parent data)")
+                localFieldViewModel.handleEvent(FieldEvent.LoadFieldsByOwner(ownerId))
+            }
+        }
+    }
+    
+    // Debug logging
+    LaunchedEffect(uiState, fields) {
+        println("DEBUG: UI State updated - isLoading: ${uiState.isLoading}, fields count: ${uiState.fields.size}, error: ${uiState.error}")
+        println("DEBUG: Parent fields count: ${fields.size}")
+        println("DEBUG: Display fields count: ${displayFields.size}")
+        if (uiState.error != null) {
+            println("DEBUG: Error details: ${uiState.error}")
+        }
+        if (fields.isNotEmpty()) {
+            println("DEBUG: Parent fields names: ${fields.map { it.name }}")
+        }
+        if (displayFields.isNotEmpty()) {
+            println("DEBUG: Display fields names: ${displayFields.map { it.name }}")
+        }
+    }
+    
+    // Debug currentUser
+    LaunchedEffect(currentUser) {
+        println("DEBUG: Current user updated - userId: ${currentUser?.userId}, name: ${currentUser?.name}")
+    }
 
     Column(modifier = modifier) {
-        // Header với tiêu đề và nút tìm kiếm
+        // Header với tiêu đề, số lượng sân và nút tìm kiếm
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -34,46 +100,166 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Quản lý sân",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
-            )
+            Column {
+                Text(
+                    text = "Quản lý sân",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                if (!isLoading && error == null) {
+                    Text(
+                        text = "${displayFields.size} sân",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
             IconButton(onClick = { /* Tìm kiếm */ }) {
                 Icon(Icons.Default.Search, contentDescription = "Tìm kiếm")
             }
         }
 
         // Nội dung chính
-        if (fields.isEmpty()) { // Không có dữ liệu
+        if (isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    CircularProgressIndicator()
+                    Text(
+                        text = "Đang tải danh sách sân...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        } else if (error != null) {
+            // Hiển thị error message
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = "❌ Lỗi tải dữ liệu",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Text(
+                        text = error ?: "Không thể tải danh sách sân",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                    Button(
+                        onClick = {
+                            currentUser?.userId?.let { ownerId ->
+                                localFieldViewModel.handleEvent(FieldEvent.LoadFieldsByOwner(ownerId))
+                            }
+                        }
+                    ) {
+                        Text("Thử lại")
+                    }
+                }
+            }
+        } else if (displayFields.isEmpty()) { // Không có dữ liệu
             Box( // Hộp căn giữa
                 modifier = Modifier
                     .fillMaxSize() // Chiếm toàn bộ màn hình
                     .padding(16.dp), // Áp dụng padding cố định
                 contentAlignment = Alignment.Center // Căn giữa
             ) {
-                Text(
-                    text = "Chưa có sân nào", // Thông báo rỗng
-                    style = MaterialTheme.typography.bodyLarge, // Kiểu chữ
-                    color = MaterialTheme.colorScheme.onSurfaceVariant // Màu chữ phụ
-                )
-            }
-        } else { // Có dữ liệu
-            LazyColumn( // Danh sách dọc
-                modifier = Modifier.fillMaxWidth(), // Chiếm toàn bộ chiều rộng
-                contentPadding = PaddingValues(16.dp), // Padding xung quanh 16dp
-                verticalArrangement = Arrangement.spacedBy(16.dp) // Khoảng cách giữa các thẻ 16dp
-            ) {
-                items(fields) { field -> // Mỗi phần tử là một sân
-                    FieldCard( // Thẻ sân
-                        field = field, // Truyền dữ liệu sân
-                        onClick = { clickedField -> // Khi nhấn thẻ
-                            onFieldClick(clickedField.id) // Gọi callback thay vì navigate trực tiếp
-                        },
-                        onViewDetailsClick = { // Khi nhấn button XEM CHI TIẾT
-                            onFieldClick(field.id) // Gọi callback để chuyển đến chi tiết sân
-                        }
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = "🏟️",
+                        style = MaterialTheme.typography.headlineLarge
                     )
+                    Text(
+                        text = "Chưa có sân nào", // Thông báo rỗng
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Hãy thêm sân đầu tiên của bạn",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Button(
+                        onClick = onAddFieldClick,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Thêm sân đầu tiên")
+                    }
+                }
+            }
+        } else { // Có dữ liệu (giống như HomeMyFieldsSection)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp) // Giống như HomeMyFieldsSection
+            ) {
+                // Hiển thị thông báo thành công
+                if (displayFields.isNotEmpty()) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = "Tìm thấy ${displayFields.size} sân",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+                
+                // Hiển thị danh sách sân bằng LazyColumn (giống như HomeMyFieldsSection)
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(vertical = 8.dp)
+                ) {
+                    items(displayFields) { field ->
+                        FieldCard(
+                            field = field,
+                            onClick = { clickedField -> onFieldClick(clickedField.fieldId) },
+                            onViewDetailsClick = { onFieldClick(field.fieldId) }
+                        )
+                    }
                 }
             }
         }
@@ -86,7 +272,7 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
             contentAlignment = Alignment.BottomEnd
         ) {
             FloatingActionButton(
-                onClick = { /* Thêm sân mới */ },
+                onClick = onAddFieldClick,
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Thêm sân")
@@ -99,43 +285,70 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
 private fun getMockFields(): List<Field> { // Tạo danh sách sân mẫu để hiển thị
     return listOf( // Trả về danh sách các phần tử Field
         Field( // Phần tử 1
-            id = "1", // Mã sân
+            fieldId = "1", // Mã sân
+            ownerId = "owner123",
             name = "POC Pickleball", // Tên sân
-            type = "Pickleball", // Loại sân
-            price = 150000, // Giá theo giờ
-            imageUrl = "https://via.placeholder.com/150/0000FF/FFFFFF?text=PBL", // Ảnh minh họa
-            status = "Available", // Trạng thái
-            isAvailable = true, // Có sẵn
+            sports = listOf("PICKLEBALL"), // Loại sân
             address = "25 Tú Xương, P. Tăng Nhơn Phú B, TP. Thủ Đức", // Địa chỉ
-            operatingHours = "05:00 - 23:00", // Giờ mở cửa
+            geo = GeoLocation(lat = 10.7769, lng = 106.7009), // Vị trí
+            images = com.trungkien.fbtp_cn.model.FieldImages(
+                mainImage = "",
+                image1 = "",
+                image2 = "",
+                image3 = ""
+            ),
+            slotMinutes = 30,
+            openHours = OpenHours(start = "05:00", end = "23:00", isOpen24h = false), // Giờ mở cửa
+            amenities = listOf("PARKING", "EQUIPMENT"),
+            description = "Sân Pickleball chất lượng cao",
             contactPhone = "0926666357", // SĐT liên hệ
-            distance = "835.3m" // Khoảng cách
+            averageRating = 4.5f, // Điểm đánh giá
+            totalReviews = 128, // Số đánh giá
+            isActive = true
         ),
         Field( // Phần tử 2
-            id = "2",
+            fieldId = "2",
+            ownerId = "owner123",
             name = "Sân Cầu Lông ABC",
-            type = "Cầu Lông",
-            price = 120000,
-            imageUrl = "https://via.placeholder.com/150/FF0000/FFFFFF?text=CBL",
-            status = "Booked",
-            isAvailable = false,
+            sports = listOf("BADMINTON"),
             address = "123 Đường XYZ, Quận 1, TP.HCM",
-            operatingHours = "06:00 - 22:00",
+            geo = GeoLocation(lat = 10.7829, lng = 106.6992),
+            images = com.trungkien.fbtp_cn.model.FieldImages(
+                mainImage = "",
+                image1 = "",
+                image2 = "",
+                image3 = ""
+            ),
+            slotMinutes = 30,
+            openHours = OpenHours(start = "06:00", end = "22:00", isOpen24h = false),
+            amenities = listOf("PARKING", "SHOWER"),
+            description = "Sân cầu lông chuyên nghiệp",
             contactPhone = "0901234567",
-            distance = "1.2km"
+            averageRating = 4.2f,
+            totalReviews = 89,
+            isActive = true
         ),
         Field( // Phần tử 3
-            id = "3",
+            fieldId = "3",
+            ownerId = "owner123",
             name = "Sân Bóng Đá Mini",
-            type = "Bóng Đá",
-            price = 300000,
-            imageUrl = "https://via.placeholder.com/150/00FF00/FFFFFF?text=BĐ",
-            status = "Available",
-            isAvailable = true,
+            sports = listOf("FOOTBALL"),
             address = "456 Đường QWE, Quận 7, TP.HCM",
-            operatingHours = "07:00 - 23:00",
+            geo = GeoLocation(lat = 10.7308, lng = 106.7263),
+            images = com.trungkien.fbtp_cn.model.FieldImages(
+                mainImage = "",
+                image1 = "",
+                image2 = "",
+                image3 = ""
+            ),
+            slotMinutes = 30,
+            openHours = OpenHours(start = "07:00", end = "23:00", isOpen24h = false),
+            amenities = listOf("PARKING", "EQUIPMENT"),
+            description = "Sân bóng đá mini chất lượng cao",
             contactPhone = "0987654321",
-            distance = "2.5km"
+            averageRating = 4.0f,
+            totalReviews = 67,
+            isActive = true
         )
     )
 }
@@ -146,7 +359,24 @@ fun OwnerFieldManagerPreview() { // Hàm xem trước UI màn hình quản lý s
     FBTP_CNTheme { // Áp dụng theme
         OwnerFieldManagementScreen( // Gọi composable chính
             onFieldClick = { /* Preview callback */ },
-            modifier = Modifier.fillMaxSize() // Chiếm toàn bộ diện tích
+            onAddFieldClick = { /* Preview callback */ },
+            modifier = Modifier.fillMaxSize(), // Chiếm toàn bộ diện tích
+            testMode = true, // Sử dụng test mode để hiển thị mock data
+            fields = getMockFields() // Truyền mock data để test UI
+        )
+    }
+}
+
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun OwnerFieldManagerWithDataPreview() { // Preview với dữ liệu thực
+    FBTP_CNTheme {
+        OwnerFieldManagementScreen(
+            onFieldClick = { /* Preview callback */ },
+            onAddFieldClick = { /* Preview callback */ },
+            modifier = Modifier.fillMaxSize(),
+            testMode = false, // Không dùng test mode
+            fields = getMockFields() // Truyền mock data qua parameter fields
         )
     }
 }

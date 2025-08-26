@@ -53,9 +53,9 @@ fun OwnerBookingListScreen(
     val filtered = remember(selectedFilter, allBookings) {
         when (selectedFilter) {
             BookingStatusFilter.All -> allBookings
-            BookingStatusFilter.Pending -> allBookings.filter { it.status == "Chờ xác nhận" }
-            BookingStatusFilter.Confirmed -> allBookings.filter { it.status == "Đã xác nhận" }
-            BookingStatusFilter.Canceled -> allBookings.filter { it.status == "Đã hủy" }
+            BookingStatusFilter.Pending -> allBookings.filter { it.status == "PENDING" }
+            BookingStatusFilter.Confirmed -> allBookings.filter { it.status == "PAID" }
+            BookingStatusFilter.Canceled -> allBookings.filter { it.status == "CANCELLED" }
         }
     }
 
@@ -153,7 +153,7 @@ fun OwnerBookingListScreen(
                     )
                 }
             } else {
-                items(filtered, key = { it.id }) { booking ->
+                items(filtered, key = { it.bookingId }) { booking ->
                     AnimatedVisibility(
                         visible = true,
                         enter = fadeIn(),
@@ -192,9 +192,9 @@ private fun BookingStatsHeader(
     bookings: List<Booking>,
     modifier: Modifier = Modifier
 ) {
-    val pendingCount = bookings.count { it.status == "Chờ xác nhận" }
-    val confirmedCount = bookings.count { it.status == "Đã xác nhận" }
-    val totalRevenue = bookings.filter { it.status == "Đã xác nhận" }.size * 150000 // Mock revenue
+    val pendingCount = bookings.count { it.status == "PENDING" }
+    val confirmedCount = bookings.count { it.status == "PAID" }
+    val totalRevenue = bookings.filter { it.status == "PAID" }.size * 150000 // Mock revenue
 
     Card(
         modifier = modifier
@@ -267,16 +267,16 @@ private fun EnhancedBookingListItem(
     modifier: Modifier = Modifier
 ) {
     val statusColor = when (booking.status) {
-        "Đã xác nhận" -> Color(0xFF4CAF50)
-        "Chờ xác nhận" -> Color(0xFFFF9800)
-        "Đã hủy" -> Color(0xFFF44336)
+        "PAID" -> Color(0xFF4CAF50)
+        "PENDING" -> Color(0xFFFF9800)
+        "CANCELLED" -> Color(0xFFF44336)
         else -> MaterialTheme.colorScheme.onSurface
     }
 
     val statusIcon = when (booking.status) {
-        "Đã xác nhận" -> "✓"
-        "Chờ xác nhận" -> "⏱"
-        "Đã hủy" -> "✕"
+        "PAID" -> "✓"
+        "PENDING" -> "⏱"
+        "CANCELLED" -> "✕"
         else -> "•"
     }
 
@@ -302,7 +302,7 @@ private fun EnhancedBookingListItem(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = booking.fieldName,
+                        text = "Sân ${booking.fieldId}",
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold
                         ),
@@ -323,7 +323,7 @@ private fun EnhancedBookingListItem(
                             modifier = Modifier.size(18.dp)
                         )
                         Text(
-                            text = booking.timeRange,
+                            text = "${booking.startAt} - ${booking.endAt}",
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                         )
@@ -412,7 +412,7 @@ private fun EnhancedBookingListItem(
             }
 
             // Action buttons cho pending bookings với design mới
-            if (booking.status == "Chờ xác nhận") {
+            if (booking.status == "PENDING") {
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Column(
@@ -506,12 +506,96 @@ private fun EnhancedBookingListItem(
 
 // Enhanced mock data with more details
 private fun mockBookings(): List<Booking> = listOf(
-    Booking("b1", "1", "POC Pickleball Court A", "Hôm nay · 08:00 - 09:00", "Chờ xác nhận"),
-    Booking("b2", "1", "POC Pickleball Court B", "Hôm nay · 10:00 - 11:00", "Đã xác nhận"),
-    Booking("b3", "2", "Sân Cầu Lông ABC", "Ngày mai · 15:00 - 16:00", "Đã hủy"),
-    Booking("b4", "2", "Sân Cầu Lông ABC", "Tuần này · 19:00 - 20:00", "Chờ xác nhận"),
-    Booking("b5", "3", "POC Pickleball Court C", "Hôm nay · 14:00 - 15:00", "Đã xác nhận"),
-    Booking("b6", "3", "Sân Tennis XYZ", "Ngày mai · 09:00 - 10:00", "Chờ xác nhận")
+    Booking(
+        bookingId = "b1",
+        renterId = "renter1",
+        ownerId = "owner1",
+        fieldId = "1",
+        date = "2024-01-15",
+        startAt = "08:00",
+        endAt = "09:00",
+        slotsCount = 1,
+        minutes = 60,
+        basePrice = 150000,
+        servicePrice = 0,
+        totalPrice = 150000,
+        status = "PENDING"
+    ),
+    Booking(
+        bookingId = "b2",
+        renterId = "renter2",
+        ownerId = "owner1",
+        fieldId = "1",
+        date = "2024-01-15",
+        startAt = "10:00",
+        endAt = "11:00",
+        slotsCount = 1,
+        minutes = 60,
+        basePrice = 150000,
+        servicePrice = 0,
+        totalPrice = 150000,
+        status = "PAID"
+    ),
+    Booking(
+        bookingId = "b3",
+        renterId = "renter3",
+        ownerId = "owner2",
+        fieldId = "2",
+        date = "2024-01-16",
+        startAt = "15:00",
+        endAt = "16:00",
+        slotsCount = 1,
+        minutes = 60,
+        basePrice = 120000,
+        servicePrice = 0,
+        totalPrice = 120000,
+        status = "CANCELLED"
+    ),
+    Booking(
+        bookingId = "b4",
+        renterId = "renter4",
+        ownerId = "owner2",
+        fieldId = "2",
+        date = "2024-01-20",
+        startAt = "19:00",
+        endAt = "20:00",
+        slotsCount = 1,
+        minutes = 60,
+        basePrice = 120000,
+        servicePrice = 0,
+        totalPrice = 120000,
+        status = "PENDING"
+    ),
+    Booking(
+        bookingId = "b5",
+        renterId = "renter5",
+        ownerId = "owner3",
+        fieldId = "3",
+        date = "2024-01-15",
+        startAt = "14:00",
+        endAt = "15:00",
+        slotsCount = 1,
+        minutes = 60,
+        basePrice = 180000,
+        servicePrice = 0,
+        totalPrice = 180000,
+        status = "PAID"
+    ),
+    Booking(
+        bookingId = "b6",
+        renterId = "renter6",
+        ownerId = "owner3",
+        fieldId = "3",
+        date = "2024-01-16",
+        startAt = "09:00",
+        endAt = "10:00",
+        slotsCount = 1,
+        minutes = 60,
+        basePrice = 180000,
+        servicePrice = 0,
+        totalPrice = 180000,
+        status = "PENDING"
+    )
 )
 
 @Preview(showBackground = true, showSystemUi = true)

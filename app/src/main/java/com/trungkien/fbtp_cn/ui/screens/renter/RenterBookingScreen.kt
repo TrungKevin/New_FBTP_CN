@@ -72,9 +72,9 @@ fun RenterBookingScreen(
                     items(upcoming) { booking ->
                         RenterBookingCard(
                             booking = booking,
-                            onDetailClick = { b -> selectedBookingId = if (selectedBookingId == b.id) null else b.id }
+                            onDetailClick = { b -> selectedBookingId = if (selectedBookingId == b.bookingId) null else b.bookingId }
                         )
-                        if (selectedBookingId == booking.id) {
+                        if (selectedBookingId == booking.bookingId) {
                             RenterBookingDetailSheet(
                                 booking = booking,
                                 onClose = { selectedBookingId = null }
@@ -96,9 +96,9 @@ fun RenterBookingScreen(
                     items(completed) { booking ->
                         RenterBookingCard(
                             booking = booking,
-                            onDetailClick = { b -> selectedBookingId = if (selectedBookingId == b.id) null else b.id }
+                            onDetailClick = { b -> selectedBookingId = if (selectedBookingId == b.bookingId) null else b.bookingId }
                         )
-                        if (selectedBookingId == booking.id) {
+                        if (selectedBookingId == booking.bookingId) {
                             RenterBookingDetailSheet(
                                 booking = booking,
                                 onClose = { selectedBookingId = null }
@@ -136,14 +136,34 @@ private fun RenterBookingScreenPreview() {
         // Provide static preview data to ensure content renders in Studio
         val previewBookings = listOf(
             Booking(
-                id = "booking_1", fieldId = "field_001", fieldName = "Court 1 - Tennis",
-                timeRange = "18:00 - 19:00", status = "Confirmed",
-                date = "2024-01-15", totalPrice = 195000, fieldPrice = 170000
+                bookingId = "booking_1",
+                renterId = "renter1",
+                ownerId = "owner1",
+                fieldId = "field_001",
+                date = "2024-01-15",
+                startAt = "18:00",
+                endAt = "19:00",
+                slotsCount = 1,
+                minutes = 60,
+                basePrice = 170000,
+                servicePrice = 25000,
+                totalPrice = 195000,
+                status = "PAID"
             ),
             Booking(
-                id = "booking_2", fieldId = "field_002", fieldName = "Court 2 - Badminton",
-                timeRange = "20:00 - 21:00", status = "Completed",
-                date = "2024-01-10", totalPrice = 120000, fieldPrice = 120000
+                bookingId = "booking_2",
+                renterId = "renter2",
+                ownerId = "owner2",
+                fieldId = "field_002",
+                date = "2024-01-10",
+                startAt = "20:00",
+                endAt = "21:00",
+                slotsCount = 1,
+                minutes = 60,
+                basePrice = 120000,
+                servicePrice = 0,
+                totalPrice = 120000,
+                status = "DONE"
             )
         )
         RenterBookingScreen(modifier = Modifier.fillMaxSize(), bookings = previewBookings)

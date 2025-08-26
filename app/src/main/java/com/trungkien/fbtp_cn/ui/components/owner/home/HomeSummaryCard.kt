@@ -21,7 +21,8 @@ data class HomeSummary(
     val newBookings: Int,
     val confirmed: Int,
     val canceled: Int,
-    val revenueToday: Long
+    val revenueToday: Long,
+    val totalFields: Int = 0 // Thêm số lượng sân
 )
 
 @Composable
@@ -103,6 +104,22 @@ fun HomeSummaryCard(summary: HomeSummary, modifier: Modifier = Modifier) {
                     isRevenue = true
                 )
             }
+            
+            // Thêm hàng thứ 3 để hiển thị số lượng sân
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                StatItem(
+                    modifier = Modifier.weight(1f),
+                    title = "Tổng sân",
+                    value = summary.totalFields.toString(),
+                    color = Color(0xFF9C27B0),
+                    icon = "🏟️"
+                )
+
+                Spacer(modifier = Modifier.weight(1f))
+            }
         }
     }
 }
@@ -161,7 +178,8 @@ fun PreviewHomeSummaryCard() {
                 newBookings = 12,
                 confirmed = 28,
                 canceled = 3,
-                revenueToday = 2500000
+                revenueToday = 2500000,
+                totalFields = 5
             )
         )
     }

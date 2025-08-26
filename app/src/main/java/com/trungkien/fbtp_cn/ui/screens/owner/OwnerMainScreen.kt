@@ -13,8 +13,14 @@ import com.trungkien.fbtp_cn.ui.components.owner.OwnerBottomNavBar
 import com.trungkien.fbtp_cn.ui.components.owner.OwnerTopAppBar
 import com.trungkien.fbtp_cn.ui.components.owner.OwnerNavScreen
 import com.trungkien.fbtp_cn.ui.screens.EditProfileScreen
+import com.trungkien.fbtp_cn.ui.screens.owner.AddFieldScreen
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 import androidx.compose.ui.graphics.Color
+import com.trungkien.fbtp_cn.model.Field
+import com.trungkien.fbtp_cn.viewmodel.FieldViewModel
+import com.trungkien.fbtp_cn.viewmodel.FieldEvent
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.collectAsState
 
 @Composable
 fun OwnerMainScreen(
@@ -30,6 +36,9 @@ fun OwnerMainScreen(
     
     // State để quản lý hiển thị BottomNavBar (ẩn khi ở màn hình detail)
     var showBottomNavBar by remember { mutableStateOf(true) }
+    
+    // Shared FieldViewModel để chia sẻ dữ liệu fields giữa các màn hình
+    val fieldViewModel: FieldViewModel = viewModel()
     
     Scaffold(
         modifier = modifier,
@@ -97,18 +106,55 @@ fun OwnerMainScreen(
                         showTopAppBar = false
                         showBottomNavBar = false
                         navController.navigate("owner_field_detail/$fieldId")
+                    },
+                    onNavigateToAddField = {
+                        showTopAppBar = false
+                        showBottomNavBar = false
+                        navController.navigate("owner_add_field")
                     }
                 )
             }
             
-            // Màn hình quản lý sân
+            // Màn hình quản lý sân - SỬ DỤNG CÙNG FIELDVIEWMODEL VỚI OWNERHOMESCREEN
             composable("owner_field_list") {
+                // Sử dụng shared FieldViewModel để lấy dữ liệu fields từ Firebase
+                val uiState by fieldViewModel.uiState.collectAsState()
+                val fields = uiState.fields // Lấy fields từ Firebase
+                
+                // Lấy AuthViewModel trong composable context
+                val authViewModel: com.trungkien.fbtp_cn.viewmodel.AuthViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+                val currentUser by authViewModel.currentUser.collectAsState()
+                
+                // Load fields khi màn hình được navigate đến (nếu chưa có dữ liệu)
+                LaunchedEffect(currentUser?.userId, fields.isEmpty()) {
+                    val userId = currentUser?.userId
+                    if (userId != null && fields.isEmpty()) {
+                        println("DEBUG: Loading fields for ownerId: $userId in OwnerMainScreen (fields was empty)")
+                        fieldViewModel.handleEvent(com.trungkien.fbtp_cn.viewmodel.FieldEvent.LoadFieldsByOwner(userId))
+                    }
+                }
+                
+                // Debug logging
+                LaunchedEffect(fields) {
+                    println("DEBUG: OwnerMainScreen - fields count: ${fields.size}")
+                    if (fields.isNotEmpty()) {
+                        println("DEBUG: OwnerMainScreen - first field: ${fields.first().name}")
+                    }
+                }
+                
                 OwnerFieldManagementScreen(
                     onFieldClick = { fieldId ->
                         showTopAppBar = false
                         showBottomNavBar = false
                         navController.navigate("owner_field_detail/$fieldId")
-                    }
+                    },
+                    onAddFieldClick = {
+                        showTopAppBar = false
+                        showBottomNavBar = false
+                        navController.navigate("owner_add_field")
+                    },
+                    fields = fields, // TRUYỀN DỮ LIỆU FIELDS TỪ FIREBASE
+                    fieldViewModel = fieldViewModel // TRUYỀN VIEWMODEL ĐỂ LOAD DỮ LIỆU
                 )
             }
             
@@ -192,6 +238,26 @@ fun OwnerMainScreen(
                 //         navController.navigateUp()
                 //     }
                 // )
+            }
+            
+            // Màn hình thêm sân mới
+            composable("owner_add_field") {
+                AddFieldScreen(
+                    onBackClick = {
+                        showTopAppBar = true
+                        showBottomNavBar = true
+                        navController.navigateUp()
+                    },
+                    onFieldAdded = { fieldId ->
+                        // Sau khi thêm sân thành công, chuyển về màn hình quản lý sân
+                        showTopAppBar = true
+                        showBottomNavBar = true
+                        currentScreen = OwnerNavScreen.Field
+                        navController.navigate("owner_field_list") {
+                            popUpTo("owner_home") { inclusive = true }
+                        }
+                    }
+                )
             }
         }
     }

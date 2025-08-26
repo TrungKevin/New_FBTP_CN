@@ -36,6 +36,9 @@ import androidx.compose.ui.unit.sp
 
 import com.trungkien.fbtp_cn.R
 import com.trungkien.fbtp_cn.model.Field
+import com.trungkien.fbtp_cn.model.GeoLocation
+import com.trungkien.fbtp_cn.model.FieldImages
+import com.trungkien.fbtp_cn.model.OpenHours
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -58,17 +61,29 @@ fun OwnerFieldDetailScreen(
     // Mock data cho field - trong thực tế sẽ lấy từ ViewModel/Repository
     val field = remember {
         Field(
-            id = fieldId,
+            fieldId = fieldId,
+            ownerId = "mockOwnerId",
             name = "POC Pickleball",
-            type = "Pickleball",
-            price = 150000,
-            imageUrl = "https://via.placeholder.com/150/0000FF/FFFFFF?text=PBL",
-            status = "Available",
-            isAvailable = true,
             address = "25 Tú Xương, P. Tăng Nhơn Phú B, TP. Thủ Đức",
-            operatingHours = "05:00 - 23:00",
+            geo = GeoLocation(),
+            sports = listOf("Pickleball"),
+            images = FieldImages(
+                mainImage = "https://via.placeholder.com/150/0000FF/FFFFFF?text=PBL",
+                image1 = "",
+                image2 = "",
+                image3 = ""
+            ),
+            slotMinutes = 30,
+            openHours = OpenHours(
+                start = "05:00",
+                end = "23:00",
+                isOpen24h = false
+            ),
+            amenities = listOf("PARKING", "EQUIPMENT"),
+            description = "Sân Pickleball chất lượng cao",
             contactPhone = "0926666357",
-            distance = "835.3m"
+            averageRating = 4.5f,
+            totalReviews = 12
         )
     }
     // Mock data cho nhiều hình ảnh sân (tối đa 8 hình)
@@ -227,10 +242,10 @@ fun OwnerFieldDetailScreen(
                         .align(Alignment.TopEnd)
                         .padding(16.dp),
                     shape = RoundedCornerShape(20.dp),
-                    color = if (field.isAvailable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                    color = if (field.isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
                 ) {
                     Text(
-                        text = field.status,
+                        text = if (field.isActive) "Hoạt động" else "Không hoạt động",
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
                         color = Color.White,
                         fontSize = 13.sp,

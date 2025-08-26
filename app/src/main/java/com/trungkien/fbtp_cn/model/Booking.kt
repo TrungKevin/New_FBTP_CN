@@ -1,29 +1,37 @@
 package com.trungkien.fbtp_cn.model
 
-import java.time.LocalDateTime
-
 data class Booking(
-    val id: String,
+    val bookingId: String,
+    val renterId: String,
+    val ownerId: String,
     val fieldId: String,
-    val fieldName: String,
-    val timeRange: String,
-    val status: String,
-    // Thêm thông tin cho Renter
-    val userId: String = "",
-    val userName: String = "",
-    val date: String = "", // "2024-01-15"
-    val startTime: String = "", // "18:00"
-    val endTime: String = "", // "19:00"
-    val totalPrice: Int = 0,
-    val fieldPrice: Int = 0,
-    val servicesPrice: Int = 0,
-    val services: List<ServiceOrder> = emptyList(),
-    val createdAt: LocalDateTime = LocalDateTime.now(),
-    val updatedAt: LocalDateTime = LocalDateTime.now(),
-    val notes: String = "",
-    val fieldImage: String = "",
-    val fieldAddress: String = "",
-    val fieldType: String = ""
+    val date: String, // "2024-01-15"
+    val startAt: String, // "18:00"
+    val endAt: String, // "19:00"
+    val slotsCount: Int,
+    val minutes: Int,
+    val matchId: String? = null,
+    val matchSide: String? = null, // "A" | "B"
+    val opponentMode: String? = null, // "WAITING_OPPONENT" | "LOCKED_FULL"
+    val basePrice: Long,
+    val serviceLines: List<ServiceLine> = emptyList(),
+    val servicePrice: Long,
+    val totalPrice: Long,
+    val status: String, // "PENDING" | "PAID" | "CANCELLED" | "DONE"
+    val notes: String? = null,
+    val paymentStatus: String? = "PENDING", // "PENDING" | "PAID" | "REFUNDED"
+    val paymentMethod: String? = null, // "CASH" | "BANK_TRANSFER" | "MOMO" | "VNPAY"
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
+data class ServiceLine(
+    val serviceId: String,
+    val name: String,
+    val billingType: String,
+    val price: Long,
+    val quantity: Int,
+    val lineTotal: Long
 )
 
 

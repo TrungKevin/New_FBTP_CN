@@ -19,8 +19,9 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.trungkien.fbtp_cn.R
 import com.trungkien.fbtp_cn.model.Field
-import com.trungkien.fbtp_cn.model.PriceRange
-import com.trungkien.fbtp_cn.model.PriceDetail
+import com.trungkien.fbtp_cn.model.FieldImages
+import com.trungkien.fbtp_cn.model.OpenHours
+import com.trungkien.fbtp_cn.model.GeoLocation
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 import com.trungkien.fbtp_cn.ui.theme.GreenPrimary
 
@@ -67,16 +68,18 @@ fun RenterFieldInfoCard(
             }
 
             // Field image
-            field.images?.firstOrNull()?.let { imageUrl ->
-                AsyncImage(
-                    model = imageUrl,
-                    contentDescription = "Hình ảnh sân",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(120.dp)
-                        .clip(RoundedCornerShape(8.dp)),
-                    contentScale = ContentScale.Crop
-                )
+            field.images.mainImage.let { imageUrl ->
+                if (imageUrl.isNotEmpty()) {
+                    AsyncImage(
+                        model = imageUrl,
+                        contentDescription = "Hình ảnh sân",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(120.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                }
             }
 
             // Field type and rating
@@ -89,7 +92,7 @@ fun RenterFieldInfoCard(
                     onClick = { },
                     label = {
                         Text(
-                            text = field.type,
+                            text = field.sports.firstOrNull() ?: "Thể thao",
                             style = MaterialTheme.typography.bodyMedium
                         )
                     },
@@ -117,12 +120,12 @@ fun RenterFieldInfoCard(
                         modifier = Modifier.size(16.dp)
                     )
                     Text(
-                        text = "${field.averageRating ?: 0.0}",
+                        text = "${field.averageRating}",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        text = "(${field.totalReviews ?: 0})",
+                        text = "(${field.totalReviews})",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -147,24 +150,26 @@ fun RenterFieldInfoCard(
                 )
             }
 
-            // Price
+            // Operating hours
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Icon(
-                    painter = painterResource(id = R.drawable.money),
+                    painter = painterResource(id = R.drawable.schedule),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(16.dp)
                 )
                 Text(
-                    text = "${field.price}₫/giờ",
+                    text = "${field.openHours.start} - ${field.openHours.end}",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
                     color = GreenPrimary
                 )
             }
+
+
 
             // Book button
             Button(
@@ -197,21 +202,21 @@ private fun RenterFieldInfoCardPreview() {
     FBTP_CNTheme {
         // Create a mock field for preview with only required properties
         val mockField = Field(
-            id = "preview-1",
+            fieldId = "preview-1",
             name = "Court 1",
-            type = "Football",
-            price = 120000,
-            imageUrl = "https://example.com/court1.jpg",
-            status = "Available",
-            isAvailable = true,
-            address = "123 ABC Street, District 1, HCMC",
-            priceRange = PriceRange(
-                weekday = PriceDetail(morning = 120000, afternoon = 120000, evening = 120000),
-                weekend = PriceDetail(morning = 150000, afternoon = 150000, evening = 150000)
+            sports = listOf("Football"),
+            images = FieldImages(
+                mainImage = "https://example.com/court1.jpg",
+                image1 = "https://example.com/court1.jpg",
+                image2 = "https://example.com/court1.jpg",
+                image3 = "https://example.com/court1.jpg"
             ),
+            address = "123 ABC Street, District 1, HCMC",
+            openHours = OpenHours("06:00", "22:00"),
+            geo = GeoLocation(10.8231, 106.6297),
             averageRating = 4.5f,
             totalReviews = 128,
-            images = listOf("https://example.com/court1.jpg")
+            ownerId = "owner1"
         )
         
         RenterFieldInfoCard(

@@ -144,7 +144,7 @@ private fun EnhancedFieldInfoHeader(
 
             // Tên sân
             Text(
-                text = booking.fieldName,
+                text = "Sân ${booking.fieldId}",
                 style = MaterialTheme.typography.headlineSmall.copy(
                     fontWeight = FontWeight.Bold
                 ),
@@ -165,7 +165,7 @@ private fun EnhancedFieldInfoHeader(
                     modifier = Modifier.size(18.dp)
                 )
                 Text(
-                    text = booking.timeRange,
+                    text = "${booking.startAt} - ${booking.endAt}",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                 )
@@ -436,7 +436,7 @@ private fun EnhancedBookingInfoSection(
             EnhancedInfoRow(
                 icon = Icons.Default.Add,
                 label = "Khung giờ",
-                value = booking.timeRange
+                value = "${booking.startAt} - ${booking.endAt}"
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -587,11 +587,19 @@ private fun EnhancedActionButtonsSection(
 @Composable
 private fun PreviewBookingDetailManage() {
     val mockBooking = Booking(
-        id = "b1",
+        bookingId = "b1",
+        renterId = "user_001",
+        ownerId = "owner_001",
         fieldId = "1",
-        fieldName = "POC Pickleball Court A",
-        timeRange = "08:00 - 09:00",
-        status = "Chờ xác nhận"
+        date = "2024-01-15",
+        startAt = "08:00",
+        endAt = "09:00",
+        slotsCount = 2,
+        minutes = 60,
+        basePrice = 150000,
+        servicePrice = 0,
+        totalPrice = 150000,
+        status = "PENDING"
     )
 
     FBTP_CNTheme {
