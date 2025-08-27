@@ -1,6 +1,8 @@
 package com.trungkien.fbtp_cn.ui.screens.owner
 
+import android.graphics.BitmapFactory
 import android.os.Build
+import android.util.Base64
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -22,6 +24,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -69,7 +73,7 @@ fun OwnerFieldDetailScreen(
     // Load field data từ Firebase khi có fieldId
     LaunchedEffect(fieldId) {
         if (fieldId.isNotEmpty()) {
-            println("DEBUG: 🔍 Loading field details for fieldId: $fieldId")
+            // Loading field details from Firebase
             fieldViewModel.handleEvent(FieldEvent.LoadFieldById(fieldId))
         }
     }
@@ -93,62 +97,44 @@ fun OwnerFieldDetailScreen(
     )
 
     // Lấy hình ảnh thực tế từ dữ liệu sân - tối đa 4 ảnh
-    val fieldImages = remember(field.images, field.fieldId) {
-        buildList {
-            // Thêm mainImage nếu có (ưu tiên cao nhất)
-            if (field.images.mainImage.isNotEmpty()) {
-                add(field.images.mainImage)
-            }
-            // Thêm các ảnh chi tiết nếu có
-            if (field.images.image1.isNotEmpty()) {
-                add(field.images.image1)
-            }
-            if (field.images.image2.isNotEmpty()) {
-                add(field.images.image2)
-            }
-            if (field.images.image3.isNotEmpty()) {
-                add(field.images.image3)
-            }
-            
-            // Đảm bảo luôn có ít nhất 4 ảnh để hiển thị
-            while (size < 4) {
-                when (size) {
-                    0 -> add(R.drawable.court1)
-                    1 -> add(R.drawable.court2)
-                    2 -> add(R.drawable.court4)
-                    3 -> add(R.drawable.court5)
+    val fieldImages = remember(uiState.currentField?.images, uiState.currentField?.fieldId) {
+        val currentField = uiState.currentField
+        if (currentField != null) {
+            buildList<Any> {
+                // Thêm mainImage nếu có (ưu tiên cao nhất)
+                if (currentField.images.mainImage.isNotEmpty()) {
+                    add(currentField.images.mainImage)
+                }
+                // Thêm các ảnh chi tiết nếu có
+                if (currentField.images.image1.isNotEmpty()) {
+                    add(currentField.images.image1)
+                }
+                if (currentField.images.image2.isNotEmpty()) {
+                    add(currentField.images.image2)
+                }
+                if (currentField.images.image3.isNotEmpty()) {
+                    add(currentField.images.image3)
+                }
+                
+                // Đảm bảo luôn có ít nhất 4 ảnh để hiển thị
+                while (size < 4) {
+                    when (size) {
+                        0 -> add(R.drawable.court1)
+                        1 -> add(R.drawable.court2)
+                        2 -> add(R.drawable.court4)
+                        3 -> add(R.drawable.court5)
+                    }
                 }
             }
+        } else {
+            // Nếu chưa có dữ liệu từ Firebase, sử dụng ảnh mặc định
+            listOf<Any>(R.drawable.court1, R.drawable.court2, R.drawable.court4, R.drawable.court5)
         }
     }
 
-    // Debug logging và cập nhật fieldImages khi dữ liệu thay đổi
-    LaunchedEffect(field, uiState.isLoading, uiState.error) {
-        println("DEBUG: 🏟️ OwnerFieldDetailScreen - fieldId: $fieldId")
-        println("DEBUG: 🏟️ OwnerFieldDetailScreen - field loaded: ${field.name}")
-        println("DEBUG: 🏟️ OwnerFieldDetailScreen - isLoading: ${uiState.isLoading}")
-        println("DEBUG: 🏟️ OwnerFieldDetailScreen - error: ${uiState.error}")
-        
-        // Debug hình ảnh
-        println("DEBUG: 🖼️ Field images from Firebase:")
-        println("DEBUG: 🖼️ - mainImage: ${field.images.mainImage}")
-        println("DEBUG: 🖼️ - image1: ${field.images.image1}")
-        println("DEBUG: 🖼️ - image2: ${field.images.image2}")
-        println("DEBUG: 🖼️ - image3: ${field.images.image3}")
-        println("DEBUG: 🖼️ - Total fieldImages count: ${fieldImages.size}")
-        println("DEBUG: 🖼️ - fieldImages: $fieldImages")
-        
-        // Kiểm tra xem có ảnh từ Firebase không
-        val hasFirebaseImages = field.images.mainImage.isNotEmpty() || 
-                               field.images.image1.isNotEmpty() || 
-                               field.images.image2.isNotEmpty() || 
-                               field.images.image3.isNotEmpty()
-        
-        if (hasFirebaseImages) {
-            println("DEBUG: 🎉 Có ảnh từ Firebase - sẽ hiển thị ảnh thực tế!")
-        } else {
-            println("DEBUG: ⚠️ Không có ảnh từ Firebase - sử dụng ảnh mặc định")
-        }
+    // Cập nhật fieldImages khi dữ liệu thay đổi
+    LaunchedEffect(uiState.currentField, uiState.isLoading, uiState.error) {
+        // FieldImages sẽ tự động cập nhật khi currentField thay đổi
     }
 
     val pagerState = rememberPagerState(pageCount = { fieldImages.size })
@@ -323,29 +309,7 @@ fun OwnerFieldDetailScreen(
                         }
                     }
                     
-                    // Thông báo về nguồn ảnh
-                    val hasFirebaseImages = field.images.mainImage.isNotEmpty() || 
-                                           field.images.image1.isNotEmpty() || 
-                                           field.images.image2.isNotEmpty() || 
-                                           field.images.image3.isNotEmpty()
-                    
-                    if (hasFirebaseImages) {
-                        Surface(
-                            modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .padding(16.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)
-                        ) {
-                            Text(
-                                text = "📸 Ảnh thực từ Firebase",
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                color = Color.White,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
+
 
                     // Status badge
                     Surface(
@@ -493,7 +457,7 @@ fun FieldImage(
             if (imageSource.isNotEmpty()) {
                 if (imageSource.startsWith("http")) {
                     // TODO: Implement Coil image loading for Firebase URLs
-                    // Tạm thời hiển thị placeholder với thông báo rõ ràng
+                    // Hiển thị placeholder cho ảnh từ Firebase với thông báo rõ ràng
                     Box(
                         modifier = modifier.background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)),
                         contentAlignment = Alignment.Center
@@ -510,14 +474,14 @@ fun FieldImage(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "🖼️ Ảnh từ Firebase",
+                                text = "🖼️ Ảnh sân thực tế",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Đang tải ảnh...",
+                                text = "Đang tải ảnh từ Firebase...",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -529,6 +493,33 @@ fun FieldImage(
                                 textAlign = TextAlign.Center
                             )
                         }
+                    }
+                } else if (imageSource.startsWith("data:image") || imageSource.length > 100) {
+                    // Base64 encoded image from Firebase
+                    val base64String = if (imageSource.startsWith("data:image")) {
+                        imageSource.substringAfter(",")
+                    } else {
+                        imageSource
+                    }
+                    
+                    val decodedBytes = Base64.decode(base64String, Base64.DEFAULT)
+                    val bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+                    
+                    if (bitmap != null) {
+                        Image(
+                            bitmap = bitmap.asImageBitmap(),
+                            contentDescription = contentDescription,
+                            modifier = modifier,
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        // Fallback if Base64 decoding fails
+                        Image(
+                            painter = painterResource(id = R.drawable.court1),
+                            contentDescription = contentDescription,
+                            modifier = modifier,
+                            contentScale = ContentScale.Crop
+                        )
                     }
                 } else {
                     // String rỗng, hiển thị ảnh mặc định
