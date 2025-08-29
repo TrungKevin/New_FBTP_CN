@@ -409,4 +409,41 @@ class FieldRepository {
             Result.failure(e)
         }
     }
+    
+    /**
+     * Cập nhật chỉ dịch vụ của một sân
+     * Xóa dịch vụ cũ và thêm dịch vụ mới
+     */
+    suspend fun updateFieldServices(
+        fieldId: String,
+        fieldServices: List<FieldService>
+    ): Result<Unit> {
+        return try {
+            val batch = firestore.batch()
+            
+            // 1. Xóa tất cả field services cũ của sân này
+            val oldServicesSnapshot = firestore.collection(FIELD_SERVICES_COLLECTION)
+                .whereEqualTo("fieldId", fieldId)
+                .get()
+                .await()
+            
+            oldServicesSnapshot.documents.forEach { doc ->
+                batch.delete(doc.reference)
+            }
+            
+            // 2. Thêm field services mới
+            fieldServices.forEach { service ->
+                val serviceDoc = firestore.collection(FIELD_SERVICES_COLLECTION).document()
+                val serviceWithId = service.copy(fieldServiceId = serviceDoc.id)
+                batch.set(serviceDoc, serviceWithId)
+            }
+            
+            // 3. Commit tất cả thay đổi
+            batch.commit().await()
+            
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

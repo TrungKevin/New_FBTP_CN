@@ -31,6 +31,7 @@ import com.trungkien.fbtp_cn.viewmodel.FieldViewModel
 import com.trungkien.fbtp_cn.viewmodel.FieldEvent
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trungkien.fbtp_cn.ui.components.common.LoadingDialog
+import com.trungkien.fbtp_cn.ui.components.owner.info.FieldServiceManager
 
 @Composable
 fun CourtService(
@@ -43,14 +44,14 @@ fun CourtService(
     // ✅ FIX: State cho bảng giá sân - Sử dụng List immutable để force recompose
     var pricingRules by remember { mutableStateOf(emptyList<CourtPricingRule>()) }
     
-    // ✅ FIX: State cho danh sách dịch vụ - Sử dụng List immutable để force recompose
-    var services by remember { mutableStateOf(emptyList<CourtServiceItem>()) }
+    // State cho danh sách dịch vụ - Không còn cần thiết vì đã chuyển sang FieldServiceManager
+    // var services by remember { mutableStateOf(emptyList<CourtServiceItem>()) }
     
-    // State cho việc thêm dịch vụ mới
-    var showAddServiceDialog by remember { mutableStateOf(false) }
-    var newServiceCategory by remember { mutableStateOf("Banh") }
-    var newServiceName by remember { mutableStateOf("") }
-    var newServicePrice by remember { mutableStateOf("") }
+            // State cho việc thêm dịch vụ mới - Không còn cần thiết vì đã chuyển sang FieldServiceManager
+        // var showAddServiceDialog by remember { mutableStateOf(false) }
+        // var newServiceCategory by remember { mutableStateOf("Banh") }
+        // var newServiceName by remember { mutableStateOf("") }
+        // var newServicePrice by remember { mutableStateOf("") }
     
     // State để force refresh UI khi cần thiết
     var refreshTrigger by remember { mutableStateOf(0) }
@@ -115,12 +116,10 @@ fun CourtService(
             println("    [$index] ruleId: '${rule.ruleId}', price: ${rule.price}, description: '${rule.description}'")
         }
         println("  - uiState.fieldServices.size: ${uiState.fieldServices.size}")
-        uiState.fieldServices.forEachIndexed { index, service ->
-            println("    [$index] fieldServiceId: '${service.fieldServiceId}', name: '${service.name}', price: ${service.price}")
-        }
+        // Services không còn cần thiết vì đã chuyển sang FieldServiceManager
         
         // ✅ FIX: Cập nhật state local từ Firebase data với new instances
-        val (newPricingRules, newServices) = updateUIDataFromFirebase(uiState.pricingRules, uiState.fieldServices, pricingRules, services)
+        val (newPricingRules, _) = updateUIDataFromFirebase(uiState.pricingRules, uiState.fieldServices, pricingRules, emptyList())
         
         println("🔍 DEBUG: updateUIDataFromFirebase returned:")
         println("  - newPricingRules.size: ${newPricingRules.size}")
@@ -129,7 +128,7 @@ fun CourtService(
         }
         
         pricingRules = newPricingRules.toList()
-        services = newServices.toList()
+        // services không còn cần thiết vì đã chuyển sang FieldServiceManager
         
         println("🔍 DEBUG: After set localPricingRules: size=${pricingRules.size}, prices=${pricingRules.map { it.price }}")
         
@@ -200,9 +199,9 @@ fun CourtService(
                             println("💾 DEBUG: Save button được click!")
                             
                             // Validate dữ liệu trước khi lưu
-                            val errors = validateData(pricingRules, services)
+                            val errors = validateData(pricingRules, emptyList())
                             if (errors.isEmpty()) {
-                                saveData(field.fieldId, pricingRules, services, fieldViewModel)
+                                saveData(field.fieldId, pricingRules, emptyList(), fieldViewModel)
                             } else {
                                 validationErrors = errors
                             }
@@ -445,173 +444,12 @@ fun CourtService(
         
         Spacer(modifier = Modifier.height(24.dp))
         
-        // DỊCH VỤ BỔ SUNG
-        Text(
-            text = "DỊCH VỤ BỔ SUNG",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
+        // Sử dụng FieldServiceManager để quản lý dịch vụ
+        FieldServiceManager(
+            fieldId = field.fieldId,
+            fieldViewModel = fieldViewModel,
+            isEditMode = isEditMode
         )
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        // Danh sách dịch vụ theo danh mục
-        val serviceCategories = listOf("Banh", "Nước đóng chai", "Phí Thuê Vợt", "Dịch vụ khác")
-        
-        serviceCategories.forEach { category ->
-            val categoryServices = services.filter { it.category == category }
-            
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Text(
-                        text = category,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    if (categoryServices.isNotEmpty()) {
-                        categoryServices.forEach { service ->
-                            if (service.name.isNotEmpty() || isEditMode) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    if (isEditMode) {
-                                        BasicTextField(
-                                            value = service.name,
-                                            onValueChange = { newName ->
-                                                val index = services.indexOf(service)
-                                                if (index != -1) {
-                                                    val updatedServices = services.toMutableList()
-                                                    updatedServices[index] = service.copy(name = newName)
-                                                    services = updatedServices
-                                                }
-                                            },
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .padding(8.dp)
-                                                .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.small),
-                                            textStyle = MaterialTheme.typography.bodyMedium
-                                        )
-                                        
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        
-                                        BasicTextField(
-                                            value = service.price,
-                                            onValueChange = { newPrice ->
-                                                val index = services.indexOf(service)
-                                                if (index != -1) {
-                                                    val updatedServices = services.toMutableList()
-                                                    updatedServices[index] = service.copy(price = newPrice)
-                                                    services = updatedServices
-                                                }
-                                            },
-                                            modifier = Modifier
-                                                .weight(0.5f)
-                                                .padding(8.dp)
-                                                .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.small),
-                                            textStyle = MaterialTheme.typography.bodyMedium
-                                        )
-                                        
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        
-                                        IconButton(
-                                            onClick = {
-                                                services = services.filter { it != service }
-                                            }
-                                        ) {
-                                            Icon(
-                                                Icons.Default.Delete,
-                                                contentDescription = "Xóa",
-                                                tint = MaterialTheme.colorScheme.error
-                                            )
-                                        }
-                                    } else {
-                                        Text(
-                                            text = service.name.ifEmpty { "Chưa có dịch vụ" },
-                                            modifier = Modifier.weight(1f),
-                                            color = if (service.name.isNotEmpty()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        
-                                        Text(
-                                            text = if (service.price.isNotEmpty()) "${service.price} ₫" else "",
-                                            modifier = Modifier.weight(0.5f),
-                                            color = if (service.price.isNotEmpty()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                                
-                                if (isEditMode) {
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                }
-                            }
-                        }
-                    }
-                    
-                    if (isEditMode) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            BasicTextField(
-                                value = "",
-                                onValueChange = { newName ->
-                                    if (newName.isNotEmpty()) {
-                                        val newService = CourtServiceItem(
-                                            id = (services.size + 1).toString(),
-                                            name = newName,
-                                            price = "",
-                                            category = category
-                                        )
-                                        services = services + newService
-                                    }
-                                },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(8.dp)
-                                    .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.small),
-                                textStyle = MaterialTheme.typography.bodyMedium
-                            )
-                            
-                            Spacer(modifier = Modifier.width(8.dp))
-                            
-                            BasicTextField(
-                                value = "",
-                                onValueChange = { newPrice ->
-                                    // Tìm service vừa thêm và cập nhật giá
-                                    val lastService = services.lastOrNull { it.category == category }
-                                    if (lastService != null && lastService.name.isNotEmpty()) {
-                                        val index = services.indexOf(lastService)
-                                        val updatedServices = services.toMutableList()
-                                        updatedServices[index] = lastService.copy(price = newPrice)
-                                        services = updatedServices
-                                    }
-                                },
-                                modifier = Modifier
-                                    .weight(0.5f)
-                                    .padding(8.dp)
-                                    .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.small),
-                                textStyle = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    }
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(8.dp))
-        }
     }
 }
 

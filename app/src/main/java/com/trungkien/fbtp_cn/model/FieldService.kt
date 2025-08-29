@@ -1,6 +1,7 @@
 package com.trungkien.fbtp_cn.model
 
 import androidx.annotation.Keep
+import com.google.firebase.firestore.PropertyName
 
 /**
  * DỊCH VỤ CỦA TỪNG SÂN - Dùng để tính tiền dịch vụ bổ sung khi khách đặt sân
@@ -33,6 +34,7 @@ data class FieldService(
     val allowQuantity: Boolean = true,          // Cho phép khách chọn số lượng
     val description: String = "",               // Mô tả dịch vụ
     val imageUrl: String = "",                  // URL hình ảnh dịch vụ
+    @PropertyName("available")
     val isAvailable: Boolean = true,            // Trạng thái khả dụng
     val stockQuantity: Int? = null              // Số lượng tồn kho (nếu có)
 )

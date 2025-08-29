@@ -44,6 +44,11 @@ sealed class FieldEvent {
         val pricingRules: List<PricingRule>,
         val fieldServices: List<FieldService>
     ) : FieldEvent()
+    
+    data class UpdateFieldServices(
+        val fieldId: String,
+        val fieldServices: List<FieldService>
+    ) : FieldEvent()
     object ClearError : FieldEvent()
     object ClearSuccess : FieldEvent()
 }
@@ -71,6 +76,10 @@ class FieldViewModel(
             is FieldEvent.UpdateFieldPricingAndServices -> updateFieldPricingAndServices(
                 event.fieldId, 
                 event.pricingRules, 
+                event.fieldServices
+            )
+            is FieldEvent.UpdateFieldServices -> updateFieldServices(
+                event.fieldId, 
                 event.fieldServices
             )
             is FieldEvent.ClearError -> clearError()
@@ -435,6 +444,45 @@ class FieldViewModel(
                         _uiState.value = _uiState.value.copy(
                             isLoading = false,
                             error = "Cập nhật thất bại: ${exception.message}"
+                        )
+                    }
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = "Lỗi không xác định: ${e.message}"
+                )
+            }
+        }
+    }
+    
+    private fun updateFieldServices(
+        fieldId: String,
+        fieldServices: List<FieldService>
+    ) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isLoading = true,
+                error = null,
+                success = null
+            )
+            
+            try {
+                val result = repository.updateFieldServices(fieldId, fieldServices)
+                
+                result.fold(
+                    onSuccess = {
+                        _uiState.value = _uiState.value.copy(
+                            isLoading = false,
+                            success = "Cập nhật dịch vụ thành công!"
+                        )
+                        // Reload data để hiển thị dữ liệu mới
+                        loadFieldServicesByFieldId(fieldId)
+                    },
+                    onFailure = { exception ->
+                        _uiState.value = _uiState.value.copy(
+                            isLoading = false,
+                            error = "Cập nhật dịch vụ thất bại: ${exception.message}"
                         )
                     }
                 )

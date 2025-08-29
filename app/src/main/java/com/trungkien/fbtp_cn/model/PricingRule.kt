@@ -1,6 +1,7 @@
 package com.trungkien.fbtp_cn.model
 
 import androidx.annotation.Keep
+import com.google.firebase.firestore.PropertyName
 
 /**
  * BẢNG GIÁ THEO THỜI LƯỢNG - Dùng để tính tiền sân khi khách chọn khe giờ
@@ -33,5 +34,6 @@ data class PricingRule(
     
     // Thông tin bổ sung
     val description: String = "",          // Mô tả quy tắc giá
+    @PropertyName("active")
     val isActive: Boolean = true           // Trạng thái hoạt động
 )
