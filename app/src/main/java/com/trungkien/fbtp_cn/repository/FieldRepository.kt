@@ -257,6 +257,48 @@ class FieldRepository {
     }
     
     /**
+     * Thêm pricing rule mới
+     */
+    suspend fun addPricingRule(pricingRule: PricingRule): Result<String> {
+        return try {
+            val ruleDoc = firestore.collection(PRICING_RULES_COLLECTION).document()
+            val ruleId = ruleDoc.id
+            
+            val ruleWithId = pricingRule.copy(ruleId = ruleId)
+            ruleDoc.set(ruleWithId).await()
+            
+            Result.success(ruleId)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * Thêm field service mới
+     */
+    suspend fun addFieldService(fieldService: FieldService): Result<String> {
+        return try {
+            val serviceDoc = firestore.collection(FIELD_SERVICES_COLLECTION).document()
+            val serviceId = serviceDoc.id
+            
+            val serviceWithId = fieldService.copy(fieldServiceId = serviceId)
+            serviceDoc.set(serviceWithId).await()
+            
+            Result.success(serviceId)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+
+    
+
+    
+
+    
+
+    
+    /**
      * Cập nhật thông tin sân
      */
     suspend fun updateField(field: Field): Result<Unit> {
@@ -306,6 +348,61 @@ class FieldRepository {
                 servicesBatch.delete(doc.reference)
             }
             servicesBatch.commit().await()
+            
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * Cập nhật toàn bộ bảng giá và dịch vụ của một sân
+     * Xóa dữ liệu cũ và thêm dữ liệu mới
+     */
+    suspend fun updateFieldPricingAndServices(
+        fieldId: String,
+        pricingRules: List<PricingRule>,
+        fieldServices: List<FieldService>
+    ): Result<Unit> {
+        return try {
+            val batch = firestore.batch()
+            
+            // 1. Xóa tất cả pricing rules cũ của sân này
+            val oldRulesSnapshot = firestore.collection(PRICING_RULES_COLLECTION)
+                .whereEqualTo("fieldId", fieldId)
+                .get()
+                .await()
+            
+            oldRulesSnapshot.documents.forEach { doc ->
+                batch.delete(doc.reference)
+            }
+            
+            // 2. Xóa tất cả field services cũ của sân này
+            val oldServicesSnapshot = firestore.collection(FIELD_SERVICES_COLLECTION)
+                .whereEqualTo("fieldId", fieldId)
+                .get()
+                .await()
+            
+            oldServicesSnapshot.documents.forEach { doc ->
+                batch.delete(doc.reference)
+            }
+            
+            // 3. Thêm pricing rules mới
+            pricingRules.forEach { rule ->
+                val ruleDoc = firestore.collection(PRICING_RULES_COLLECTION).document()
+                val ruleWithId = rule.copy(ruleId = ruleDoc.id)
+                batch.set(ruleDoc, ruleWithId)
+            }
+            
+            // 4. Thêm field services mới
+            fieldServices.forEach { service ->
+                val serviceDoc = firestore.collection(FIELD_SERVICES_COLLECTION).document()
+                val serviceWithId = service.copy(fieldServiceId = serviceDoc.id)
+                batch.set(serviceDoc, serviceWithId)
+            }
+            
+            // 5. Commit tất cả thay đổi
+            batch.commit().await()
             
             Result.success(Unit)
         } catch (e: Exception) {

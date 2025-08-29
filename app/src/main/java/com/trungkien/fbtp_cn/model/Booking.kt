@@ -1,5 +1,8 @@
 package com.trungkien.fbtp_cn.model
 
+import androidx.annotation.Keep
+
+@Keep
 data class Booking(
     val bookingId: String,
     val renterId: String,
@@ -25,6 +28,7 @@ data class Booking(
     val updatedAt: Long = System.currentTimeMillis()
 )
 
+@Keep
 data class ServiceLine(
     val serviceId: String,
     val name: String,

@@ -1,5 +1,8 @@
 package com.trungkien.fbtp_cn.model
 
+import androidx.annotation.Keep
+
+@Keep
 data class FieldOperatingSchedule(
     val scheduleId: String,
     val fieldId: String,

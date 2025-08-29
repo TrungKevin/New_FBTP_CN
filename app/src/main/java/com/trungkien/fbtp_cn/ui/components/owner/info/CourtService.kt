@@ -1,538 +1,1098 @@
 package com.trungkien.fbtp_cn.ui.components.owner.info
 
-import android.R.attr.rotation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.trungkien.fbtp_cn.model.Field
+import com.trungkien.fbtp_cn.model.PricingRule
+import com.trungkien.fbtp_cn.model.FieldService
+import com.trungkien.fbtp_cn.viewmodel.FieldViewModel
+import com.trungkien.fbtp_cn.viewmodel.FieldEvent
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.trungkien.fbtp_cn.ui.components.common.LoadingDialog
 
 @Composable
-fun CourtService(field: Field, modifier: Modifier = Modifier) {
-    var isServicesCollapsed by remember { mutableStateOf(false) }
+fun CourtService(
+    field: Field, 
+    modifier: Modifier = Modifier,
+    fieldViewModel: FieldViewModel = viewModel()
+) {
+    var isEditMode by remember { mutableStateOf(false) }
+    
+    // ✅ FIX: State cho bảng giá sân - Sử dụng List immutable để force recompose
+    var pricingRules by remember { mutableStateOf(emptyList<CourtPricingRule>()) }
+    
+    // ✅ FIX: State cho danh sách dịch vụ - Sử dụng List immutable để force recompose
+    var services by remember { mutableStateOf(emptyList<CourtServiceItem>()) }
+    
+    // State cho việc thêm dịch vụ mới
+    var showAddServiceDialog by remember { mutableStateOf(false) }
+    var newServiceCategory by remember { mutableStateOf("Banh") }
+    var newServiceName by remember { mutableStateOf("") }
+    var newServicePrice by remember { mutableStateOf("") }
+    
+    // State để force refresh UI khi cần thiết
+    var refreshTrigger by remember { mutableStateOf(0) }
+    
+    // State cho validation
+    var validationErrors by remember { mutableStateOf(listOf<String>()) }
+    
+    // Focus management
+    val focusManager = LocalFocusManager.current
+    
+    // Khởi tạo dữ liệu ban đầu
+    LaunchedEffect(field.fieldId) {
+        println("🚀 DEBUG: Bắt đầu load data cho field: ${field.fieldId}")
+        loadFieldData(field.fieldId, fieldViewModel)
+        refreshTrigger++
+    }
+    
+    // Observe UI state
+    val uiState by fieldViewModel.uiState.collectAsState()
+    
+    // Hiển thị loading dialog khi đang lưu
+    if (uiState.isLoading) {
+        LoadingDialog()
+    }
+    
+    // Hiển thị thông báo thành công
+    LaunchedEffect(uiState.success) {
+        uiState.success?.let { success ->
+            println("✅ DEBUG: Firebase trả về thành công: $success")
+            
+            // Tự động tắt edit mode khi lưu thành công
+            isEditMode = false
+            
+            // Reload data từ Firebase để hiển thị dữ liệu mới
+            println("🔄 DEBUG: Bắt đầu reload data từ Firebase...")
+            loadFieldData(field.fieldId, fieldViewModel)
+            
+            // Force refresh UI
+            refreshTrigger++
+            
+            // Clear validation errors
+            validationErrors = emptyList()
+        }
+    }
+    
+    // Hiển thị thông báo lỗi
+    LaunchedEffect(uiState.error) {
+        uiState.error?.let { error ->
+            println("❌ DEBUG: Firebase trả về lỗi: $error")
+            validationErrors = listOf("Lỗi Firebase: $error")
+        }
+    }
+    
+    // Cập nhật dữ liệu khi có thay đổi từ Firebase
+    LaunchedEffect(uiState.pricingRules, uiState.fieldServices, refreshTrigger) {
+        println("🔄 DEBUG: LaunchedEffect triggered - pricingRules: ${uiState.pricingRules.size}, fieldServices: ${uiState.fieldServices.size}, refreshTrigger: $refreshTrigger")
+        
+        // ✅ DEBUG: Kiểm tra raw data từ Firebase
+        println("🔍 DEBUG: Raw Firebase data:")
+        println("  - uiState.pricingRules.size: ${uiState.pricingRules.size}")
+        uiState.pricingRules.forEachIndexed { index, rule ->
+            println("    [$index] ruleId: '${rule.ruleId}', price: ${rule.price}, description: '${rule.description}'")
+        }
+        println("  - uiState.fieldServices.size: ${uiState.fieldServices.size}")
+        uiState.fieldServices.forEachIndexed { index, service ->
+            println("    [$index] fieldServiceId: '${service.fieldServiceId}', name: '${service.name}', price: ${service.price}")
+        }
+        
+        // ✅ FIX: Cập nhật state local từ Firebase data với new instances
+        val (newPricingRules, newServices) = updateUIDataFromFirebase(uiState.pricingRules, uiState.fieldServices, pricingRules, services)
+        
+        println("🔍 DEBUG: updateUIDataFromFirebase returned:")
+        println("  - newPricingRules.size: ${newPricingRules.size}")
+        newPricingRules.forEachIndexed { index, rule ->
+            println("  - [$index] ${rule.dayOfWeek} - ${rule.timeSlot}: '${rule.price}' (isEmpty: ${rule.price.isEmpty()})")
+        }
+        
+        pricingRules = newPricingRules.toList()
+        services = newServices.toList()
+        
+        println("🔍 DEBUG: After set localPricingRules: size=${pricingRules.size}, prices=${pricingRules.map { it.price }}")
+        
+        // Debug: Kiểm tra state sau khi cập nhật
+        println("🔍 DEBUG: State sau khi cập nhật:")
+        println("  - pricingRules.size: ${pricingRules.size}")
+        println("  - pricingRules với giá: ${pricingRules.filter { it.price.isNotEmpty() }.size}")
+        pricingRules.forEachIndexed { index, rule ->
+            println("  - [$index] ${rule.dayOfWeek} - ${rule.timeSlot}: '${rule.price}' (isEmpty: ${rule.price.isEmpty()})")
+        }
+    }
     
     Column(
         modifier = modifier
             .fillMaxWidth()
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
+            .clickable { 
+                focusManager.clearFocus()
+            }
     ) {
-        // BẢNG GIÁ SÂN
-        Text(
-            text = "BẢNG GIÁ SÂN",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-        
-        // Bảng giá
-        CourtPriceTable()
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        
-        // DANH SÁCH DỊCH VỤ
+        // Header với nút chỉnh sửa và refresh
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "DANH SÁCH DỊCH VỤ",
-                style = MaterialTheme.typography.titleLarge,
+                text = "BẢNG GIÁ & DỊCH VỤ",
+                style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
             
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.clickable { isServicesCollapsed = !isServicesCollapsed }
-            ) {
-                Text(
-                    text = if (isServicesCollapsed) "Mở rộng" else "Rút gọn",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Icon(
-                    Icons.Default.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .size(20.dp)
-                        .graphicsLayer(
-                            rotationZ = if (isServicesCollapsed) 0f else 90f
+            Row {
+                // Nút refresh
+                IconButton(
+                    onClick = { 
+                        loadFieldData(field.fieldId, fieldViewModel)
+                        refreshTrigger++
+                    }
+                ) {
+                    Icon(
+                        Icons.Default.Refresh,
+                        contentDescription = "Làm mới",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+                
+                if (!isEditMode) {
+                    // Nút chỉnh sửa
+                    IconButton(
+                        onClick = { 
+                            isEditMode = true
+                            validationErrors = emptyList()
+                        }
+                    ) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = "Chỉnh sửa",
+                            tint = MaterialTheme.colorScheme.primary
                         )
+                    }
+                } else {
+                    // Nút lưu và hủy
+                    IconButton(
+                        onClick = { 
+                            println("💾 DEBUG: Save button được click!")
+                            
+                            // Validate dữ liệu trước khi lưu
+                            val errors = validateData(pricingRules, services)
+                            if (errors.isEmpty()) {
+                                saveData(field.fieldId, pricingRules, services, fieldViewModel)
+                            } else {
+                                validationErrors = errors
+                            }
+                        }
+                    ) {
+                        Icon(
+                            Icons.Default.Save,
+                            contentDescription = "Lưu",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    
+                    IconButton(
+                        onClick = { 
+                            isEditMode = false
+                            validationErrors = emptyList()
+                            loadFieldData(field.fieldId, fieldViewModel)
+                        }
+                    ) {
+                        Icon(
+                            Icons.Default.Cancel,
+                            contentDescription = "Hủy",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Hiển thị validation errors
+        if (validationErrors.isNotEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer
                 )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = "Lỗi",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Vui lòng sửa các lỗi sau:",
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    validationErrors.forEach { error ->
+                        Text(
+                            text = "• $error",
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
             }
-        }
-        
-        if (!isServicesCollapsed) {
             Spacer(modifier = Modifier.height(16.dp))
-            ServicesList()
         }
-    }
-}
-
-@Composable
-private fun CourtPriceTable() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        shape = MaterialTheme.shapes.medium
-    ) {
-        Column {
-            // Header
+        
+        // BẢNG GIÁ SÂN
+        Text(
+            text = "BẢNG GIÁ SÂN",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        // ✅ FIX: Bảng giá sân - Force recompose
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small)
+        ) {
+            // Header của bảng
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                    .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small)
-            ) {
-                // Thứ
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(12.dp)
-                        .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Thứ",
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-                
-                // Khung giờ
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(12.dp)
-                        .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Khung giờ",
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-                
-                // Giá
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(12.dp)
-                        .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Giá",
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-            
-            // Dữ liệu giá
-            Row(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                // Thứ 2-6
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(12.dp)
-                        .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "T2 - T6",
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center
-                    )
-                }
-                
-                // Khung giờ 5h-9h
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(12.dp)
-                        .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "5h - 9h",
-                        textAlign = TextAlign.Center
-                    )
-                }
-                
-                // Giá 120.000
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(12.dp)
-                        .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "120.000 ₫",
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-            
-            Row(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                // Thứ 2-6 (span)
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(12.dp)
-                        .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "",
-                        textAlign = TextAlign.Center
-                    )
-                }
-                
-                // Khung giờ 9h-17h
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(12.dp)
-                        .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "9h - 17h",
-                        textAlign = TextAlign.Center
-                    )
-                }
-                
-                // Giá 120.000
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(12.dp)
-                        .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "120.000 ₫",
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-            
-            Row(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                // Thứ 2-6 (span)
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(12.dp)
-                        .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "",
-                        textAlign = TextAlign.Center
-                    )
-                }
-                
-                // Khung giờ 17h-23h
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(12.dp)
-                        .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "17h - 23h",
-                        textAlign = TextAlign.Center
-                    )
-                }
-                
-                // Giá 170.000
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(12.dp)
-                        .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "170.000 ₫",
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-            
-            // Cuối tuần
-            Row(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                // Thứ 7-CN
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(12.dp)
-                        .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "T7 - CN",
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center
-                    )
-                }
-                
-                // Khung giờ 5h-9h
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(12.dp)
-                        .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "5h - 9h",
-                        textAlign = TextAlign.Center
-                    )
-                }
-                
-                // Giá 120.000
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(12.dp)
-                        .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "120.000 ₫",
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-            
-            Row(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                // Thứ 7-CN (span)
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(12.dp)
-                        .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "",
-                        textAlign = TextAlign.Center
-                    )
-                }
-                
-                // Khung giờ 9h-17h
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(12.dp)
-                        .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "9h - 17h",
-                        textAlign = TextAlign.Center
-                    )
-                }
-                
-                // Giá 120.000
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(12.dp)
-                        .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "120.000 ₫",
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-            
-            Row(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                // Thứ 7-CN (span)
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(12.dp)
-                        .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "",
-                        textAlign = TextAlign.Center
-                    )
-                }
-                
-                // Khung giờ 17h-23h
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(12.dp)
-                        .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "17h - 23h",
-                        textAlign = TextAlign.Center
-                    )
-                }
-                
-                // Giá 170.000
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(12.dp)
-                        .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "170.000 ₫",
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ServicesList() {
-    Column(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        // Banh
-        ServiceCategory(
-            title = "Banh",
-            services = listOf(
-                ServiceItem("Hộp banh", "180.000 ₫ / Trái"),
-                ServiceItem("Hộp Banh", "180.000 ₫")
-            )
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // Nước đóng chai
-        ServiceCategory(
-            title = "Nước đóng chai",
-            services = listOf(
-                ServiceItem("Revive", "15.000 ₫ / Chai"),
-                ServiceItem("Red bull", "25.000 ₫ / Chai"),
-                ServiceItem("Aqua", "15.000 ₫ / Chai"),
-                ServiceItem("Nước suối", "10.000 ₫ / Chai"),
-                ServiceItem("Bugari", "16.000 ₫ / Chai"),
-                ServiceItem("Bogari", "30.000 ₫ / Chai")
-            )
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // Phí thuê vợt
-        ServiceCategory(
-            title = "Phí Thuê Vợt",
-            services = listOf(
-                ServiceItem("Phí Thuê Vợt Banh", "20.000 ₫ / Cái")
-            )
-        )
-    }
-}
-
-@Composable
-private fun ServiceCategory(
-    title: String,
-    services: List<ServiceItem>
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        shape = MaterialTheme.shapes.medium
-    ) {
-        Column {
-            // Header
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFFF5F5F5))
-                    .padding(12.dp)
+                    .background(MaterialTheme.colorScheme.primaryContainer)
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 Text(
-                    text = title,
+                    text = "Thứ",
+                    style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontSize = 16.sp
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = "Khung giờ",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = "Giá (₫/30')",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center
                 )
             }
             
-            // Services
-            services.forEach { service ->
+            // Dữ liệu bảng giá - Luôn hiển thị 6 khung giờ với dữ liệu từ state
+            repeat(6) { index ->
+                val dayOfWeek = (if (index < 3) "T2 - T6" else "T7 - CN").trim()
+                val timeSlot = when (index % 3) {
+                    0 -> "5h - 12h"
+                    1 -> "12h - 18h"
+                    2 -> "18h - 24h"
+                    else -> "5h - 12h"
+                }.trim()
+                
+                // ✅ FIX: Tìm rule tương ứng trong state với normalized strings
+                val existingRule = pricingRules.find { 
+                    it.dayOfWeek.trim() == dayOfWeek && it.timeSlot.trim() == timeSlot 
+                }
+                
+                // ✅ FIX: DEBUG: Kiểm tra rule tìm được với normalized strings
+                println("🔍 DEBUG: UI find: day='$dayOfWeek', time='$timeSlot', found=${existingRule != null}, price='${existingRule?.price}'")
+                if (existingRule == null) {
+                    println("  - Available rules:")
+                    pricingRules.forEachIndexed { i, rule ->
+                        println("    [$i] '${rule.dayOfWeek}' - '${rule.timeSlot}' : '${rule.price}'")
+                    }
+                    println("  - pricingRules.size: ${pricingRules.size}")
+                    println("  - pricingRules.isEmpty: ${pricingRules.isEmpty()}")
+                } else {
+                    println("  - Found rule: ${existingRule.dayOfWeek} - ${existingRule.timeSlot} - '${existingRule.price}'")
+                }
+                
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = service.name,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface
+                        text = dayOfWeek,
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.Center
                     )
                     Text(
-                        text = service.price,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface
+                        text = timeSlot,
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.Center
                     )
+                    if (isEditMode) {
+                        BasicTextField(
+                            value = existingRule?.price ?: "",
+                            onValueChange = { newPrice ->
+                                println("🔍 DEBUG: onValueChange cho $dayOfWeek - $timeSlot với giá: '$newPrice'")
+                                println("  - existingRule: $existingRule")
+                                println("  - pricingRules.size trước: ${pricingRules.size}")
+                                
+                                if (existingRule != null) {
+                                    val index = pricingRules.indexOf(existingRule)
+                                    println("  - Cập nhật rule tại index: $index")
+                                    val updatedRules = pricingRules.toMutableList()
+                                    updatedRules[index] = existingRule.copy(price = newPrice)
+                                    pricingRules = updatedRules
+                                    println("  - Đã cập nhật rule tại index: $index")
+                                } else {
+                                    println("  - Tạo rule mới")
+                                    val newRule = CourtPricingRule(
+                                        id = (pricingRules.size + 1).toString(),
+                                        dayOfWeek = dayOfWeek,
+                                        timeSlot = timeSlot,
+                                        price = newPrice,
+                                        dayType = if (index < 3) "WEEKDAY" else "WEEKEND"
+                                    )
+                                    pricingRules = pricingRules + newRule
+                                    println("  - Đã thêm rule mới: $newRule")
+                                }
+                                
+                                println("  - pricingRules.size sau: ${pricingRules.size}")
+                                println("  - pricingRules hiện tại:")
+                                pricingRules.forEachIndexed { i, rule ->
+                                    println("    [$i] ${rule.dayOfWeek} - ${rule.timeSlot}: '${rule.price}'")
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(8.dp)
+                                .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.small),
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                textAlign = TextAlign.Center
+                            )
+                        )
+                    } else {
+                        // ✅ FIX: Hiển thị giá từ state hoặc "Chưa có giá"
+                        val displayText = when {
+                            existingRule?.price?.isNotEmpty() == true && existingRule.price != "0" -> {
+                                "${existingRule.price} ₫"
+                            }
+                            existingRule?.price == "0" -> {
+                                "0 ₫"  // Hiển thị giá 0 thay vì "Chưa có giá"
+                            }
+                            else -> {
+                                "Chưa có giá"
+                            }
+                        }
+                        
+                        // DEBUG: Kiểm tra logic hiển thị
+                        println("🔍 DEBUG: Hiển thị cho $dayOfWeek - $timeSlot")
+                        println("  - existingRule: $existingRule")
+                        println("  - existingRule?.price: '${existingRule?.price}'")
+                        println("  - existingRule?.price?.isNotEmpty(): ${existingRule?.price?.isNotEmpty()}")
+                        println("  - existingRule?.price != '0': ${existingRule?.price != "0"}")
+                        println("  - displayText: '$displayText'")
+                        
+                        Text(
+                            text = displayText,
+                            modifier = Modifier.weight(1f),
+                            textAlign = TextAlign.Center,
+                            color = when {
+                                existingRule?.price?.isNotEmpty() == true && existingRule.price != "0" -> MaterialTheme.colorScheme.onSurface
+                                existingRule?.price == "0" -> MaterialTheme.colorScheme.onSurfaceVariant
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                    }
                 }
             }
+        }
+        
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        // DỊCH VỤ BỔ SUNG
+        Text(
+            text = "DỊCH VỤ BỔ SUNG",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        // Danh sách dịch vụ theo danh mục
+        val serviceCategories = listOf("Banh", "Nước đóng chai", "Phí Thuê Vợt", "Dịch vụ khác")
+        
+        serviceCategories.forEach { category ->
+            val categoryServices = services.filter { it.category == category }
+            
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Text(
+                        text = category,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    if (categoryServices.isNotEmpty()) {
+                        categoryServices.forEach { service ->
+                            if (service.name.isNotEmpty() || isEditMode) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (isEditMode) {
+                                        BasicTextField(
+                                            value = service.name,
+                                            onValueChange = { newName ->
+                                                val index = services.indexOf(service)
+                                                if (index != -1) {
+                                                    val updatedServices = services.toMutableList()
+                                                    updatedServices[index] = service.copy(name = newName)
+                                                    services = updatedServices
+                                                }
+                                            },
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .padding(8.dp)
+                                                .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.small),
+                                            textStyle = MaterialTheme.typography.bodyMedium
+                                        )
+                                        
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        
+                                        BasicTextField(
+                                            value = service.price,
+                                            onValueChange = { newPrice ->
+                                                val index = services.indexOf(service)
+                                                if (index != -1) {
+                                                    val updatedServices = services.toMutableList()
+                                                    updatedServices[index] = service.copy(price = newPrice)
+                                                    services = updatedServices
+                                                }
+                                            },
+                                            modifier = Modifier
+                                                .weight(0.5f)
+                                                .padding(8.dp)
+                                                .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.small),
+                                            textStyle = MaterialTheme.typography.bodyMedium
+                                        )
+                                        
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        
+                                        IconButton(
+                                            onClick = {
+                                                services = services.filter { it != service }
+                                            }
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Delete,
+                                                contentDescription = "Xóa",
+                                                tint = MaterialTheme.colorScheme.error
+                                            )
+                                        }
+                                    } else {
+                                        Text(
+                                            text = service.name.ifEmpty { "Chưa có dịch vụ" },
+                                            modifier = Modifier.weight(1f),
+                                            color = if (service.name.isNotEmpty()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        
+                                        Text(
+                                            text = if (service.price.isNotEmpty()) "${service.price} ₫" else "",
+                                            modifier = Modifier.weight(0.5f),
+                                            color = if (service.price.isNotEmpty()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                                
+                                if (isEditMode) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (isEditMode) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            BasicTextField(
+                                value = "",
+                                onValueChange = { newName ->
+                                    if (newName.isNotEmpty()) {
+                                        val newService = CourtServiceItem(
+                                            id = (services.size + 1).toString(),
+                                            name = newName,
+                                            price = "",
+                                            category = category
+                                        )
+                                        services = services + newService
+                                    }
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(8.dp)
+                                    .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.small),
+                                textStyle = MaterialTheme.typography.bodyMedium
+                            )
+                            
+                            Spacer(modifier = Modifier.width(8.dp))
+                            
+                            BasicTextField(
+                                value = "",
+                                onValueChange = { newPrice ->
+                                    // Tìm service vừa thêm và cập nhật giá
+                                    val lastService = services.lastOrNull { it.category == category }
+                                    if (lastService != null && lastService.name.isNotEmpty()) {
+                                        val index = services.indexOf(lastService)
+                                        val updatedServices = services.toMutableList()
+                                        updatedServices[index] = lastService.copy(price = newPrice)
+                                        services = updatedServices
+                                    }
+                                },
+                                modifier = Modifier
+                                    .weight(0.5f)
+                                    .padding(8.dp)
+                                    .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.small),
+                                textStyle = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }
 
-data class ServiceItem(
-    val name: String,
-    val price: String
+// ==================== MODEL MỚI CHO UI ====================
+
+/**
+ * Model mới cho bảng giá - Dễ hiển thị và chỉnh sửa
+ * Mapping chính xác với PricingRule từ Firebase
+ */
+data class CourtPricingRule(
+    val id: String = "",                    // ruleId từ Firebase
+    val dayOfWeek: String = "",            // T2 - T6, T7 - CN, Ngày lễ
+    val timeSlot: String = "",             // 5h - 12h, 12h - 18h, 18h - 24h
+    val price: String = "",                // Giá tiền (string để dễ edit)
+    
+    // Thông tin bổ sung để mapping chính xác
+    val dayType: String = "",              // WEEKDAY, WEEKEND, HOLIDAY
+    val slots: Int = 1,                    // Số khe giờ
+    val minutes: Int = 30,                 // Thời gian mỗi khe (phút)
+    val calcMode: String = "CEIL_TO_RULE", // Cách tính giá
+    val description: String = "",          // Mô tả quy tắc giá
+    val isActive: Boolean = true           // Trạng thái hoạt động
 )
 
+/**
+ * Model mới cho dịch vụ - Dễ hiển thị và chỉnh sửa
+ */
+data class CourtServiceItem(
+    val id: String = "",
+    val name: String = "",
+    val price: String = "",
+    val category: String = ""
+)
 
+// ==================== HELPER FUNCTIONS ====================
+
+/**
+ * Load dữ liệu từ Firebase
+ */
+private fun loadFieldData(fieldId: String, fieldViewModel: FieldViewModel) {
+    println("🔄 DEBUG: Loading field data for fieldId: $fieldId")
+    fieldViewModel.handleEvent(FieldEvent.LoadPricingRulesByFieldId(fieldId))
+    fieldViewModel.handleEvent(FieldEvent.LoadFieldServicesByFieldId(fieldId))
+    println("✅ DEBUG: Đã gửi lệnh load dữ liệu từ Firebase")
+}
+
+/**
+ * Cập nhật UI data từ Firebase data
+ */
+private fun updateUIDataFromFirebase(
+    firebasePricingRules: List<PricingRule>,
+    firebaseFieldServices: List<FieldService>,
+    localPricingRules: List<CourtPricingRule>,
+    localServices: List<CourtServiceItem>
+): Pair<List<CourtPricingRule>, List<CourtServiceItem>> {
+    println("🔄 DEBUG: Cập nhật dữ liệu từ Firebase")
+    println("📊 Pricing Rules từ Firebase: ${firebasePricingRules.size} items")
+    println("🛍️ Field Services từ Firebase: ${firebaseFieldServices.size} items")
+    
+    // ✅ FIX: Khai báo biến ở scope function
+    var finalTemplateRules = createEmptyPricingRules()
+    var finalServices = createEmptyServices()
+    
+    // Cập nhật pricing rules
+    if (firebasePricingRules.isNotEmpty()) {
+        println("✅ Có dữ liệu pricing rules, mapping...")
+        
+        // Tạo template đầy đủ với 6 khung giờ
+        val templateRules = createEmptyPricingRules().toMutableList()
+        
+        // Map dữ liệu từ Firebase vào template
+        firebasePricingRules.forEach { rule ->
+            println("🔍 DEBUG: Xử lý rule: ${rule.ruleId} - ${rule.description} - Giá: ${rule.price}")
+            
+            // ✅ FIX: Normalize description để tránh string mismatch
+            val normalizedDesc = rule.description.trim()
+                .replace(Regex("\\s*-\\s*"), " - ")
+                .replace("–", "-")
+                .lowercase()
+            
+            val mappedTimeSlot = when {
+                normalizedDesc.contains("5h - 12h") || normalizedDesc.contains("5h-12h") -> "5h - 12h"
+                normalizedDesc.contains("12h - 18h") || normalizedDesc.contains("12h-18h") -> "12h - 18h"
+                normalizedDesc.contains("18h - 24h") || normalizedDesc.contains("18h-24h") -> "18h - 24h"
+                else -> {
+                    // Fallback mapping dựa vào index nếu description không khớp
+                    when (firebasePricingRules.indexOf(rule) % 3) {
+                        0 -> "5h - 12h"
+                        1 -> "12h - 18h"
+                        2 -> "18h - 24h"
+                        else -> "5h - 12h"
+                    }
+                }
+            }.trim()
+            
+            val mappedDayOfWeek = when (rule.dayType) {
+                "WEEKDAY" -> "T2 - T6"
+                "WEEKEND" -> "T7 - CN"
+                "HOLIDAY" -> "Ngày lễ"
+                else -> {
+                    // Fallback mapping dựa vào index
+                    if (firebasePricingRules.indexOf(rule) < 3) "T2 - T6" else "T7 - CN"
+                }
+            }.trim()
+            
+            println("🔄 Mapping: ${rule.minutes} phút -> $mappedTimeSlot, ${rule.dayType} -> $mappedDayOfWeek")
+            println("💰 Giá từ Firebase: ${rule.price}")
+            println("🔍 DEBUG: Tìm template rule cho: $mappedDayOfWeek - $mappedTimeSlot")
+            
+            // ✅ FIX: Tìm template rule tương ứng và cập nhật giá
+            val templateIndex = templateRules.indexOfFirst { 
+                it.dayOfWeek == mappedDayOfWeek && it.timeSlot == mappedTimeSlot 
+            }
+            
+            println("🔍 DEBUG: Template search result:")
+            println("  - Tìm: $mappedDayOfWeek - $mappedTimeSlot")
+            println("  - Template rules có sẵn:")
+            templateRules.forEachIndexed { i, template ->
+                println("    [$i] ${template.dayOfWeek} - ${template.timeSlot}")
+            }
+            println("  - Template index tìm được: $templateIndex")
+            
+            if (templateIndex != -1) {
+                // ✅ FIX: Luôn lấy giá từ Firebase, kể cả giá = 0 (để hiển thị đúng)
+                val priceToSet = rule.price.toString()
+                templateRules[templateIndex] = templateRules[templateIndex].copy(
+                    id = rule.ruleId,
+                    price = priceToSet,
+                    dayType = rule.dayType,
+                    slots = rule.slots,
+                    minutes = rule.minutes,
+                    calcMode = rule.calcMode,
+                    description = rule.description,
+                    isActive = rule.isActive
+                )
+                println("✅ Cập nhật template rule [$templateIndex] với giá: '$priceToSet' (rule.price: ${rule.price})")
+            } else {
+                // ✅ FIX: Thêm rule mới nếu không tìm thấy template
+                println("⚠️ Không tìm thấy template rule tương ứng cho: $mappedDayOfWeek - $mappedTimeSlot, tạo mới")
+                val newRule = CourtPricingRule(
+                    id = rule.ruleId,
+                    dayOfWeek = mappedDayOfWeek,
+                    timeSlot = mappedTimeSlot,
+                    price = rule.price.toString(),
+                    dayType = rule.dayType,
+                    slots = rule.slots,
+                    minutes = rule.minutes,
+                    calcMode = rule.calcMode,
+                    description = rule.description,
+                    isActive = rule.isActive
+                )
+                templateRules.add(newRule)
+                println("✅ Đã thêm rule mới: $newRule")
+            }
+        }
+        
+        // ✅ FIX: Cập nhật biến final
+        finalTemplateRules = templateRules
+        
+        println("✅ Đã map ${finalTemplateRules.size} pricing rules thành công")
+        finalTemplateRules.forEachIndexed { index, rule ->
+            println("  [$index] CourtPricingRule: dayOfWeek=${rule.dayOfWeek}, timeSlot=${rule.timeSlot}, price='${rule.price}' (isEmpty: ${rule.price.isEmpty()}, length: ${rule.price.length})")
+        }
+        
+        // Debug: Kiểm tra xem final state có dữ liệu không
+        println("🔍 DEBUG: Kiểm tra final state sau khi cập nhật:")
+        println("  - finalTemplateRules.size: ${finalTemplateRules.size}")
+        println("  - finalTemplateRules.isEmpty: ${finalTemplateRules.isEmpty()}")
+        finalTemplateRules.forEachIndexed { index, rule ->
+            println("  - [$index] price: '${rule.price}' (length: ${rule.price.length}, isEmpty: ${rule.price.isEmpty()})")
+        }
+        
+        // QUAN TRỌNG: Kiểm tra xem có pricing rules nào có giá không
+        val rulesWithPrice = finalTemplateRules.filter { it.price.isNotEmpty() }
+        println("💰 DEBUG: Pricing rules có giá: ${rulesWithPrice.size}/${finalTemplateRules.size}")
+        rulesWithPrice.forEachIndexed { index, rule ->
+            println("  💰 [$index] Giá: '${rule.price}' - ${rule.dayOfWeek} - ${rule.timeSlot}")
+        }
+    } else {
+        println("⚠️ Không có dữ liệu pricing rules, tạo mẫu trống")
+        // localPricingRules.value = createEmptyPricingRules()
+    }
+    
+    // Cập nhật services
+    if (firebaseFieldServices.isNotEmpty()) {
+        println("✅ Có dữ liệu field services, mapping...")
+        
+        val newServices = firebaseFieldServices.map { service ->
+            val mappedCategory = when (service.billingType) {
+                "PER_UNIT" -> when {
+                    service.name.contains("Banh", ignoreCase = true) -> "Banh"
+                    service.name.contains("Nước", ignoreCase = true) -> "Nước đóng chai"
+                    service.name.contains("Vợt", ignoreCase = true) -> "Phí Thuê Vợt"
+                    service.name.contains("Revice", ignoreCase = true) -> "Dịch vụ khác"
+                    else -> "Dịch vụ khác"
+                }
+                "FLAT_PER_BOOKING" -> "Phí cố định"
+                else -> "Dịch vụ khác"
+            }
+            
+            println("🔄 Mapping service: ${service.name} -> category: $mappedCategory")
+            
+            CourtServiceItem(
+                id = service.fieldServiceId,
+                name = service.name,
+                price = service.price.toString(),
+                category = mappedCategory
+            )
+        }
+        
+        // ✅ FIX: Cập nhật biến final
+        finalServices = newServices
+        
+        println("✅ Đã map ${finalServices.size} field services thành công")
+    } else {
+        println("⚠️ Không có dữ liệu field services, tạo mẫu trống")
+        // localServices.value = createEmptyServices()
+    }
+    
+    // ✅ FIX: Trả về pair của lists mới
+    return Pair(finalTemplateRules, finalServices)
+}
+
+/**
+ * Tạo pricing rules mẫu trống
+ */
+private fun createEmptyPricingRules(): List<CourtPricingRule> {
+    println("🔧 DEBUG: Tạo pricing rules mẫu trống")
+    
+    val emptyRules = listOf(
+        // T2 - T6 (Thứ 2 đến Thứ 6)
+        CourtPricingRule(
+            id = "1", 
+            dayOfWeek = "T2 - T6", 
+            timeSlot = "5h - 12h", 
+            price = "",
+            dayType = "WEEKDAY",
+            slots = 1,
+            minutes = 30,
+            calcMode = "CEIL_TO_RULE",
+            description = "Giá T2 - T6 - 5h - 12h",
+            isActive = true
+        ),
+        CourtPricingRule(
+            id = "2", 
+            dayOfWeek = "T2 - T6", 
+            timeSlot = "12h - 18h", 
+            price = "",
+            dayType = "WEEKDAY",
+            slots = 1,
+            minutes = 30,
+            calcMode = "CEIL_TO_RULE",
+            description = "Giá T2 - T6 - 12h - 18h",
+            isActive = true
+        ),
+        CourtPricingRule(
+            id = "3", 
+            dayOfWeek = "T2 - T6", 
+            timeSlot = "18h - 24h", 
+            price = "",
+            dayType = "WEEKDAY",
+            slots = 1,
+            minutes = 30,
+            calcMode = "CEIL_TO_RULE",
+            description = "Giá T2 - T6 - 18h - 24h",
+            isActive = true
+        ),
+        
+        // T7 - CN (Thứ 7 và Chủ nhật)
+        CourtPricingRule(
+            id = "4", 
+            dayOfWeek = "T7 - CN", 
+            timeSlot = "5h - 12h", 
+            price = "",
+            dayType = "WEEKEND",
+            slots = 1,
+            minutes = 30,
+            calcMode = "CEIL_TO_RULE",
+            description = "Giá T7 - CN - 5h - 12h",
+            isActive = true
+        ),
+        CourtPricingRule(
+            id = "5", 
+            dayOfWeek = "T7 - CN", 
+            timeSlot = "12h - 18h", 
+            price = "",
+            dayType = "WEEKEND",
+            slots = 1,
+            minutes = 30,
+            calcMode = "CEIL_TO_RULE",
+            description = "Giá T7 - CN - 12h - 18h",
+            isActive = true
+        ),
+        CourtPricingRule(
+            id = "6", 
+            dayOfWeek = "T7 - CN", 
+            timeSlot = "18h - 24h", 
+            price = "",
+            dayType = "WEEKEND",
+            slots = 1,
+            minutes = 30,
+            calcMode = "CEIL_TO_RULE",
+            description = "Giá T7 - CN - 18h - 24h",
+            isActive = true
+        )
+    )
+    
+    println("🔧 DEBUG: Đã tạo ${emptyRules.size} pricing rules mẫu:")
+    emptyRules.forEachIndexed { index, rule ->
+        println("  - [$index] $rule")
+    }
+    
+    return emptyRules
+}
+
+/**
+ * Tạo services mẫu trống
+ */
+private fun createEmptyServices(): List<CourtServiceItem> {
+    return listOf(
+        // Banh
+        CourtServiceItem(id = "1", name = "", price = "", category = "Banh"),
+        CourtServiceItem(id = "2", name = "", price = "", category = "Banh"),
+        
+        // Nước đóng chai
+        CourtServiceItem(id = "3", name = "Sting", price = "12000", category = "Nước đóng chai"),
+        CourtServiceItem(id = "4", name = "Revie", price = "15000", category = "Nước đóng chai"),
+        CourtServiceItem(id = "5", name = "", price = "", category = "Nước đóng chai"),
+        
+        // Phí Thuê Vợt
+        CourtServiceItem(id = "6", name = "", price = "", category = "Phí Thuê Vợt")
+    )
+}
+
+/**
+ * Lưu dữ liệu vào Firebase
+ */
+private fun saveData(
+    fieldId: String,
+    pricingRules: List<CourtPricingRule>,
+    services: List<CourtServiceItem>,
+    fieldViewModel: FieldViewModel
+) {
+    println("💾 DEBUG: Bắt đầu lưu dữ liệu vào Firebase")
+    println("📊 Input pricing rules: ${pricingRules.size} items")
+    pricingRules.forEachIndexed { index, rule ->
+        println("  [$index] $rule")
+    }
+    
+    // ✅ FIX: Tạo danh sách pricing rules mới - lưu tất cả rules
+    val newPricingRules = pricingRules
+        .map { rule ->
+            println("🔍 DEBUG: Tạo PricingRule từ CourtPricingRule: $rule")
+            
+            // Sử dụng thông tin đầy đủ từ CourtPricingRule
+            val description = if (rule.description.isNotEmpty()) rule.description else "Giá ${rule.dayOfWeek} - ${rule.timeSlot}"
+            println("🔍 DEBUG: Tạo PricingRule với description: $description")
+            
+            PricingRule(
+                ruleId = rule.id.ifEmpty { "" }, // Sử dụng id hiện tại nếu có, nếu không để Firebase tự tạo
+                fieldId = fieldId,
+                dayType = rule.dayType.ifEmpty { 
+                    when (rule.dayOfWeek) {
+                        "T2 - T6" -> "WEEKDAY"
+                        "T7 - CN" -> "WEEKEND"
+                        else -> "WEEKDAY"
+                    }
+                },
+                slots = rule.slots,
+                minutes = rule.minutes,
+                price = if (rule.price.isNotEmpty()) rule.price.toLongOrNull() ?: 0L else 0L,
+                calcMode = rule.calcMode.ifEmpty { "CEIL_TO_RULE" },
+                effectiveFrom = null, // Có thể thêm sau
+                effectiveTo = null,   // Có thể thêm sau
+                description = description,
+                isActive = rule.isActive
+            )
+        }
+    
+    // Tạo danh sách field services mới
+    val newFieldServices = services
+        .filter { service -> service.name.isNotEmpty() && service.price.isNotEmpty() }
+        .map { service ->
+            FieldService(
+                fieldServiceId = "", // Để Firebase tự tạo ID mới
+                fieldId = fieldId,
+                name = service.name,
+                price = service.price.toLongOrNull() ?: 0L,
+                billingType = when (service.category) {
+                    "Banh" -> "PER_UNIT"
+                    "Nước đóng chai" -> "PER_UNIT"
+                    "Phí Thuê Vợt" -> "FLAT_PER_BOOKING"
+                    else -> "PER_UNIT"
+                },
+                allowQuantity = true,
+                description = "Dịch vụ: ${service.name}"
+            )
+        }
+    
+    println("💾 DEBUG: Dữ liệu sẽ lưu vào Firebase:")
+    println("📊 Pricing Rules sẽ lưu: ${newPricingRules.size} items")
+    newPricingRules.forEachIndexed { index, rule ->
+        println("  [$index] PricingRule:")
+        println("    - ruleId: ${rule.ruleId}")
+        println("    - fieldId: ${rule.fieldId}")
+        println("    - dayType: ${rule.dayType}")
+        println("    - description: ${rule.description}")
+        println("    - price: ${rule.price}")
+        println("    - minutes: ${rule.minutes}")
+    }
+    println("🛍️ Field Services sẽ lưu: ${newFieldServices.size} items")
+    newFieldServices.forEachIndexed { index, service ->
+        println("  [$index] FieldService:")
+        println("    - fieldServiceId: ${service.fieldServiceId}")
+        println("    - fieldId: ${service.fieldId}")
+        println("    - name: ${service.name}")
+        println("    - price: ${service.price}")
+        println("    - billingType: ${service.billingType}")
+    }
+    
+    // Lưu tất cả dữ liệu mới vào Firebase
+    println("🚀 DEBUG: Gửi lệnh lưu dữ liệu vào Firebase...")
+    println("🔍 DEBUG: Kiểm tra dữ liệu trước khi gửi:")
+    println("  - fieldId: $fieldId")
+    println("  - newPricingRules.size: ${newPricingRules.size}")
+    println("  - newFieldServices.size: ${newFieldServices.size}")
+    
+    // Kiểm tra xem có pricing rules nào có giá không
+    val pricingRulesWithPrice = newPricingRules.filter { it.price > 0 }
+    println("💰 DEBUG: Pricing rules có giá > 0: ${pricingRulesWithPrice.size}")
+    pricingRulesWithPrice.forEachIndexed { index, rule ->
+        println("  [$index] Giá: ${rule.price} ₫ - ${rule.description}")
+    }
+    
+    // Kiểm tra xem có field services nào có tên và giá không
+    val fieldServicesWithData = newFieldServices.filter { it.name.isNotEmpty() && it.price > 0 }
+    println("🛍️ DEBUG: Field services có dữ liệu: ${fieldServicesWithData.size}")
+    fieldServicesWithData.forEachIndexed { index, service ->
+        println("  [$index] ${service.name}: ${service.price} ₫")
+    }
+    
+    fieldViewModel.handleEvent(FieldEvent.UpdateFieldPricingAndServices(fieldId, newPricingRules, newFieldServices))
+    
+    println("✅ Đã gửi lệnh lưu dữ liệu vào Firebase")
+    println("⏳ DEBUG: Đang chờ Firebase xử lý...")
+}
+
+/**
+ * Validate dữ liệu trước khi lưu
+ */
+private fun validateData(pricingRules: List<CourtPricingRule>, services: List<CourtServiceItem>): List<String> {
+    val errors = mutableListOf<String>()
+    
+    // Validate pricing rules - chỉ validate những rule có dữ liệu
+    val rulesWithData = pricingRules.filter { it.dayOfWeek.isNotEmpty() && it.timeSlot.isNotEmpty() }
+    rulesWithData.forEachIndexed { index, rule ->
+        if (rule.price.isEmpty()) {
+            errors.add("Giá không được để trống cho ${rule.dayOfWeek} - ${rule.timeSlot}")
+        } else if (rule.price.toLongOrNull() == null) {
+            errors.add("Giá không hợp lệ cho ${rule.dayOfWeek} - ${rule.timeSlot}: ${rule.price}")
+        } else if (rule.price.toLong() <= 0) {
+            errors.add("Giá phải lớn hơn 0 cho ${rule.dayOfWeek} - ${rule.timeSlot}")
+        }
+    }
+    
+    // Validate services - chỉ validate những service có tên
+    val servicesWithName = services.filter { it.name.isNotEmpty() }
+    servicesWithName.forEach { service ->
+        if (service.price.isEmpty()) {
+            errors.add("Giá không được để trống cho dịch vụ: ${service.name}")
+        } else if (service.price.toLongOrNull() == null) {
+            errors.add("Giá không hợp lệ cho dịch vụ ${service.name}: ${service.price}")
+        } else if (service.price.toLong() <= 0) {
+            errors.add("Giá phải lớn hơn 0 cho dịch vụ: ${service.name}")
+        }
+    }
+    
+    // Kiểm tra xem có ít nhất một pricing rule không
+    if (rulesWithData.isEmpty()) {
+        errors.add("Vui lòng nhập ít nhất một mức giá cho sân")
+    }
+    
+    return errors
+}

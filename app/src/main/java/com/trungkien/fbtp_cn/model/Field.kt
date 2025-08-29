@@ -1,5 +1,8 @@
 package com.trungkien.fbtp_cn.model
 
+import androidx.annotation.Keep
+
+@Keep
 data class Field(
     val fieldId: String = "",
     val ownerId: String = "",
@@ -24,12 +27,14 @@ data class Field(
     val totalReviews: Int = 0
 )
 
+@Keep
 data class GeoLocation(
     val lat: Double = 0.0,
     val lng: Double = 0.0,
     val geohash: String = ""
 )
 
+@Keep
 data class FieldImages(
     val mainImage: String = "", // Ảnh chính (hiển thị trên thẻ)
     val image1: String = "", // Ảnh chi tiết 1
@@ -37,6 +42,7 @@ data class FieldImages(
     val image3: String = "" // Ảnh chi tiết 3
 )
 
+@Keep
 data class OpenHours(
     val start: String = "06:00", // Giờ mở cửa
     val end: String = "23:00", // Giờ đóng cửa
@@ -44,11 +50,13 @@ data class OpenHours(
 )
 
 // Giữ lại các class cũ để tương thích ngược
+@Keep
 data class PriceRange(
     val weekday: PriceDetail = PriceDetail(),
     val weekend: PriceDetail = PriceDetail()
 )
 
+@Keep
 data class PriceDetail(
     val morning: Int = 0, // 5h-9h
     val afternoon: Int = 0, // 9h-17h

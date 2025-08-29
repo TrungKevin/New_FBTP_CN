@@ -1,5 +1,8 @@
 package com.trungkien.fbtp_cn.model
 
+import androidx.annotation.Keep
+
+@Keep
 data class Match(
     val rangeKey: String,
     val fieldId: String,
@@ -17,6 +20,7 @@ data class Match(
     val createdAt: Long = System.currentTimeMillis()
 )
 
+@Keep
 data class MatchParticipant(
     val bookingId: String,
     val renterId: String,

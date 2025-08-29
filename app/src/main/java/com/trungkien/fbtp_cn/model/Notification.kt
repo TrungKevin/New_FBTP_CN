@@ -1,5 +1,8 @@
 package com.trungkien.fbtp_cn.model
 
+import androidx.annotation.Keep
+
+@Keep
 data class Notification(
     val notificationId: String,
     val toUserId: String,
@@ -16,6 +19,7 @@ data class Notification(
     val priority: String = "NORMAL" // "NORMAL" | "HIGH"
 )
 
+@Keep
 data class NotificationData(
     val bookingId: String? = null,
     val fieldId: String? = null,

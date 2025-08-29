@@ -1,5 +1,8 @@
 package com.trungkien.fbtp_cn.model
 
+import androidx.annotation.Keep
+
+@Keep // để Firebase không xoá khi build và đảm bảo tên trường không bị thay đổi
 data class User(
     val userId: String,
     val role: String = "RENTER", // "OWNER" | "RENTER"

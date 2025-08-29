@@ -408,7 +408,13 @@ fun OwnerFieldDetailScreen(
                     when (page) {
                         0 -> DetailInfoCourt(field = field)// Hiển thị thông tin chi tiết sân
 
-                        1 -> CourtService(field = field)// Hiển thị dịch vụ sân
+                        1 -> {
+                            // Hiển thị dịch vụ sân với FieldViewModel được chia sẻ
+                            CourtService(
+                                field = field, 
+                                fieldViewModel = fieldViewModel
+                            )
+                        }
 
                         2 -> EvaluateCourt(field = field)// Hiển thị đánh giá sân
 

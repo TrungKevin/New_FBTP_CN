@@ -1,5 +1,8 @@
 package com.trungkien.fbtp_cn.model
 
+import androidx.annotation.Keep
+
+@Keep
 data class Review(
     val reviewId: String,
     val fieldId: String,
@@ -37,6 +40,7 @@ data class Review(
     val isAnonymous: Boolean = false
 )
 
+@Keep
 data class ReviewReply(
     val replyId: String,
     val userId: String,

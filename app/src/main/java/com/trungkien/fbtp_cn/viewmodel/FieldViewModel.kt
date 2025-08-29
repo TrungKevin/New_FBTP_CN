@@ -35,6 +35,15 @@ sealed class FieldEvent {
     data class LoadFieldById(val fieldId: String) : FieldEvent()
     data class LoadPricingRules(val fieldId: String) : FieldEvent()
     data class LoadFieldServices(val fieldId: String) : FieldEvent()
+    data class LoadPricingRulesByFieldId(val fieldId: String) : FieldEvent()
+    data class LoadFieldServicesByFieldId(val fieldId: String) : FieldEvent()
+    data class AddPricingRule(val pricingRule: PricingRule) : FieldEvent()
+    data class AddFieldService(val fieldService: FieldService) : FieldEvent()
+    data class UpdateFieldPricingAndServices(
+        val fieldId: String,
+        val pricingRules: List<PricingRule>,
+        val fieldServices: List<FieldService>
+    ) : FieldEvent()
     object ClearError : FieldEvent()
     object ClearSuccess : FieldEvent()
 }
@@ -55,6 +64,15 @@ class FieldViewModel(
             is FieldEvent.LoadFieldById -> loadFieldById(event.fieldId)
             is FieldEvent.LoadPricingRules -> loadPricingRules(event.fieldId)
             is FieldEvent.LoadFieldServices -> loadFieldServices(event.fieldId)
+            is FieldEvent.LoadPricingRulesByFieldId -> loadPricingRulesByFieldId(event.fieldId)
+            is FieldEvent.LoadFieldServicesByFieldId -> loadFieldServicesByFieldId(event.fieldId)
+            is FieldEvent.AddPricingRule -> addPricingRule(event.pricingRule)
+            is FieldEvent.AddFieldService -> addFieldService(event.fieldService)
+            is FieldEvent.UpdateFieldPricingAndServices -> updateFieldPricingAndServices(
+                event.fieldId, 
+                event.pricingRules, 
+                event.fieldServices
+            )
             is FieldEvent.ClearError -> clearError()
             is FieldEvent.ClearSuccess -> clearSuccess()
         }
@@ -290,6 +308,141 @@ class FieldViewModel(
                 )
             } catch (e: Exception) {
                 println("Error loading field services: ${e.message}")
+            }
+        }
+    }
+    
+    private fun loadPricingRulesByFieldId(fieldId: String) {
+        viewModelScope.launch {
+            try {
+                val result = repository.getPricingRulesByFieldId(fieldId)
+                
+                result.fold(
+                    onSuccess = { rules ->
+                        _uiState.value = _uiState.value.copy(pricingRules = rules)
+                    },
+                    onFailure = { exception ->
+                        // Log error but don't show to user
+                        println("Error loading pricing rules by field ID: ${exception.message}")
+                    }
+                )
+            } catch (e: Exception) {
+                println("Error loading pricing rules by field ID: ${e.message}")
+            }
+        }
+    }
+    
+    private fun loadFieldServicesByFieldId(fieldId: String) {
+        viewModelScope.launch {
+            try {
+                val result = repository.getFieldServicesByFieldId(fieldId)
+                
+                result.fold(
+                    onSuccess = { services ->
+                        _uiState.value = _uiState.value.copy(fieldServices = services)
+                    },
+                    onFailure = { exception ->
+                        // Log error but don't show to user
+                        println("Error loading field services by field ID: ${exception.message}")
+                    }
+                )
+            } catch (e: Exception) {
+                println("Error loading field services by field ID: ${e.message}")
+            }
+        }
+    }
+    
+    private fun addPricingRule(pricingRule: PricingRule) {
+        viewModelScope.launch {
+            try {
+                val result = repository.addPricingRule(pricingRule)
+                
+                result.fold(
+                    onSuccess = { ruleId ->
+                        _uiState.value = _uiState.value.copy(
+                            success = "Thêm quy tắc giá thành công!"
+                        )
+                        // Reload pricing rules
+                        pricingRule.fieldId?.let { loadPricingRulesByFieldId(it) }
+                    },
+                    onFailure = { exception ->
+                        _uiState.value = _uiState.value.copy(
+                            error = "Thêm quy tắc giá thất bại: ${exception.message}"
+                        )
+                    }
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    error = "Lỗi không xác định: ${e.message}"
+                )
+            }
+        }
+    }
+    
+    private fun addFieldService(fieldService: FieldService) {
+        viewModelScope.launch {
+            try {
+                val result = repository.addFieldService(fieldService)
+                
+                result.fold(
+                    onSuccess = { serviceId ->
+                        _uiState.value = _uiState.value.copy(
+                            success = "Thêm dịch vụ thành công!"
+                        )
+                        // Reload field services
+                        fieldService.fieldId?.let { loadFieldServicesByFieldId(it) }
+                    },
+                    onFailure = { exception ->
+                        _uiState.value = _uiState.value.copy(
+                            error = "Thêm dịch vụ thất bại: ${exception.message}"
+                        )
+                    }
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    error = "Lỗi không xác định: ${e.message}"
+                )
+            }
+        }
+    }
+    
+    private fun updateFieldPricingAndServices(
+        fieldId: String,
+        pricingRules: List<PricingRule>,
+        fieldServices: List<FieldService>
+    ) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isLoading = true,
+                error = null,
+                success = null
+            )
+            
+            try {
+                val result = repository.updateFieldPricingAndServices(fieldId, pricingRules, fieldServices)
+                
+                result.fold(
+                    onSuccess = {
+                        _uiState.value = _uiState.value.copy(
+                            isLoading = false,
+                            success = "Cập nhật bảng giá và dịch vụ thành công!"
+                        )
+                        // Reload data để hiển thị dữ liệu mới
+                        loadPricingRulesByFieldId(fieldId)
+                        loadFieldServicesByFieldId(fieldId)
+                    },
+                    onFailure = { exception ->
+                        _uiState.value = _uiState.value.copy(
+                            isLoading = false,
+                            error = "Cập nhật thất bại: ${exception.message}"
+                        )
+                    }
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = "Lỗi không xác định: ${e.message}"
+                )
             }
         }
     }

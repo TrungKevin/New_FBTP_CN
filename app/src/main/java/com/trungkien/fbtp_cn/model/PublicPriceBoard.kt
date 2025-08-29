@@ -1,5 +1,8 @@
 package com.trungkien.fbtp_cn.model
 
+import androidx.annotation.Keep
+
+@Keep
 data class PublicPriceBoard(
     val boardId: String,
     val fieldId: String,
@@ -8,12 +11,14 @@ data class PublicPriceBoard(
     val updatedAt: Long = System.currentTimeMillis()
 )
 
+@Keep
 data class PricePreviewRule(
     val slots: Int,
     val minutes: Int,
     val price: Long
 )
 
+@Keep
 data class PricePreviewService(
     val name: String,
     val price: Long,
