@@ -372,22 +372,26 @@ fun CourtService(
                                 println("  - pricingRules.size trước: ${pricingRules.size}")
                                 
                                 if (existingRule != null) {
+                                    // ✅ FIX: Cập nhật rule hiện có
                                     val index = pricingRules.indexOf(existingRule)
                                     println("  - Cập nhật rule tại index: $index")
                                     val updatedRules = pricingRules.toMutableList()
                                     updatedRules[index] = existingRule.copy(price = newPrice)
-                                    pricingRules = updatedRules
-                                    println("  - Đã cập nhật rule tại index: $index")
+                                    pricingRules = updatedRules.toList() // ✅ FIX: Force new instance
+                                    println("  - Đã cập nhật rule tại index: $index với giá: '$newPrice'")
                                 } else {
-                                    println("  - Tạo rule mới")
+                                    // ✅ FIX: Tạo rule mới nếu không tìm thấy
+                                    println("  - Tạo rule mới cho: $dayOfWeek - $timeSlot")
                                     val newRule = CourtPricingRule(
-                                        id = (pricingRules.size + 1).toString(),
+                                        id = (System.currentTimeMillis()).toString(), // ✅ FIX: Unique ID
                                         dayOfWeek = dayOfWeek,
                                         timeSlot = timeSlot,
                                         price = newPrice,
-                                        dayType = if (index < 3) "WEEKDAY" else "WEEKEND"
+                                        dayType = if (index < 3) "WEEKDAY" else "WEEKEND",
+                                        minutes = 30,
+                                        description = "Giá $dayOfWeek - $timeSlot"
                                     )
-                                    pricingRules = pricingRules + newRule
+                                    pricingRules = pricingRules + newRule // ✅ FIX: Force new instance
                                     println("  - Đã thêm rule mới: $newRule")
                                 }
                                 
@@ -509,168 +513,78 @@ private fun updateUIDataFromFirebase(
     println("📊 Pricing Rules từ Firebase: ${firebasePricingRules.size} items")
     println("🛍️ Field Services từ Firebase: ${firebaseFieldServices.size} items")
     
-    // ✅ FIX: Khai báo biến ở scope function
-    var finalTemplateRules = createEmptyPricingRules()
-    var finalServices = createEmptyServices()
+    // ✅ FIX: Tạo template đầy đủ với 6 khung giờ cố định
+    val templateRules = createEmptyPricingRules().toMutableList()
     
-    // Cập nhật pricing rules
+    // Cập nhật pricing rules từ Firebase
     if (firebasePricingRules.isNotEmpty()) {
         println("✅ Có dữ liệu pricing rules, mapping...")
         
-        // Tạo template đầy đủ với 6 khung giờ
-        val templateRules = createEmptyPricingRules().toMutableList()
-        
-        // Map dữ liệu từ Firebase vào template
         firebasePricingRules.forEach { rule ->
             println("🔍 DEBUG: Xử lý rule: ${rule.ruleId} - ${rule.description} - Giá: ${rule.price}")
             
-            // ✅ FIX: Normalize description để tránh string mismatch
-            val normalizedDesc = rule.description.trim()
-                .replace(Regex("\\s*-\\s*"), " - ")
-                .replace("–", "-")
-                .lowercase()
+            // ✅ FIX: Mapping chính xác dựa trên dayType và description
+            val mappedRule = mapFirebaseRuleToUI(rule)
             
-            val mappedTimeSlot = when {
-                normalizedDesc.contains("5h - 12h") || normalizedDesc.contains("5h-12h") -> "5h - 12h"
-                normalizedDesc.contains("12h - 18h") || normalizedDesc.contains("12h-18h") -> "12h - 18h"
-                normalizedDesc.contains("18h - 24h") || normalizedDesc.contains("18h-24h") -> "18h - 24h"
-                else -> {
-                    // Fallback mapping dựa vào index nếu description không khớp
-                    when (firebasePricingRules.indexOf(rule) % 3) {
-                        0 -> "5h - 12h"
-                        1 -> "12h - 18h"
-                        2 -> "18h - 24h"
-                        else -> "5h - 12h"
-                    }
-                }
-            }.trim()
-            
-            val mappedDayOfWeek = when (rule.dayType) {
-                "WEEKDAY" -> "T2 - T6"
-                "WEEKEND" -> "T7 - CN"
-                "HOLIDAY" -> "Ngày lễ"
-                else -> {
-                    // Fallback mapping dựa vào index
-                    if (firebasePricingRules.indexOf(rule) < 3) "T2 - T6" else "T7 - CN"
-                }
-            }.trim()
-            
-            println("🔄 Mapping: ${rule.minutes} phút -> $mappedTimeSlot, ${rule.dayType} -> $mappedDayOfWeek")
-            println("💰 Giá từ Firebase: ${rule.price}")
-            println("🔍 DEBUG: Tìm template rule cho: $mappedDayOfWeek - $mappedTimeSlot")
-            
-            // ✅ FIX: Tìm template rule tương ứng và cập nhật giá
+            // Tìm template rule tương ứng và cập nhật
             val templateIndex = templateRules.indexOfFirst { 
-                it.dayOfWeek == mappedDayOfWeek && it.timeSlot == mappedTimeSlot 
+                it.dayOfWeek == mappedRule.dayOfWeek && it.timeSlot == mappedRule.timeSlot 
             }
-            
-            println("🔍 DEBUG: Template search result:")
-            println("  - Tìm: $mappedDayOfWeek - $mappedTimeSlot")
-            println("  - Template rules có sẵn:")
-            templateRules.forEachIndexed { i, template ->
-                println("    [$i] ${template.dayOfWeek} - ${template.timeSlot}")
-            }
-            println("  - Template index tìm được: $templateIndex")
             
             if (templateIndex != -1) {
-                // ✅ FIX: Luôn lấy giá từ Firebase, kể cả giá = 0 (để hiển thị đúng)
-                val priceToSet = rule.price.toString()
-                templateRules[templateIndex] = templateRules[templateIndex].copy(
-                    id = rule.ruleId,
-                    price = priceToSet,
-                    dayType = rule.dayType,
-                    slots = rule.slots,
-                    minutes = rule.minutes,
-                    calcMode = rule.calcMode,
-                    description = rule.description,
-                    isActive = rule.isActive
-                )
-                println("✅ Cập nhật template rule [$templateIndex] với giá: '$priceToSet' (rule.price: ${rule.price})")
+                templateRules[templateIndex] = mappedRule
+                println("✅ Cập nhật template rule [$templateIndex] với giá: '${mappedRule.price}'")
             } else {
-                // ✅ FIX: Thêm rule mới nếu không tìm thấy template
-                println("⚠️ Không tìm thấy template rule tương ứng cho: $mappedDayOfWeek - $mappedTimeSlot, tạo mới")
-                val newRule = CourtPricingRule(
-                    id = rule.ruleId,
-                    dayOfWeek = mappedDayOfWeek,
-                    timeSlot = mappedTimeSlot,
-                    price = rule.price.toString(),
-                    dayType = rule.dayType,
-                    slots = rule.slots,
-                    minutes = rule.minutes,
-                    calcMode = rule.calcMode,
-                    description = rule.description,
-                    isActive = rule.isActive
-                )
-                templateRules.add(newRule)
-                println("✅ Đã thêm rule mới: $newRule")
+                println("⚠️ Không tìm thấy template rule tương ứng, thêm mới")
+                templateRules.add(mappedRule)
             }
         }
-        
-        // ✅ FIX: Cập nhật biến final
-        finalTemplateRules = templateRules
-        
-        println("✅ Đã map ${finalTemplateRules.size} pricing rules thành công")
-        finalTemplateRules.forEachIndexed { index, rule ->
-            println("  [$index] CourtPricingRule: dayOfWeek=${rule.dayOfWeek}, timeSlot=${rule.timeSlot}, price='${rule.price}' (isEmpty: ${rule.price.isEmpty()}, length: ${rule.price.length})")
-        }
-        
-        // Debug: Kiểm tra xem final state có dữ liệu không
-        println("🔍 DEBUG: Kiểm tra final state sau khi cập nhật:")
-        println("  - finalTemplateRules.size: ${finalTemplateRules.size}")
-        println("  - finalTemplateRules.isEmpty: ${finalTemplateRules.isEmpty()}")
-        finalTemplateRules.forEachIndexed { index, rule ->
-            println("  - [$index] price: '${rule.price}' (length: ${rule.price.length}, isEmpty: ${rule.price.isEmpty()})")
-        }
-        
-        // QUAN TRỌNG: Kiểm tra xem có pricing rules nào có giá không
-        val rulesWithPrice = finalTemplateRules.filter { it.price.isNotEmpty() }
-        println("💰 DEBUG: Pricing rules có giá: ${rulesWithPrice.size}/${finalTemplateRules.size}")
-        rulesWithPrice.forEachIndexed { index, rule ->
-            println("  💰 [$index] Giá: '${rule.price}' - ${rule.dayOfWeek} - ${rule.timeSlot}")
-        }
     } else {
-        println("⚠️ Không có dữ liệu pricing rules, tạo mẫu trống")
-        // localPricingRules.value = createEmptyPricingRules()
+        println("⚠️ Không có dữ liệu pricing rules từ Firebase")
     }
     
-    // Cập nhật services
-    if (firebaseFieldServices.isNotEmpty()) {
-        println("✅ Có dữ liệu field services, mapping...")
-        
-        val newServices = firebaseFieldServices.map { service ->
-            val mappedCategory = when (service.billingType) {
-                "PER_UNIT" -> when {
-                    service.name.contains("Banh", ignoreCase = true) -> "Banh"
-                    service.name.contains("Nước", ignoreCase = true) -> "Nước đóng chai"
-                    service.name.contains("Vợt", ignoreCase = true) -> "Phí Thuê Vợt"
-                    service.name.contains("Revice", ignoreCase = true) -> "Dịch vụ khác"
-                    else -> "Dịch vụ khác"
-                }
-                "FLAT_PER_BOOKING" -> "Phí cố định"
-                else -> "Dịch vụ khác"
-            }
-            
-            println("🔄 Mapping service: ${service.name} -> category: $mappedCategory")
-            
-            CourtServiceItem(
-                id = service.fieldServiceId,
-                name = service.name,
-                price = service.price.toString(),
-                category = mappedCategory
-            )
-        }
-        
-        // ✅ FIX: Cập nhật biến final
-        finalServices = newServices
-        
-        println("✅ Đã map ${finalServices.size} field services thành công")
-    } else {
-        println("⚠️ Không có dữ liệu field services, tạo mẫu trống")
-        // localServices.value = createEmptyServices()
+    println("🔍 DEBUG: Kết quả mapping:")
+    templateRules.forEachIndexed { index, rule ->
+        println("  [$index] ${rule.dayOfWeek} - ${rule.timeSlot}: '${rule.price}' (isEmpty: ${rule.price.isEmpty()})")
     }
     
-    // ✅ FIX: Trả về pair của lists mới
-    return Pair(finalTemplateRules, finalServices)
+    return Pair(templateRules, emptyList())
+}
+
+/**
+ * Map Firebase PricingRule sang UI CourtPricingRule
+ */
+private fun mapFirebaseRuleToUI(rule: PricingRule): CourtPricingRule {
+    // ✅ FIX: Mapping chính xác dựa trên dayType
+    val mappedDayOfWeek = when (rule.dayType) {
+        "WEEKDAY" -> "T2 - T6"
+        "WEEKEND" -> "T7 - CN"
+        "HOLIDAY" -> "Ngày lễ"
+        else -> "T2 - T6" // Fallback
+    }
+    
+    // ✅ FIX: Mapping chính xác dựa trên description hoặc minutes
+    val mappedTimeSlot = when {
+        rule.description.contains("5h") || rule.description.contains("5h-12h") || rule.description.contains("5h - 12h") -> "5h - 12h"
+        rule.description.contains("12h") || rule.description.contains("12h-18h") || rule.description.contains("12h - 18h") -> "12h - 18h"
+        rule.description.contains("18h") || rule.description.contains("18h-24h") || rule.description.contains("18h - 24h") -> "18h - 24h"
+        rule.minutes <= 180 -> "5h - 12h"      // ≤ 3 giờ
+        rule.minutes <= 360 -> "12h - 18h"     // ≤ 6 giờ
+        else -> "18h - 24h"                    // > 6 giờ
+    }
+    
+    return CourtPricingRule(
+        id = rule.ruleId,
+        dayOfWeek = mappedDayOfWeek,
+        timeSlot = mappedTimeSlot,
+        price = rule.price.toString(), // ✅ FIX: Luôn chuyển đổi sang string
+        dayType = rule.dayType,
+        slots = rule.slots,
+        minutes = rule.minutes,
+        calcMode = rule.calcMode,
+        description = rule.description,
+        isActive = rule.isActive
+    )
 }
 
 /**
@@ -795,39 +709,50 @@ private fun saveData(
 ) {
     println("💾 DEBUG: Bắt đầu lưu dữ liệu vào Firebase")
     println("📊 Input pricing rules: ${pricingRules.size} items")
+    println("🏟️ Field ID: $fieldId")
+    
     pricingRules.forEachIndexed { index, rule ->
         println("  [$index] $rule")
     }
     
-    // ✅ FIX: Tạo danh sách pricing rules mới - lưu tất cả rules
-    val newPricingRules = pricingRules
-        .map { rule ->
-            println("🔍 DEBUG: Tạo PricingRule từ CourtPricingRule: $rule")
-            
-            // Sử dụng thông tin đầy đủ từ CourtPricingRule
-            val description = if (rule.description.isNotEmpty()) rule.description else "Giá ${rule.dayOfWeek} - ${rule.timeSlot}"
-            println("🔍 DEBUG: Tạo PricingRule với description: $description")
-            
-            PricingRule(
-                ruleId = rule.id.ifEmpty { "" }, // Sử dụng id hiện tại nếu có, nếu không để Firebase tự tạo
-                fieldId = fieldId,
-                dayType = rule.dayType.ifEmpty { 
-                    when (rule.dayOfWeek) {
-                        "T2 - T6" -> "WEEKDAY"
-                        "T7 - CN" -> "WEEKEND"
-                        else -> "WEEKDAY"
-                    }
-                },
-                slots = rule.slots,
-                minutes = rule.minutes,
-                price = if (rule.price.isNotEmpty()) rule.price.toLongOrNull() ?: 0L else 0L,
-                calcMode = rule.calcMode.ifEmpty { "CEIL_TO_RULE" },
-                effectiveFrom = null, // Có thể thêm sau
-                effectiveTo = null,   // Có thể thêm sau
-                description = description,
-                isActive = rule.isActive
-            )
-        }
+    // ✅ FIX: Lọc chỉ những pricing rules có giá
+    val pricingRulesWithPrice = pricingRules.filter { rule ->
+        rule.price.isNotEmpty() && rule.price != "0"
+    }
+    
+    println("💰 DEBUG: Pricing rules có giá: ${pricingRulesWithPrice.size} items")
+    pricingRulesWithPrice.forEachIndexed { index, rule ->
+        println("  [$index] ${rule.dayOfWeek} - ${rule.timeSlot}: ${rule.price} ₫")
+    }
+    
+    // ✅ FIX: Tạo danh sách pricing rules mới - chỉ lưu những rule có giá
+    val newPricingRules = pricingRulesWithPrice.map { rule ->
+        println("🔍 DEBUG: Tạo PricingRule từ CourtPricingRule: $rule")
+        
+        // Sử dụng thông tin đầy đủ từ CourtPricingRule
+        val description = if (rule.description.isNotEmpty()) rule.description else "Giá ${rule.dayOfWeek} - ${rule.timeSlot}"
+        println("🔍 DEBUG: Tạo PricingRule với description: $description")
+        
+        PricingRule(
+            ruleId = rule.id.ifEmpty { "" }, // Sử dụng id hiện tại nếu có, nếu không để Firebase tự tạo
+            fieldId = fieldId,
+            dayType = rule.dayType.ifEmpty { 
+                when (rule.dayOfWeek) {
+                    "T2 - T6" -> "WEEKDAY"
+                    "T7 - CN" -> "WEEKEND"
+                    else -> "WEEKDAY"
+                }
+            },
+            slots = rule.slots,
+            minutes = rule.minutes,
+            price = rule.price.toLongOrNull() ?: 0L,
+            calcMode = rule.calcMode.ifEmpty { "CEIL_TO_RULE" },
+            effectiveFrom = null, // Có thể thêm sau
+            effectiveTo = null,   // Có thể thêm sau
+            description = description,
+            isActive = rule.isActive
+        )
+    }
     
     // Tạo danh sách field services mới
     val newFieldServices = services
@@ -870,6 +795,13 @@ private fun saveData(
         println("    - billingType: ${service.billingType}")
     }
     
+    // ✅ FIX: Kiểm tra xem có dữ liệu để lưu không
+    if (newPricingRules.isEmpty()) {
+        println("⚠️ WARNING: Không có pricing rules nào để lưu!")
+        println("💡 HINT: Hãy nhập giá cho ít nhất một khung giờ trước khi lưu")
+        return
+    }
+    
     // Lưu tất cả dữ liệu mới vào Firebase
     println("🚀 DEBUG: Gửi lệnh lưu dữ liệu vào Firebase...")
     println("🔍 DEBUG: Kiểm tra dữ liệu trước khi gửi:")
@@ -878,9 +810,9 @@ private fun saveData(
     println("  - newFieldServices.size: ${newFieldServices.size}")
     
     // Kiểm tra xem có pricing rules nào có giá không
-    val pricingRulesWithPrice = newPricingRules.filter { it.price > 0 }
-    println("💰 DEBUG: Pricing rules có giá > 0: ${pricingRulesWithPrice.size}")
-    pricingRulesWithPrice.forEachIndexed { index, rule ->
+    val pricingRulesWithPriceFinal = newPricingRules.filter { it.price > 0 }
+    println("💰 DEBUG: Pricing rules có giá > 0: ${pricingRulesWithPriceFinal.size}")
+    pricingRulesWithPriceFinal.forEachIndexed { index, rule ->
         println("  [$index] Giá: ${rule.price} ₫ - ${rule.description}")
     }
     
@@ -891,6 +823,7 @@ private fun saveData(
         println("  [$index] ${service.name}: ${service.price} ₫")
     }
     
+    // ✅ FIX: Gửi lệnh lưu dữ liệu vào Firebase
     fieldViewModel.handleEvent(FieldEvent.UpdateFieldPricingAndServices(fieldId, newPricingRules, newFieldServices))
     
     println("✅ Đã gửi lệnh lưu dữ liệu vào Firebase")
@@ -903,9 +836,17 @@ private fun saveData(
 private fun validateData(pricingRules: List<CourtPricingRule>, services: List<CourtServiceItem>): List<String> {
     val errors = mutableListOf<String>()
     
-    // Validate pricing rules - chỉ validate những rule có dữ liệu
-    val rulesWithData = pricingRules.filter { it.dayOfWeek.isNotEmpty() && it.timeSlot.isNotEmpty() }
-    rulesWithData.forEachIndexed { index, rule ->
+    // ✅ FIX: Validate pricing rules - chỉ validate những rule có giá
+    val rulesWithPrice = pricingRules.filter { rule -> 
+        rule.price.isNotEmpty() && rule.price != "0" 
+    }
+    
+    println("🔍 DEBUG: Validation - Rules có giá: ${rulesWithPrice.size} items")
+    rulesWithPrice.forEachIndexed { index, rule ->
+        println("  [$index] ${rule.dayOfWeek} - ${rule.timeSlot}: ${rule.price} ₫")
+    }
+    
+    rulesWithPrice.forEachIndexed { index, rule ->
         if (rule.price.isEmpty()) {
             errors.add("Giá không được để trống cho ${rule.dayOfWeek} - ${rule.timeSlot}")
         } else if (rule.price.toLongOrNull() == null) {
@@ -927,9 +868,12 @@ private fun validateData(pricingRules: List<CourtPricingRule>, services: List<Co
         }
     }
     
-    // Kiểm tra xem có ít nhất một pricing rule không
-    if (rulesWithData.isEmpty()) {
+    // ✅ FIX: Kiểm tra xem có ít nhất một pricing rule có giá không
+    if (rulesWithPrice.isEmpty()) {
         errors.add("Vui lòng nhập ít nhất một mức giá cho sân")
+        println("⚠️ WARNING: Không có pricing rules nào có giá để validate")
+    } else {
+        println("✅ DEBUG: Có ${rulesWithPrice.size} pricing rules có giá để validate")
     }
     
     return errors

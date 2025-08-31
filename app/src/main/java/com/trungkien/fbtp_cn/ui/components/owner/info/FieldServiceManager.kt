@@ -61,14 +61,18 @@ fun FieldServiceManager(
     LaunchedEffect(uiState.fieldServices, refreshTrigger) {
         println("🔄 DEBUG: FieldServiceManager - LaunchedEffect triggered - fieldServices: ${uiState.fieldServices.size}")
         
-        if (uiState.fieldServices.isNotEmpty()) {
-            val mappedServices = mapFirebaseServicesToUI(uiState.fieldServices)
+        // ✅ FIX: Lọc dịch vụ theo fieldId để đảm bảo chỉ hiển thị dịch vụ của sân hiện tại
+        val fieldSpecificServices = uiState.fieldServices.filter { it.fieldId == fieldId }
+        println("🏟️ DEBUG: FieldServiceManager - Dịch vụ của sân $fieldId: ${fieldSpecificServices.size} items")
+        
+        if (fieldSpecificServices.isNotEmpty()) {
+            val mappedServices = mapFirebaseServicesToUI(fieldSpecificServices)
             services = mappedServices
-            println("✅ DEBUG: FieldServiceManager - Đã map ${mappedServices.size} services từ Firebase")
+            println("✅ DEBUG: FieldServiceManager - Đã map ${mappedServices.size} services từ Firebase cho sân $fieldId")
         } else {
             // Tạo mẫu trống nếu không có dữ liệu
             services = createEmptyServiceTemplate()
-            println("⚠️ DEBUG: FieldServiceManager - Không có dữ liệu, tạo mẫu trống")
+            println("⚠️ DEBUG: FieldServiceManager - Không có dữ liệu cho sân $fieldId, tạo mẫu trống")
         }
     }
     
@@ -531,6 +535,7 @@ private fun saveFieldServices(
 ) {
     println("💾 DEBUG: FieldServiceManager - Bắt đầu lưu dịch vụ vào Firebase")
     println("📊 Input services: ${services.size} items")
+    println("🏟️ Field ID: $fieldId")
     
     // Lọc chỉ những service có tên và giá
     val servicesToSave = services.filter { 
@@ -550,8 +555,8 @@ private fun saveFieldServices(
                 "Nước đóng chai" -> "PER_UNIT"
                 "Thuê dụng cụ" -> "FLAT_PER_BOOKING"
                 "Dịch vụ khác" -> "PER_UNIT"
-                else -> "PER_UNIT"
-            },
+                else -> {}
+            }.toString(),
             allowQuantity = true,
             description = "Dịch vụ: ${service.name} - Danh mục: ${service.category}", // Lưu danh mục vào description
             isAvailable = service.isActive
@@ -566,12 +571,13 @@ private fun saveFieldServices(
         println("    - name: ${service.name}")
         println("    - price: ${service.price}")
         println("    - billingType: ${service.billingType}")
+        println("    - description: ${service.description}")
     }
     
     // Gửi lệnh lưu vào Firebase
     fieldViewModel.handleEvent(FieldEvent.UpdateFieldServices(fieldId, newFieldServices))
     
-    println("✅ DEBUG: FieldServiceManager - Đã gửi lệnh lưu dịch vụ vào Firebase")
+    println("✅ DEBUG: FieldServiceManager - Đã gửi lệnh lưu dịch vụ vào Firebase cho field: $fieldId")
 }
 
 /**
