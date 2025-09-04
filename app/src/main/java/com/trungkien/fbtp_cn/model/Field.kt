@@ -24,7 +24,10 @@ data class Field(
     val description: String = "",
     val contactPhone: String = "",
     val averageRating: Float = 0f,
-    val totalReviews: Int = 0
+    val totalReviews: Int = 0,
+    
+    // ✅ FIX: Thêm thuộc tính cho loại sân bóng đá
+    val footballFieldType: String? = null // "5_PLAYERS" | "7_PLAYERS" | "11_PLAYERS" | null
 )
 
 @Keep

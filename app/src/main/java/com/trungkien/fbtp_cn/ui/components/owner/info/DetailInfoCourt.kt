@@ -40,7 +40,18 @@ fun DetailInfoCourt(field: Field, modifier: Modifier = Modifier) {
             InfoRowItem(
                 icon = Icons.Default.SportsSoccer,
                 label = "Loại sân",
-                value = field.sports.joinToString(", ").uppercase(),
+                value = if (field.sports.contains("FOOTBALL") && field.footballFieldType != null) {
+                    // ✅ FIX: Hiển thị loại sân bóng đá nếu có
+                    val fieldTypeText = when (field.footballFieldType) {
+                        "5_PLAYERS" -> "Sân 5 người"
+                        "7_PLAYERS" -> "Sân 7 người"
+                        "11_PLAYERS" -> "Sân 11 người"
+                        else -> field.footballFieldType
+                    }
+                    "FOOTBALL - $fieldTypeText"
+                } else {
+                    field.sports.joinToString(", ").uppercase()
+                },
                 valueColor = MaterialTheme.colorScheme.primary
             )
             InfoRowItem(
@@ -295,7 +306,9 @@ fun DetailInfoCourtPreview() {
                 contactPhone = "0123456789",
                 averageRating = 4.5f,
                 totalReviews = 128,
-                isActive = true
+                isActive = true,
+                // ✅ FIX: Thêm footballFieldType cho preview
+                footballFieldType = "5_PLAYERS"
             )
         )
     }

@@ -438,7 +438,18 @@ fun FieldCard(
                             )
                             InfoItemWithDrawable(
                                 iconRes = R.drawable.stadium,
-                                text = field.sports.joinToString(", "),
+                                text = if (field.sports.contains("FOOTBALL") && field.footballFieldType != null) {
+                                    // ✅ FIX: Hiển thị loại sân bóng đá nếu có
+                                    val fieldTypeText = when (field.footballFieldType) {
+                                        "5_PLAYERS" -> "Sân 5"
+                                        "7_PLAYERS" -> "Sân 7"
+                                        "11_PLAYERS" -> "Sân 11"
+                                        else -> field.footballFieldType
+                                    }
+                                    "FOOTBALL ($fieldTypeText)"
+                                } else {
+                                    field.sports.joinToString(", ")
+                                },
                                 modifier = Modifier.weight(1f)
                             )
                         }

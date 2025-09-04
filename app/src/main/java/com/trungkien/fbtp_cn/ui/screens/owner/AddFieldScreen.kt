@@ -74,6 +74,9 @@ fun AddFieldScreen(
     var fieldDescription by remember { mutableStateOf("") }
     var contactPhone by remember { mutableStateOf("") }
     
+    // ✅ FIX: Thêm state cho loại sân bóng đá
+    var selectedFootballFieldType by remember { mutableStateOf<String?>(null) }
+    
     // Images - Sử dụng Uri thay vì String
     var mainImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
     var image1Uri by remember { mutableStateOf<android.net.Uri?>(null) }
@@ -158,7 +161,9 @@ fun AddFieldScreen(
             contactPhone = currentUser?.phone ?: contactPhone, // Use current user's phone
             averageRating = 0f,
             totalReviews = 0,
-            isActive = true
+            isActive = true,
+            // ✅ FIX: Thêm footballFieldType nếu có chọn FOOTBALL
+            footballFieldType = if (selectedSports.contains("FOOTBALL")) selectedFootballFieldType else null
         )
         
         // Create pricing rules
@@ -252,7 +257,10 @@ fun AddFieldScreen(
                             contactPhone = currentUser?.phone ?: "",
                             onContactPhoneChange = { contactPhone = it },
                             focusManager = focusManager,
-                            isPhoneEditable = false // Phone is read-only, taken from user profile
+                            isPhoneEditable = false, // Phone is read-only, taken from user profile
+                            // ✅ FIX: Thêm props cho football field type
+                            selectedFootballFieldType = selectedFootballFieldType,
+                            onFootballFieldTypeChange = { selectedFootballFieldType = it }
                         )
                     }
                 }
@@ -370,7 +378,9 @@ fun AddFieldScreen(
                             image2Uri,
                             image3Uri,
                             weekdayPrice,
-                            weekendPrice
+                            weekendPrice,
+                            // ✅ FIX: Thêm selectedFootballFieldType
+                            selectedFootballFieldType
                         ) && !uiState.isLoading
                     ) {
                         if (uiState.isLoading) {
@@ -414,7 +424,10 @@ private fun BasicInfoStep(
     contactPhone: String,
     onContactPhoneChange: (String) -> Unit,
     focusManager: FocusManager,
-    isPhoneEditable: Boolean = true
+    isPhoneEditable: Boolean = true,
+    // ✅ FIX: Thêm props cho football field type
+    selectedFootballFieldType: String? = null,
+    onFootballFieldTypeChange: (String?) -> Unit = {}
 ) {
     val availableSports = listOf("TENNIS", "BADMINTON", "FOOTBALL", "PICKLEBALL")
     
@@ -466,12 +479,49 @@ private fun BasicInfoStep(
                     onClick = {
                         if (selectedSports.contains(sport)) {
                             onSportsChange(selectedSports - sport)
+                            // ✅ FIX: Reset football field type khi bỏ chọn FOOTBALL
+                            if (sport == "FOOTBALL") {
+                                onFootballFieldTypeChange(null)
+                            }
                         } else {
                             onSportsChange(selectedSports + sport)
                         }
                     },
                     label = { Text(sport) }
                 )
+            }
+        }
+        
+        // ✅ FIX: Hiển thị lựa chọn loại sân bóng đá khi chọn FOOTBALL
+        if (selectedSports.contains("FOOTBALL")) {
+            Text(
+                text = "Loại sân bóng đá",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+            
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(listOf("5_PLAYERS", "7_PLAYERS", "11_PLAYERS")) { fieldType ->
+                    FilterChip(
+                        selected = selectedFootballFieldType == fieldType,
+                        onClick = {
+                            onFootballFieldTypeChange(if (selectedFootballFieldType == fieldType) null else fieldType)
+                        },
+                        label = { 
+                            Text(
+                                when (fieldType) {
+                                    "5_PLAYERS" -> "Sân 5 người"
+                                    "7_PLAYERS" -> "Sân 7 người"
+                                    "11_PLAYERS" -> "Sân 11 người"
+                                    else -> fieldType
+                                }
+                            ) 
+                        }
+                    )
+                }
             }
         }
         
@@ -875,10 +925,20 @@ private fun isStepValid(
     image2Uri: android.net.Uri?,
     image3Uri: android.net.Uri?,
     weekdayPrice: String,
-    weekendPrice: String
+    weekendPrice: String,
+    // ✅ FIX: Thêm parameter cho football field type
+    selectedFootballFieldType: String? = null
 ): Boolean {
     return when (step) {
-        0 -> fieldName.isNotEmpty() && fieldAddress.isNotEmpty() && selectedSports.isNotEmpty()
+        0 -> {
+            val basicValid = fieldName.isNotEmpty() && fieldAddress.isNotEmpty() && selectedSports.isNotEmpty()
+            // ✅ FIX: Kiểm tra football field type nếu chọn FOOTBALL
+            if (selectedSports.contains("FOOTBALL")) {
+                basicValid && selectedFootballFieldType != null
+            } else {
+                basicValid
+            }
+        }
         1 -> {
             // Step 2: Images - đảm bảo có đủ 4 ảnh
             val images = listOfNotNull(mainImageUri, image1Uri, image2Uri, image3Uri)
@@ -919,6 +979,9 @@ private fun BasicInfoStepPreview() {
         contactPhone = "0921483538",
         onContactPhoneChange = {},
         focusManager = LocalFocusManager.current,
-        isPhoneEditable = false
+        isPhoneEditable = false,
+        // ✅ FIX: Thêm preview cho football field type
+        selectedFootballFieldType = "5_PLAYERS",
+        onFootballFieldTypeChange = {}
     )
 }
