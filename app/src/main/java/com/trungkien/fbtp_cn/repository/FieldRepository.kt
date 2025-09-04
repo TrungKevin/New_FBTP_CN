@@ -221,17 +221,47 @@ class FieldRepository {
      */
     suspend fun getPricingRulesByFieldId(fieldId: String): Result<List<PricingRule>> {
         return try {
+            println("🔄 DEBUG: FieldRepository.getPricingRulesByFieldId($fieldId)")
+            println("🔍 DEBUG: Querying collection: $PRICING_RULES_COLLECTION")
+            println("🔍 DEBUG: Filter: fieldId == $fieldId")
+            
+            // ✅ DEBUG: Kiểm tra toàn bộ collection trước
+            val allRulesSnapshot = firestore.collection(PRICING_RULES_COLLECTION).get().await()
+            println("🔍 DEBUG: Tổng số documents trong collection: ${allRulesSnapshot.size()}")
+            if (allRulesSnapshot.size() > 0) {
+                println("🔍 DEBUG: Sample documents:")
+                allRulesSnapshot.documents.take(3).forEach { doc ->
+                    val sampleRule = doc.toObject(PricingRule::class.java)
+                    if (sampleRule != null) {
+                        println("  📄 ${doc.id}: fieldId='${sampleRule.fieldId}', price=${sampleRule.price}, description='${sampleRule.description}'")
+                    }
+                }
+            }
+            
             val snapshot = firestore.collection(PRICING_RULES_COLLECTION)
                 .whereEqualTo("fieldId", fieldId)
                 .get()
                 .await()
             
+            println("✅ DEBUG: Firebase query thành công")
+            println("🔍 DEBUG: Snapshot size: ${snapshot.size()}")
+            println("🔍 DEBUG: Documents count: ${snapshot.documents.size}")
+            
             val rules = snapshot.documents.mapNotNull { doc ->
-                doc.toObject(PricingRule::class.java)
+                val rule = doc.toObject(PricingRule::class.java)
+                if (rule != null) {
+                    println("  ✅ Document ${doc.id}: ruleId='${rule.ruleId}', fieldId='${rule.fieldId}', price=${rule.price}")
+                } else {
+                    println("  ⚠️ Document ${doc.id}: Không thể parse thành PricingRule")
+                }
+                rule
             }
             
+            println("✅ DEBUG: Parsed ${rules.size} pricing rules thành công")
             Result.success(rules)
         } catch (e: Exception) {
+            println("❌ ERROR: FieldRepository.getPricingRulesByFieldId thất bại: ${e.message}")
+            e.printStackTrace()
             Result.failure(e)
         }
     }

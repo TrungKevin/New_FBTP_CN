@@ -112,8 +112,15 @@ fun CourtService(
         // ✅ DEBUG: Kiểm tra raw data từ Firebase
         println("🔍 DEBUG: Raw Firebase data:")
         println("  - uiState.pricingRules.size: ${uiState.pricingRules.size}")
-        uiState.pricingRules.forEachIndexed { index, rule ->
-            println("    [$index] ruleId: '${rule.ruleId}', price: ${rule.price}, description: '${rule.description}'")
+        if (uiState.pricingRules.isEmpty()) {
+            println("⚠️ WARNING: Không có pricing rules nào từ Firebase!")
+            println("🔍 DEBUG: Field ID đang query: ${field.fieldId}")
+            println("🔍 DEBUG: Field name: ${field.name}")
+            println("🔍 DEBUG: Field sports: ${field.sports}")
+        } else {
+            uiState.pricingRules.forEachIndexed { index, rule ->
+                println("    [$index] ruleId: '${rule.ruleId}', fieldId: '${rule.fieldId}', price: ${rule.price}, description: '${rule.description}', dayType: '${rule.dayType}'")
+            }
         }
         println("  - uiState.fieldServices.size: ${uiState.fieldServices.size}")
         // Services không còn cần thiết vì đã chuyển sang FieldServiceManager
@@ -199,9 +206,9 @@ fun CourtService(
                             println("💾 DEBUG: Save button được click!")
                             
                             // Validate dữ liệu trước khi lưu
-                            val errors = validateData(pricingRules, emptyList())
+                            val errors = validateData(pricingRules)
                             if (errors.isEmpty()) {
-                                saveData(field.fieldId, pricingRules, emptyList(), fieldViewModel)
+                                saveData(field.fieldId, pricingRules, uiState.fieldServices, fieldViewModel)
                             } else {
                                 validationErrors = errors
                             }
@@ -335,15 +342,16 @@ fun CourtService(
                 
                 // ✅ FIX: DEBUG: Kiểm tra rule tìm được với normalized strings
                 println("🔍 DEBUG: UI find: day='$dayOfWeek', time='$timeSlot', found=${existingRule != null}, price='${existingRule?.price}'")
+                println("  - dayOfWeek: '$dayOfWeek', timeSlot: '$timeSlot'")
                 if (existingRule == null) {
-                    println("  - Available rules:")
+                    println("  - Available rules (normalized):")
                     pricingRules.forEachIndexed { i, rule ->
-                        println("    [$i] '${rule.dayOfWeek}' - '${rule.timeSlot}' : '${rule.price}'")
+                        println("    [$i] '${rule.dayOfWeek.trim()}' - '${rule.timeSlot.trim()}' : '${rule.price}'")
                     }
                     println("  - pricingRules.size: ${pricingRules.size}")
                     println("  - pricingRules.isEmpty: ${pricingRules.isEmpty()}")
                 } else {
-                    println("  - Found rule: ${existingRule.dayOfWeek} - ${existingRule.timeSlot} - '${existingRule.price}'")
+                    println("  - Found rule: $dayOfWeek - $timeSlot - '${existingRule.price}'")
                 }
                 
                 Row(
@@ -369,25 +377,46 @@ fun CourtService(
                             onValueChange = { newPrice ->
                                 println("🔍 DEBUG: onValueChange cho $dayOfWeek - $timeSlot với giá: '$newPrice'")
                                 println("  - existingRule: $existingRule")
+                                println("  - dayOfWeek: '$dayOfWeek', timeSlot: '$timeSlot'")
                                 println("  - pricingRules.size trước: ${pricingRules.size}")
                                 
                                 if (existingRule != null) {
-                                    // ✅ FIX: Cập nhật rule hiện có
-                                    val index = pricingRules.indexOf(existingRule)
+                                    // ✅ FIX: Cập nhật rule hiện có - Tìm index bằng cách so sánh dayOfWeek và timeSlot với trim()
+                                    val index = pricingRules.indexOfFirst { rule ->
+                                        rule.dayOfWeek.trim() == dayOfWeek && 
+                                        rule.timeSlot.trim() == timeSlot
+                                    }
                                     println("  - Cập nhật rule tại index: $index")
-                                    val updatedRules = pricingRules.toMutableList()
-                                    updatedRules[index] = existingRule.copy(price = newPrice)
-                                    pricingRules = updatedRules.toList() // ✅ FIX: Force new instance
-                                    println("  - Đã cập nhật rule tại index: $index với giá: '$newPrice'")
+                                    
+                                    if (index != -1) {
+                                        val updatedRules = pricingRules.toMutableList()
+                                        updatedRules[index] = existingRule.copy(
+                                            dayOfWeek = dayOfWeek,
+                                            timeSlot = timeSlot,
+                                            price = newPrice
+                                        )
+                                        pricingRules = updatedRules.toList() // ✅ FIX: Force new instance
+                                        println("  - Đã cập nhật rule tại index: $index với giá: '$newPrice'")
+                                    } else {
+                                        // ✅ FIX: Nếu không tìm thấy index, tạo rule mới với trim() để nhất quán
+                                        println("  - Không tìm thấy index, tạo rule mới cho: $dayOfWeek - $timeSlot")
+                                        val newRule = existingRule.copy(
+                                            dayOfWeek = dayOfWeek,
+                                            timeSlot = timeSlot,
+                                            price = newPrice
+                                        )
+                                        pricingRules = pricingRules + newRule // ✅ FIX: Force new instance
+                                        println("  - Đã thêm rule mới: $newRule")
+                                    }
                                 } else {
-                                    // ✅ FIX: Tạo rule mới nếu không tìm thấy
+                                    // ✅ FIX: Tạo rule mới nếu không tìm thấy với trim() để nhất quán
                                     println("  - Tạo rule mới cho: $dayOfWeek - $timeSlot")
                                     val newRule = CourtPricingRule(
                                         id = (System.currentTimeMillis()).toString(), // ✅ FIX: Unique ID
                                         dayOfWeek = dayOfWeek,
                                         timeSlot = timeSlot,
                                         price = newPrice,
-                                        dayType = if (index < 3) "WEEKDAY" else "WEEKEND",
+                                        dayType = if (dayOfWeek == "T2 - T6") "WEEKDAY" else "WEEKEND",
                                         minutes = 30,
                                         description = "Giá $dayOfWeek - $timeSlot"
                                     )
@@ -396,9 +425,9 @@ fun CourtService(
                                 }
                                 
                                 println("  - pricingRules.size sau: ${pricingRules.size}")
-                                println("  - pricingRules hiện tại:")
+                                println("  - pricingRules hiện tại (normalized):")
                                 pricingRules.forEachIndexed { i, rule ->
-                                    println("    [$i] ${rule.dayOfWeek} - ${rule.timeSlot}: '${rule.price}'")
+                                    println("    [$i] ${rule.dayOfWeek.trim()} - ${rule.timeSlot.trim()}: '${rule.price}'")
                                 }
                             },
                             modifier = Modifier
@@ -426,6 +455,7 @@ fun CourtService(
                         // DEBUG: Kiểm tra logic hiển thị
                         println("🔍 DEBUG: Hiển thị cho $dayOfWeek - $timeSlot")
                         println("  - existingRule: $existingRule")
+                        println("  - dayOfWeek: '$dayOfWeek', timeSlot: '$timeSlot'")
                         println("  - existingRule?.price: '${existingRule?.price}'")
                         println("  - existingRule?.price?.isNotEmpty(): ${existingRule?.price?.isNotEmpty()}")
                         println("  - existingRule?.price != '0': ${existingRule?.price != "0"}")
@@ -495,9 +525,23 @@ data class CourtServiceItem(
  */
 private fun loadFieldData(fieldId: String, fieldViewModel: FieldViewModel) {
     println("🔄 DEBUG: Loading field data for fieldId: $fieldId")
-    fieldViewModel.handleEvent(FieldEvent.LoadPricingRulesByFieldId(fieldId))
-    fieldViewModel.handleEvent(FieldEvent.LoadFieldServicesByFieldId(fieldId))
-    println("✅ DEBUG: Đã gửi lệnh load dữ liệu từ Firebase")
+    println("🔍 DEBUG: Field details:")
+    println("  - Field ID: $fieldId")
+    // Không thể truy cập field object trong function này
+    // println("  - Field name: ${field.name}")
+    // println("  - Field sports: ${field.sports}")
+    // println("  - Field owner: ${field.ownerId}")
+    
+    try {
+        fieldViewModel.handleEvent(FieldEvent.LoadPricingRulesByFieldId(fieldId))
+        fieldViewModel.handleEvent(FieldEvent.LoadFieldServicesByFieldId(fieldId))
+        println("✅ DEBUG: Đã gửi lệnh load dữ liệu từ Firebase")
+        println("  - LoadPricingRulesByFieldId($fieldId)")
+        println("  - LoadFieldServicesByFieldId($fieldId)")
+    } catch (e: Exception) {
+        println("❌ ERROR: Lỗi khi gửi lệnh load data: ${e.message}")
+        e.printStackTrace()
+    }
 }
 
 /**
@@ -704,15 +748,21 @@ private fun createEmptyServices(): List<CourtServiceItem> {
 private fun saveData(
     fieldId: String,
     pricingRules: List<CourtPricingRule>,
-    services: List<CourtServiceItem>,
+    fieldServices: List<FieldService>,
     fieldViewModel: FieldViewModel
 ) {
     println("💾 DEBUG: Bắt đầu lưu dữ liệu vào Firebase")
     println("📊 Input pricing rules: ${pricingRules.size} items")
+    println("🛍️ Input field services: ${fieldServices.size} items")
     println("🏟️ Field ID: $fieldId")
     
     pricingRules.forEachIndexed { index, rule ->
         println("  [$index] $rule")
+    }
+    
+    println("🛍️ DEBUG: Field services đầu vào:")
+    fieldServices.forEachIndexed { index, service ->
+        println("  [$index] ${service.name}: ${service.price} ₫ (ID: ${service.fieldServiceId})")
     }
     
     // ✅ FIX: Lọc chỉ những pricing rules có giá
@@ -754,25 +804,11 @@ private fun saveData(
         )
     }
     
-    // Tạo danh sách field services mới
-    val newFieldServices = services
-        .filter { service -> service.name.isNotEmpty() && service.price.isNotEmpty() }
-        .map { service ->
-            FieldService(
-                fieldServiceId = "", // Để Firebase tự tạo ID mới
-                fieldId = fieldId,
-                name = service.name,
-                price = service.price.toLongOrNull() ?: 0L,
-                billingType = when (service.category) {
-                    "Banh" -> "PER_UNIT"
-                    "Nước đóng chai" -> "PER_UNIT"
-                    "Phí Thuê Vợt" -> "FLAT_PER_BOOKING"
-                    else -> "PER_UNIT"
-                },
-                allowQuantity = true,
-                description = "Dịch vụ: ${service.name}"
-            )
-        }
+    // ✅ FIX: Giữ nguyên field services hiện có từ Firebase
+    val newFieldServices = fieldServices.map { service ->
+        // Giữ nguyên service hiện có, chỉ cập nhật fieldId nếu cần
+        service.copy(fieldId = fieldId)
+    }
     
     println("💾 DEBUG: Dữ liệu sẽ lưu vào Firebase:")
     println("📊 Pricing Rules sẽ lưu: ${newPricingRules.size} items")
@@ -785,7 +821,7 @@ private fun saveData(
         println("    - price: ${rule.price}")
         println("    - minutes: ${rule.minutes}")
     }
-    println("🛍️ Field Services sẽ lưu: ${newFieldServices.size} items")
+    println("🛍️ Field Services sẽ lưu (giữ nguyên từ Firebase): ${newFieldServices.size} items")
     newFieldServices.forEachIndexed { index, service ->
         println("  [$index] FieldService:")
         println("    - fieldServiceId: ${service.fieldServiceId}")
@@ -818,9 +854,9 @@ private fun saveData(
     
     // Kiểm tra xem có field services nào có tên và giá không
     val fieldServicesWithData = newFieldServices.filter { it.name.isNotEmpty() && it.price > 0 }
-    println("🛍️ DEBUG: Field services có dữ liệu: ${fieldServicesWithData.size}")
+    println("🛍️ DEBUG: Field services từ Firebase (giữ nguyên): ${fieldServicesWithData.size}")
     fieldServicesWithData.forEachIndexed { index, service ->
-        println("  [$index] ${service.name}: ${service.price} ₫")
+        println("  [$index] ${service.name}: ${service.price} ₫ (ID: ${service.fieldServiceId})")
     }
     
     // ✅ FIX: Gửi lệnh lưu dữ liệu vào Firebase
@@ -833,7 +869,7 @@ private fun saveData(
 /**
  * Validate dữ liệu trước khi lưu
  */
-private fun validateData(pricingRules: List<CourtPricingRule>, services: List<CourtServiceItem>): List<String> {
+private fun validateData(pricingRules: List<CourtPricingRule>): List<String> {
     val errors = mutableListOf<String>()
     
     // ✅ FIX: Validate pricing rules - chỉ validate những rule có giá
@@ -853,18 +889,6 @@ private fun validateData(pricingRules: List<CourtPricingRule>, services: List<Co
             errors.add("Giá không hợp lệ cho ${rule.dayOfWeek} - ${rule.timeSlot}: ${rule.price}")
         } else if (rule.price.toLong() <= 0) {
             errors.add("Giá phải lớn hơn 0 cho ${rule.dayOfWeek} - ${rule.timeSlot}")
-        }
-    }
-    
-    // Validate services - chỉ validate những service có tên
-    val servicesWithName = services.filter { it.name.isNotEmpty() }
-    servicesWithName.forEach { service ->
-        if (service.price.isEmpty()) {
-            errors.add("Giá không được để trống cho dịch vụ: ${service.name}")
-        } else if (service.price.toLongOrNull() == null) {
-            errors.add("Giá không hợp lệ cho dịch vụ ${service.name}: ${service.price}")
-        } else if (service.price.toLong() <= 0) {
-            errors.add("Giá phải lớn hơn 0 cho dịch vụ: ${service.name}")
         }
     }
     

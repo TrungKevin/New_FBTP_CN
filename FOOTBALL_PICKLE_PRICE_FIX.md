@@ -1,150 +1,179 @@
-# 🏟️ **Sửa Lỗi Hiển Thị Bảng Giá - Sân Football & Pickle**
+# 🏟️ **FOOTBALL & PICKLE COURT PRICING FIX - Hướng Dẫn Test**
 
-## 🚨 **Vấn Đề Đã Xác Định**
+## 🎯 **Vấn Đề Đã Xác Định**
 
-### **Sân hoạt động bình thường:**
-- ✅ **Badminton**: Hiển thị bảng giá đúng
-- ✅ **Tennis**: Hiển thị bảng giá đúng
+**Football và Pickle courts không hiển thị pricing rules** mặc dù dữ liệu đã được lưu vào Firebase.
 
-### **Sân có vấn đề:**
-- ❌ **Football**: Không hiển thị bảng giá
-- ❌ **Pickle**: Không hiển thị bảng giá
+**Nguyên nhân**: Pricing rules không được load từ Firebase cho các sân này.
 
-## 🔍 **Nguyên Nhân Từ Debug Logs**
+## ✅ **Các Fix Đã Áp Dụng**
 
-```
-📊 Pricing Rules từ Firebase: 0 items
-⚠️ Không có dữ liệu pricing rules từ Firebase
-🔧 DEBUG: Tạo pricing rules mẫu trống
-```
+### **1. Enhanced Debug Logging**
+- ✅ Thêm debug logs chi tiết trong `CourtService.kt`
+- ✅ Thêm debug logs trong `FieldViewModel.kt`
+- ✅ Thêm debug logs trong `FieldRepository.kt`
 
-**Vấn đề chính:** Firebase không trả về dữ liệu pricing rules cho sân football và pickle.
+### **2. Error Handling**
+- ✅ Xử lý lỗi khi load data từ Firebase
+- ✅ Log chi tiết các bước xử lý
+- ✅ Hiển thị thông tin field khi không có pricing rules
 
-## 🛠️ **Các Sửa Đổi Đã Thực Hiện**
+### **3. Data Validation**
+- ✅ Kiểm tra field ID, name, sports
+- ✅ Log số lượng pricing rules được trả về
+- ✅ Log chi tiết từng rule được parse
 
-### **1. Sửa Logic Lưu Dữ Liệu**
-- ✅ Chỉ lưu những pricing rules có giá
-- ✅ Kiểm tra dữ liệu trước khi gửi vào Firebase
-- ✅ Warning khi không có dữ liệu để lưu
+## 🧪 **Hướng Dẫn Test**
 
-### **2. Sửa Logic Validation**
-- ✅ Chỉ validate những pricing rules có giá
-- ✅ Debug log chi tiết cho quá trình validation
-
-## 🧪 **Test Cases Để Sửa Lỗi**
-
-### **Test Case 1: Kiểm Tra Sân Football**
-
-#### **Bước 1: Vào Sân Football**
-1. Mở app
-2. Vào Owner Field Management
-3. Chọn sân Football
-4. Vào CourtService component
-
-#### **Bước 2: Kiểm Tra Trạng Thái Hiện Tại**
-1. Kiểm tra console logs:
-   ```
-   📊 Pricing Rules từ Firebase: X items
-   ```
-2. Nếu = 0 → Sân chưa có dữ liệu
-3. Nếu > 0 → Sân đã có dữ liệu
-
-#### **Bước 3: Nhập Giá Cho Sân Football**
-1. Click Edit button
-2. Nhập giá cho ít nhất 1 khung giờ:
-   - **T2 - T6 - 5h - 12h**: `50000`
-   - **T2 - T6 - 12h - 18h**: `60000`
-   - **T2 - T6 - 18h - 24h**: `70000`
-3. Click Save button
-
-#### **Bước 4: Kiểm Tra Lưu Dữ Liệu**
-1. Kiểm tra console logs:
-   ```
-   💰 DEBUG: Pricing rules có giá: X items
-   🚀 DEBUG: Gửi lệnh lưu dữ liệu vào Firebase...
-   ✅ Đã gửi lệnh lưu dữ liệu vào Firebase
-   ```
-
-#### **Bước 5: Reload Dữ Liệu**
-1. Refresh page hoặc reload data
-2. Kiểm tra console logs:
-   ```
-   📊 Pricing Rules từ Firebase: X items
-   ```
-3. Nếu > 0 → Dữ liệu đã được lưu thành công
-
-### **Test Case 2: Kiểm Tra Sân Pickle**
-
-#### **Bước 1: Vào Sân Pickle**
-1. Quay lại Owner Field Management
-2. Chọn sân Pickle
-3. Vào CourtService component
-
-#### **Bước 2: Lặp Lại Quy Trình Tương Tự**
-1. Nhập giá cho các khung giờ
-2. Lưu dữ liệu
-3. Kiểm tra reload
-
-## 🔧 **Debug Logs Cần Kiểm Tra**
-
-### **Trước Khi Sửa:**
-```
-📊 Pricing Rules từ Firebase: 0 items
-⚠️ Không có dữ liệu pricing rules từ Firebase
-🔧 DEBUG: Tạo pricing rules mẫu trống
+### **Bước 1: Build và Cài Đặt App**
+```bash
+./gradlew assembleDebug
+# Cài đặt APK vào device/emulator
 ```
 
-### **Sau Khi Sửa:**
+### **Bước 2: Đăng Nhập và Vào Sân**
+1. **Đăng nhập** với tài khoản owner
+2. **Vào một sân football hoặc pickle**
+3. **Chọn tab "Bảng giá & Dịch vụ"**
+
+### **Bước 3: Kiểm Tra Debug Logs**
+Trong **Logcat**, filter theo tag `DEBUG` và tìm:
+
 ```
-💰 DEBUG: Pricing rules có giá: X items
-🚀 DEBUG: Gửi lệnh lưu dữ liệu vào Firebase...
-✅ Đã gửi lệnh lưu dữ liệu vào Firebase
-📊 Pricing Rules từ Firebase: X items
+🔄 DEBUG: LaunchedEffect triggered - pricingRules: 0, fieldServices: 0
+⚠️ WARNING: Không có pricing rules nào từ Firebase!
+🔍 DEBUG: Field ID đang query: [field_id]
+🔍 DEBUG: Field name: [field_name]
+🔍 DEBUG: Field sports: [sports_list]
 ```
 
-## ✅ **Kết Quả Mong Đợi**
+### **Bước 4: Kiểm Tra Firebase Console**
+1. **Vào Firebase Console**
+2. **Chọn project**
+3. **Vào Firestore Database**
+4. **Kiểm tra collection `pricing_rules`**
+5. **Tìm documents có `fieldId` tương ứng**
 
-### **Sau Khi Hoàn Thành Test:**
-1. ✅ **Sân Football**: Hiển thị bảng giá đúng
-2. ✅ **Sân Pickle**: Hiển thị bảng giá đúng
-3. ✅ **Tất cả sân**: Có thể nhập, lưu, và hiển thị giá
+### **Bước 5: Kiểm Tra Security Rules**
+Đảm bảo Firestore Security Rules cho phép:
+```javascript
+match /pricing_rules/{ruleId} {
+  allow read: if true;  // ✅ Cho phép đọc
+  allow create, update, delete: if signedIn() && isFieldOwner(fieldId);
+}
+```
 
-## 🚨 **Các Vấn Đề Cần Chú Ý**
+## 🔍 **Debug Logs Cần Kiểm Tra**
 
-### **1. Dữ Liệu Chưa Được Lưu**
-- Sân football và pickle có thể chưa có dữ liệu pricing rules
-- Cần nhập giá và lưu lần đầu
+### **1. CourtService.kt**
+```
+🔄 DEBUG: LaunchedEffect triggered
+🔍 DEBUG: Raw Firebase data
+⚠️ WARNING: Không có pricing rules nào từ Firebase!
+```
 
-### **2. FieldId Không Khớp**
-- Kiểm tra fieldId khi lưu và load
-- Đảm bảo fieldId được gán đúng
+### **2. FieldViewModel.kt**
+```
+🔄 DEBUG: FieldViewModel.loadPricingRulesByFieldId([field_id])
+✅ DEBUG: LoadPricingRulesByFieldId thành công: X rules
+❌ ERROR: LoadPricingRulesByFieldId thất bại
+```
 
-### **3. Lỗi Firebase**
-- Kiểm tra Firebase Console
-- Xem có lỗi gì trong quá trình lưu không
+### **3. FieldRepository.kt**
+```
+🔄 DEBUG: FieldRepository.getPricingRulesByFieldId([field_id])
+🔍 DEBUG: Querying collection: pricing_rules
+🔍 DEBUG: Filter: fieldId == [field_id]
+✅ DEBUG: Firebase query thành công
+🔍 DEBUG: Snapshot size: X
+```
 
-## 📝 **Hướng Dẫn Test**
+## 🚨 **Các Trường Hợp Có Thể Xảy Ra**
 
-### **Thứ Tự Test:**
-1. **Test sân Football trước**
-2. **Test sân Pickle sau**
-3. **So sánh với sân Badminton và Tennis**
+### **Trường Hợp 1: Không Có Data**
+```
+🔍 DEBUG: Snapshot size: 0
+⚠️ WARNING: Không có pricing rules nào từ Firebase!
+```
+**Giải pháp**: Tạo pricing rules mới cho sân
 
-### **Thời Gian Test:**
-- **Mỗi sân**: 5-10 phút
-- **Tổng thời gian**: 20-30 phút
+### **Trường Hợp 2: Permission Denied**
+```
+❌ ERROR: LoadPricingRulesByFieldId thất bại
+❌ ERROR: Exception: [permission_error]
+```
+**Giải pháp**: Kiểm tra Firestore Security Rules
 
-### **Kết Quả Cần Ghi Nhận:**
-- Console logs trước và sau khi sửa
-- Trạng thái hiển thị bảng giá
-- Lỗi nếu có
+### **Trường Hợp 3: Data Parse Error**
+```
+🔍 DEBUG: Document [doc_id]: Không thể parse thành PricingRule
+```
+**Giải pháp**: Kiểm tra cấu trúc data trong Firebase
 
-## 🎯 **Kết Luận**
+## 🔧 **Cách Khắc Phục**
 
-Vấn đề chính là **dữ liệu pricing rules chưa được lưu vào Firebase** cho sân football và pickle. Sau khi thực hiện các sửa đổi:
+### **1. Tạo Pricing Rules Mới**
+1. **Vào CourtService**
+2. **Click nút ✏️ (Edit)**
+3. **Nhập giá cho các khung giờ**
+4. **Click 💾 (Save)**
 
-1. **Logic lưu dữ liệu** đã được cải thiện
-2. **Validation** đã được sửa
-3. **Debug logs** đã được thêm vào
+### **2. Kiểm Tra Security Rules**
+```javascript
+// Đảm bảo rules cho phép đọc
+match /pricing_rules/{ruleId} {
+  allow read: if true;
+}
+```
 
-Hãy test theo hướng dẫn và report kết quả! 🚀
+### **3. Kiểm Tra Data Structure**
+Đảm bảo mỗi pricing rule có:
+- `fieldId`: ID của sân
+- `price`: Giá tiền (number)
+- `dayType`: "WEEKDAY" | "WEEKEND" | "HOLIDAY"
+- `description`: Mô tả khung giờ
+
+## 📱 **Test Cases**
+
+### **Test Case 1: Football Court**
+```
+Field ID: field_football_001
+Field Name: Sân Bóng Đá ABC
+Field Sports: ["FOOTBALL"]
+Expected: Hiển thị pricing rules
+```
+
+### **Test Case 2: Pickle Court**
+```
+Field ID: field_pickle_001
+Field Name: Sân Pickleball XYZ
+Field Sports: ["PICKLEBALL"]
+Expected: Hiển thị pricing rules
+```
+
+### **Test Case 3: Tennis Court (Control)**
+```
+Field ID: field_tennis_001
+Field Name: Sân Tennis DEF
+Field Sports: ["TENNIS"]
+Expected: Hiển thị pricing rules (đã hoạt động)
+```
+
+## 📊 **Kết Quả Mong Đợi**
+
+Sau khi fix:
+1. ✅ **Debug logs hiển thị đầy đủ**
+2. ✅ **Pricing rules được load từ Firebase**
+3. ✅ **UI hiển thị giá thay vì "Chưa có giá"**
+4. ✅ **Có thể edit và save pricing rules**
+
+## 🆘 **Nếu Vẫn Không Hoạt Động**
+
+1. **Kiểm tra Logcat** để xem lỗi cụ thể
+2. **Kiểm tra Firebase Console** để xem data
+3. **Kiểm tra Security Rules** để đảm bảo permission
+4. **Tạo issue mới** với logs chi tiết
+
+---
+
+**Lưu ý**: Đây là hướng dẫn test để xác định nguyên nhân gốc rễ của vấn đề. Sau khi xác định được nguyên nhân, sẽ có fix cụ thể.

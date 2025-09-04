@@ -526,7 +526,7 @@ object MockData {
             shares = 3,
             reportCount = 0,
             replies = listOf(
-                ReviewReply(
+                Reply(
                     replyId = "reply_001",
                     userId = "owner_001",
                     userName = "Tennis Club HCMC",
@@ -560,7 +560,7 @@ object MockData {
             shares = 1,
             reportCount = 0,
             replies = listOf(
-                ReviewReply(
+                Reply(
                     replyId = "reply_002",
                     userId = "owner_002",
                     userName = "Badminton Center",

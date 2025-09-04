@@ -416,7 +416,12 @@ fun OwnerFieldDetailScreen(
                             )
                         }
 
-                        2 -> EvaluateCourt(field = field)// Hiển thị đánh giá sân
+                        2 -> EvaluateCourt(
+                            fieldId = field.fieldId,
+                            currentUser = currentUser,
+                            isOwner = true,
+                            viewModel = viewModel()
+                        )// Hiển thị đánh giá sân
 
                         3 -> {
                             // Debug: Kiểm tra xem có vào được case này không

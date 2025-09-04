@@ -323,19 +323,29 @@ class FieldViewModel(
     
     private fun loadPricingRulesByFieldId(fieldId: String) {
         viewModelScope.launch {
+            println("🔄 DEBUG: FieldViewModel.loadPricingRulesByFieldId($fieldId)")
             try {
                 val result = repository.getPricingRulesByFieldId(fieldId)
                 
                 result.fold(
                     onSuccess = { rules ->
+                        println("✅ DEBUG: LoadPricingRulesByFieldId thành công: ${rules.size} rules")
+                        rules.forEachIndexed { index, rule ->
+                            println("  [$index] ruleId: '${rule.ruleId}', fieldId: '${rule.fieldId}', price: ${rule.price}, description: '${rule.description}'")
+                        }
                         _uiState.value = _uiState.value.copy(pricingRules = rules)
                     },
                     onFailure = { exception ->
+                        println("❌ ERROR: LoadPricingRulesByFieldId thất bại cho fieldId: $fieldId")
+                        println("❌ ERROR: Exception: ${exception.message}")
+                        exception.printStackTrace()
                         // Log error but don't show to user
                         println("Error loading pricing rules by field ID: ${exception.message}")
                     }
                 )
             } catch (e: Exception) {
+                println("❌ ERROR: Exception không xác định trong loadPricingRulesByFieldId: ${e.message}")
+                e.printStackTrace()
                 println("Error loading pricing rules by field ID: ${e.message}")
             }
         }
