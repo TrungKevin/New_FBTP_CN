@@ -91,9 +91,7 @@ fun AddFieldScreen(
     // Amenities
     var selectedAmenities by remember { mutableStateOf(listOf<String>()) }
     
-    // Pricing rules
-    var weekdayPrice by remember { mutableStateOf("") }
-    var weekendPrice by remember { mutableStateOf("") }
+
     
     // Services
     var fieldServices by remember { mutableStateOf(listOf<FieldService>()) }
@@ -135,11 +133,7 @@ fun AddFieldScreen(
             return
         }
         
-        // Validate pricing
-        if (weekdayPrice.isBlank() || weekendPrice.isBlank()) {
-            println("Cần nhập giá ngày thường và cuối tuần")
-            return
-        }
+
         
         // Create Field object
         val field = Field(
@@ -166,15 +160,11 @@ fun AddFieldScreen(
             footballFieldType = if (selectedSports.contains("FOOTBALL")) selectedFootballFieldType else null
         )
         
-        // Create pricing rules
-        val pricingRules = fieldViewModel.createDefaultPricingRules(
-            weekdayPrice.toIntOrNull() ?: 0,
-            weekendPrice.toIntOrNull() ?: 0
-        )
+
         
         // Submit to ViewModel - ảnh sẽ được convert thành base64 và lưu trực tiếp vào Firestore
         fieldViewModel.handleEvent(
-            FieldEvent.AddField(field, images, pricingRules, fieldServices)
+            FieldEvent.AddField(field, images, emptyList(), fieldServices)
         )
     }
     
@@ -328,10 +318,6 @@ fun AddFieldScreen(
                     
                     item {
                         PricingServicesStep(
-                            weekdayPrice = weekdayPrice,
-                            onWeekdayPriceChange = { weekdayPrice = it },
-                            weekendPrice = weekendPrice,
-                            onWeekendPriceChange = { weekendPrice = it },
                             fieldServices = fieldServices,
                             onServicesChange = { fieldServices = it }
                         )
@@ -377,8 +363,6 @@ fun AddFieldScreen(
                             image1Uri,
                             image2Uri,
                             image3Uri,
-                            weekdayPrice,
-                            weekendPrice,
                             // ✅ FIX: Thêm selectedFootballFieldType
                             selectedFootballFieldType
                         ) && !uiState.isLoading
@@ -858,10 +842,6 @@ private fun OperatingHoursStep(
 
 @Composable
 private fun PricingServicesStep(
-    weekdayPrice: String,
-    onWeekdayPriceChange: (String) -> Unit,
-    weekendPrice: String,
-    onWeekendPriceChange: (String) -> Unit,
     fieldServices: List<FieldService>,
     onServicesChange: (List<FieldService>) -> Unit
 ) {
@@ -869,39 +849,7 @@ private fun PricingServicesStep(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
-            text = "Bảng giá (VNĐ/30 phút)",
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium
-        )
-        
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            OutlinedTextField(
-                value = weekdayPrice,
-                onValueChange = onWeekdayPriceChange,
-                label = { Text("Giá ngày thường") },
-                modifier = Modifier.weight(1f),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF00C853),
-                    unfocusedBorderColor = Color(0xFFE0E0E0)
-                )
-            )
-            
-            OutlinedTextField(
-                value = weekendPrice,
-                onValueChange = onWeekendPriceChange,
-                label = { Text("Giá cuối tuần") },
-                modifier = Modifier.weight(1f),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF00C853),
-                    unfocusedBorderColor = Color(0xFFE0E0E0)
-                )
-            )
-        }
-        
-        Text(
-            text = "Dịch vụ",
+            text = "Dịch vụ bổ sung",
             fontSize = 16.sp,
             fontWeight = FontWeight.Medium
         )
@@ -909,6 +857,12 @@ private fun PricingServicesStep(
         // TODO: Add service management UI
         Text(
             text = "Chức năng quản lý dịch vụ sẽ được thêm sau",
+            fontSize = 14.sp,
+            color = Color(0xFF757575)
+        )
+        
+        Text(
+            text = "Bạn có thể chỉnh sửa bảng giá và dịch vụ bổ sung sau khi tạo sân trong phần CourtService.",
             fontSize = 14.sp,
             color = Color(0xFF757575)
         )
@@ -924,8 +878,6 @@ private fun isStepValid(
     image1Uri: android.net.Uri?,
     image2Uri: android.net.Uri?,
     image3Uri: android.net.Uri?,
-    weekdayPrice: String,
-    weekendPrice: String,
     // ✅ FIX: Thêm parameter cho football field type
     selectedFootballFieldType: String? = null
 ): Boolean {
@@ -945,10 +897,7 @@ private fun isStepValid(
             images.size >= 4
         }
         2 -> true // Step 3: Operating Hours & Amenities
-        3 -> {
-            // Step 4: Pricing & Services - đảm bảo có giá
-            weekdayPrice.isNotBlank() && weekendPrice.isNotBlank()
-        }
+        3 -> true // Step 4: Services - không cần validation
         else -> false
     }
 }
