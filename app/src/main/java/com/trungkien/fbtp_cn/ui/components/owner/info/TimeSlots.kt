@@ -110,114 +110,127 @@ fun TimeSlots(
         println("🕐 DEBUG: Loaded ${uiState.slots.size} slots")
     }
     
-    Column(
+        // ✅ FIX: Sử dụng LazyColumn để có thể cuộn xuống xem tất cả khe giờ
+    LazyColumn(
         modifier = modifier
             .fillMaxWidth()
             .padding(16.dp)
     ) {
-        Text(
-            text = "Khung giờ hoạt động",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+        item {
+            Text(
+                text = "Khung giờ hoạt động",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+        }
         
-        // ✅ FIX: Hiển thị thông tin giờ hoạt động
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
-            ),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
+        item {
+            // ✅ FIX: Hiển thị thông tin giờ hoạt động
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
+                ),
+                shape = RoundedCornerShape(12.dp)
             ) {
-                Text(
-                    text = "Thông tin giờ hoạt động",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                
-                Text(
-                    text = "• Giờ mở cửa: ${field.openHours.start}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-                
-                Text(
-                    text = "• Giờ đóng cửa: ${field.openHours.end}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-                
-                Text(
-                    text = "• Khoảng cách giữa các khe: 30 phút",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-                
-                if (isOpen24h) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
                     Text(
-                        text = "• Mở cửa 24/24",
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = "Thông tin giờ hoạt động",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    
+                    Text(
+                        text = "• Giờ mở cửa: ${field.openHours.start}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    
+                    Text(
+                        text = "• Giờ đóng cửa: ${field.openHours.end}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    
+                    Text(
+                        text = "• Khoảng cách giữa các khe: 30 phút",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    
+                    if (isOpen24h) {
+                        Text(
+                            text = "• Mở cửa 24/24",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+        
+        item {
+            Text(
+                text = "Chọn ngày",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+        }
+        
+        item {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(vertical = 8.dp)
+            ) {
+                items(dates) { date ->
+                    DateSelector(
+                        date = date,
+                        isSelected = date == selectedDate,
+                        onDateClick = { selectedDate = date }
                     )
                 }
             }
         }
         
-        Text(
-            text = "Chọn ngày",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(bottom = 12.dp)
-        )
-        
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(vertical = 8.dp)
-        ) {
-            items(dates) { date ->
-                DateSelector(
-                    date = date,
-                    isSelected = date == selectedDate,
-                    onDateClick = { selectedDate = date }
+        if (selectedDate != null) {
+            item {
+                Spacer(modifier = Modifier.height(20.dp))
+                
+                Text(
+                    text = "Khung giờ ngày ${selectedDate.dayOfMonth}/${selectedDate.monthValue}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 12.dp)
                 )
             }
-        }
-        
-        if (selectedDate != null) {
-            Spacer(modifier = Modifier.height(20.dp))
             
-            Text(
-                text = "Khung giờ ngày ${selectedDate.dayOfMonth}/${selectedDate.monthValue}",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
-            
-            // ✅ FIX: Hiển thị time slots với thông tin từ Firebase
-            TimeGrid(
-                timeSlots = timeSlots,
-                slotsFromFirebase = uiState.slots,
-                pricingRules = pricingRules,
-                selectedDate = selectedDate,
-                startHour = startHour,
-                endHour = endHour,
-                isOpen24h = isOpen24h
-            )
+            item {
+                // ✅ FIX: Hiển thị time slots với thông tin từ Firebase - sử dụng LazyVerticalGrid để hiển thị đầy đủ
+                TimeGrid(
+                    timeSlots = timeSlots,
+                    slotsFromFirebase = uiState.slots,
+                    pricingRules = pricingRules,
+                    selectedDate = selectedDate,
+                    startHour = startHour,
+                    endHour = endHour,
+                    isOpen24h = isOpen24h
+                )
+            }
         }
     }
 }
@@ -285,11 +298,15 @@ private fun TimeGrid(
     isOpen24h: Boolean,
     modifier: Modifier = Modifier
 ) {
+    // ✅ FIX: Sử dụng LazyVerticalGrid với chiều cao phù hợp để hiển thị đầy đủ
     LazyVerticalGrid(
         columns = GridCells.Fixed(5),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = modifier.fillMaxWidth()
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 200.dp, max = 800.dp), // ✅ FIX: Giới hạn chiều cao để có thể scroll
+        contentPadding = PaddingValues(bottom = 16.dp) // ✅ FIX: Thêm padding bottom để dễ scroll
     ) {
         items(timeSlots) { timeSlot ->
             // ✅ FIX: Tìm slot tương ứng từ Firebase
@@ -334,13 +351,14 @@ private fun TimeSlotItem(
         else -> MaterialTheme.colorScheme.primary
     }
     
+    // ✅ FIX: Tăng kích thước để dễ nhìn và tương tác
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(48.dp) // ✅ FIX: Tăng chiều cao để hiển thị giá
-            .clip(RoundedCornerShape(6.dp))
+            .height(60.dp) // ✅ FIX: Tăng chiều cao để hiển thị giá rõ ràng hơn
+            .clip(RoundedCornerShape(8.dp)) // ✅ FIX: Tăng border radius
             .background(backgroundColor)
-            .padding(horizontal = 6.dp, vertical = 3.dp),
+            .padding(horizontal = 8.dp, vertical = 4.dp), // ✅ FIX: Tăng padding
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -349,7 +367,7 @@ private fun TimeSlotItem(
         ) {
             Text(
                 text = time,
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.labelMedium, // ✅ FIX: Tăng font size
                 fontWeight = FontWeight.Medium,
                 color = textColor,
                 textAlign = TextAlign.Center
@@ -359,7 +377,7 @@ private fun TimeSlotItem(
             if (price != null && price > 0) {
                 Text(
                     text = "${price}₫",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp), // ✅ FIX: Tăng font size
                     fontWeight = FontWeight.Bold,
                     color = textColor,
                     textAlign = TextAlign.Center
