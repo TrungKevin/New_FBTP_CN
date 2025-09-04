@@ -3,7 +3,11 @@ package com.trungkien.fbtp_cn.repository
 import android.net.Uri
 import android.util.Base64
 import com.google.firebase.firestore.FirebaseFirestore
-import com.trungkien.fbtp_cn.model.*
+import com.trungkien.fbtp_cn.model.Field
+import com.trungkien.fbtp_cn.model.FieldImages
+import com.trungkien.fbtp_cn.model.PricingRule
+import com.trungkien.fbtp_cn.model.FieldService
+import com.trungkien.fbtp_cn.model.Slot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -17,6 +21,7 @@ class FieldRepository {
         private const val FIELDS_COLLECTION = "fields"
         private const val PRICING_RULES_COLLECTION = "pricing_rules"
         private const val FIELD_SERVICES_COLLECTION = "field_services"
+        private const val SLOTS_COLLECTION = "slots"
     }
     
     /**
@@ -316,6 +321,40 @@ class FieldRepository {
             
             Result.success(serviceId)
         } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * Lấy slots theo fieldId và ngày
+     */
+    suspend fun getSlotsByFieldIdAndDate(fieldId: String, date: String): Result<List<Slot>> {
+        return try {
+            println("🔄 DEBUG: FieldRepository.getSlotsByFieldIdAndDate($fieldId, $date)")
+            println("🔍 DEBUG: Querying collection: SLOTS_COLLECTION")
+            println("🔍 DEBUG: Filter: fieldId == $fieldId AND date == $date")
+            
+            val snapshot = firestore.collection(SLOTS_COLLECTION)
+                .whereEqualTo("fieldId", fieldId)
+                .whereEqualTo("date", date)
+                .get()
+                .await()
+            
+            println("✅ DEBUG: Firebase query thành công")
+            println("🔍 DEBUG: Snapshot size: ${snapshot.size()}")
+            println("🔍 DEBUG: Documents count: ${snapshot.documents.size}")
+            
+            val slots = snapshot.toObjects(Slot::class.java)
+            println("✅ DEBUG: Parsed ${slots.size} slots from Firebase")
+            
+            slots.forEachIndexed { index, slot ->
+                println("  [$index] slotId: '${slot.slotId}', fieldId: '${slot.fieldId}', date: '${slot.date}', startAt: '${slot.startAt}', endAt: '${slot.endAt}', isBooked: ${slot.isBooked}")
+            }
+            
+            Result.success(slots)
+        } catch (e: Exception) {
+            println("❌ ERROR: FieldRepository.getSlotsByFieldIdAndDate failed: ${e.message}")
+            e.printStackTrace()
             Result.failure(e)
         }
     }

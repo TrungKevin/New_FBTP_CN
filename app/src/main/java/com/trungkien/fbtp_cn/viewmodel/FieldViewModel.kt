@@ -3,7 +3,11 @@ package com.trungkien.fbtp_cn.viewmodel
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.trungkien.fbtp_cn.model.*
+import com.trungkien.fbtp_cn.model.Field
+import com.trungkien.fbtp_cn.model.PricingRule
+import com.trungkien.fbtp_cn.model.FieldService
+import com.trungkien.fbtp_cn.model.Slot
+import com.trungkien.fbtp_cn.model.Service
 import com.trungkien.fbtp_cn.repository.FieldRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,7 +22,8 @@ data class FieldUiState(
     val fields: List<Field> = emptyList(),
     val currentField: Field? = null,
     val pricingRules: List<PricingRule> = emptyList(),
-    val fieldServices: List<FieldService> = emptyList()
+    val fieldServices: List<FieldService> = emptyList(),
+    val slots: List<Slot> = emptyList()
 )
 
 sealed class FieldEvent {
@@ -37,6 +42,7 @@ sealed class FieldEvent {
     data class LoadFieldServices(val fieldId: String) : FieldEvent()
     data class LoadPricingRulesByFieldId(val fieldId: String) : FieldEvent()
     data class LoadFieldServicesByFieldId(val fieldId: String) : FieldEvent()
+    data class LoadSlotsByFieldIdAndDate(val fieldId: String, val date: String) : FieldEvent()
     data class AddPricingRule(val pricingRule: PricingRule) : FieldEvent()
     data class AddFieldService(val fieldService: FieldService) : FieldEvent()
     data class UpdateFieldPricingAndServices(
@@ -71,6 +77,7 @@ class FieldViewModel(
             is FieldEvent.LoadFieldServices -> loadFieldServices(event.fieldId)
             is FieldEvent.LoadPricingRulesByFieldId -> loadPricingRulesByFieldId(event.fieldId)
             is FieldEvent.LoadFieldServicesByFieldId -> loadFieldServicesByFieldId(event.fieldId)
+            is FieldEvent.LoadSlotsByFieldIdAndDate -> loadSlotsByFieldIdAndDate(event.fieldId, event.date)
             is FieldEvent.AddPricingRule -> addPricingRule(event.pricingRule)
             is FieldEvent.AddFieldService -> addFieldService(event.fieldService)
             is FieldEvent.UpdateFieldPricingAndServices -> updateFieldPricingAndServices(
@@ -367,6 +374,36 @@ class FieldViewModel(
                 )
             } catch (e: Exception) {
                 println("Error loading field services by field ID: ${e.message}")
+            }
+        }
+    }
+    
+    private fun loadSlotsByFieldIdAndDate(fieldId: String, date: String) {
+        viewModelScope.launch {
+            println("🔄 DEBUG: FieldViewModel.loadSlotsByFieldIdAndDate($fieldId, $date)")
+            try {
+                val result = repository.getSlotsByFieldIdAndDate(fieldId, date)
+                
+                result.fold(
+                    onSuccess = { slots ->
+                        println("✅ DEBUG: LoadSlotsByFieldIdAndDate thành công: ${slots.size} slots")
+                        slots.forEachIndexed { index, slot ->
+                            println("  [$index] slotId: '${slot.slotId}', startAt: '${slot.startAt}', isBooked: ${slot.isBooked}")
+                        }
+                        _uiState.value = _uiState.value.copy(slots = slots)
+                    },
+                    onFailure = { exception ->
+                        println("❌ ERROR: LoadSlotsByFieldIdAndDate thất bại cho fieldId: $fieldId, date: $date")
+                        println("❌ ERROR: Exception: ${exception.message}")
+                        exception.printStackTrace()
+                        // Log error but don't show to user
+                        println("Error loading slots by field ID and date: ${exception.message}")
+                    }
+                )
+            } catch (e: Exception) {
+                println("❌ ERROR: Exception không xác định trong loadSlotsByFieldIdAndDate: ${e.message}")
+                e.printStackTrace()
+                println("Error loading slots by field ID and date: ${e.message}")
             }
         }
     }

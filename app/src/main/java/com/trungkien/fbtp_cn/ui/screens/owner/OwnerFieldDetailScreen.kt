@@ -427,9 +427,24 @@ fun OwnerFieldDetailScreen(
                             // Debug: Kiểm tra xem có vào được case này không
                             Column {
 
-                                // Gọi trực tiếp TimeSlots thay vì qua wrapper
+                                // ✅ FIX: Truyền field object vào TimeSlots
                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                    TimeSlots()
+                                    field?.let { fieldData ->
+                                        TimeSlots(
+                                            field = fieldData,
+                                            fieldViewModel = fieldViewModel
+                                        )
+                                    } ?: run {
+                                        // Hiển thị loading nếu chưa có field data
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(16.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            CircularProgressIndicator()
+                                        }
+                                    }
                                 } else {
                                     Box(
                                         modifier = Modifier

@@ -24,30 +24,90 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
+import com.trungkien.fbtp_cn.model.Field
+import com.trungkien.fbtp_cn.model.Slot
+import com.trungkien.fbtp_cn.model.PricingRule
+import com.trungkien.fbtp_cn.viewmodel.FieldViewModel
+import com.trungkien.fbtp_cn.viewmodel.FieldEvent
+import androidx.lifecycle.viewmodel.compose.viewModel
 import java.time.LocalDate
 import java.time.format.TextStyle
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun TimeSlots(
-    modifier: Modifier = Modifier
+    field: Field,
+    modifier: Modifier = Modifier,
+    fieldViewModel: FieldViewModel = viewModel()
 ) {
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     
-    val startHour = 6
-    val endHour = 22
+    // ✅ FIX: Lấy giờ hoạt động từ Field.openHours
+    val startHour = field.openHours.start.split(":")[0].toInt()
+    val endHour = field.openHours.end.split(":")[0].toInt()
+    val isOpen24h = field.openHours.isOpen24h
     
+    println("🕐 DEBUG: TimeSlots - Field operating hours:")
+    println("  - start: ${field.openHours.start} (hour: $startHour)")
+    println("  - end: ${field.openHours.end} (hour: $endHour)")
+    println("  - isOpen24h: $isOpen24h")
+    
+    // ✅ FIX: Tạo danh sách ngày (7 ngày từ hôm nay)
     val dates = remember {
         (0..6).map { LocalDate.now().plusDays(it.toLong()) }
     }
     
-    val timeSlots = remember {
-        (startHour * 2..endHour * 2).map { halfHour ->
-            val hour = halfHour / 2
-            val minute = if (halfHour % 2 == 0) 0 else 30
-            String.format("%02d:%02d", hour, minute)
+    // ✅ FIX: Tạo time slots dựa trên giờ hoạt động thực tế
+    val timeSlots = remember(startHour, endHour, isOpen24h) {
+        val slots = mutableListOf<String>()
+        
+        if (isOpen24h) {
+            // Nếu mở 24h, tạo slots từ 00:00 đến 23:30
+            for (hour in 0..23) {
+                for (minute in listOf(0, 30)) {
+                    slots.add(String.format("%02d:%02d", hour, minute))
+                }
+            }
+        } else {
+            // Tạo slots từ startHour đến endHour, cách nhau 30 phút
+            val startHalfHour = startHour * 2
+            val endHalfHour = endHour * 2
+            
+            for (halfHour in startHalfHour..endHalfHour) {
+                val hour = halfHour / 2
+                val minute = if (halfHour % 2 == 0) 0 else 30
+                slots.add(String.format("%02d:%02d", hour, minute))
+            }
         }
+        
+        println("🕐 DEBUG: Generated ${slots.size} time slots:")
+        slots.forEachIndexed { index, slot ->
+            println("  [$index] $slot")
+        }
+        
+        slots
+    }
+    
+    // ✅ FIX: Load slots từ Firebase cho ngày được chọn
+    var pricingRules by remember { mutableStateOf(emptyList<PricingRule>()) }
+    
+    // Observe UI state từ ViewModel
+    val uiState by fieldViewModel.uiState.collectAsState()
+    
+    // Load slots và pricing rules khi thay đổi ngày
+    LaunchedEffect(selectedDate, field.fieldId) {
+        println("🔄 DEBUG: Loading data for date: ${selectedDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))}")
+        loadSlotsForDate(field.fieldId, selectedDate, fieldViewModel)
+        loadPricingRules(field.fieldId, fieldViewModel)
+    }
+    
+    // Cập nhật slots và pricing rules từ Firebase
+    LaunchedEffect(uiState.pricingRules, uiState.slots) {
+        pricingRules = uiState.pricingRules
+        println("💰 DEBUG: Loaded ${pricingRules.size} pricing rules")
+        println("🕐 DEBUG: Loaded ${uiState.slots.size} slots")
     }
     
     Column(
@@ -62,6 +122,59 @@ fun TimeSlots(
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(bottom = 16.dp)
         )
+        
+        // ✅ FIX: Hiển thị thông tin giờ hoạt động
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
+            ),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = "Thông tin giờ hoạt động",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                
+                Text(
+                    text = "• Giờ mở cửa: ${field.openHours.start}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                
+                Text(
+                    text = "• Giờ đóng cửa: ${field.openHours.end}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                
+                Text(
+                    text = "• Khoảng cách giữa các khe: 30 phút",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                
+                if (isOpen24h) {
+                    Text(
+                        text = "• Mở cửa 24/24",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
         
         Text(
             text = "Chọn ngày",
@@ -95,53 +208,16 @@ fun TimeSlots(
                 modifier = Modifier.padding(bottom = 12.dp)
             )
             
+            // ✅ FIX: Hiển thị time slots với thông tin từ Firebase
             TimeGrid(
                 timeSlots = timeSlots,
+                slotsFromFirebase = uiState.slots,
+                pricingRules = pricingRules,
+                selectedDate = selectedDate,
                 startHour = startHour,
-                endHour = endHour
+                endHour = endHour,
+                isOpen24h = isOpen24h
             )
-        }
-        
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
-            ),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Text(
-                    text = "Thông tin khung giờ",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                
-                Text(
-                    text = "• Giờ hoạt động: $startHour:00 - $endHour:00",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-                
-                Text(
-                    text = "• Khoảng cách giữa các khe: 30 phút",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-                
-                Text(
-                    text = "• Có thể tùy chỉnh giờ bắt đầu và kết thúc",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
         }
     }
 }
@@ -197,11 +273,16 @@ private fun DateSelector(
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 private fun TimeGrid(
     timeSlots: List<String>,
+    slotsFromFirebase: List<Slot>,
+    pricingRules: List<PricingRule>,
+    selectedDate: LocalDate,
     startHour: Int,
     endHour: Int,
+    isOpen24h: Boolean,
     modifier: Modifier = Modifier
 ) {
     LazyVerticalGrid(
@@ -211,9 +292,23 @@ private fun TimeGrid(
         modifier = modifier.fillMaxWidth()
     ) {
         items(timeSlots) { timeSlot ->
+            // ✅ FIX: Tìm slot tương ứng từ Firebase
+            val slotFromFirebase = slotsFromFirebase.find { slot ->
+                slot.startAt == timeSlot
+            }
+            
+            // ✅ FIX: Tính giá dựa trên PricingRules
+            val price = calculatePriceForTimeSlot(
+                timeSlot = timeSlot,
+                selectedDate = selectedDate,
+                pricingRules = pricingRules
+            )
+            
             TimeSlotItem(
                 time = timeSlot,
-                isAvailable = isTimeSlotAvailable(timeSlot, startHour, endHour)
+                isAvailable = isTimeSlotAvailable(timeSlot, startHour, endHour, isOpen24h),
+                isBooked = slotFromFirebase?.isBooked == true,
+                price = price
             )
         }
     }
@@ -223,38 +318,116 @@ private fun TimeGrid(
 private fun TimeSlotItem(
     time: String,
     isAvailable: Boolean,
+    isBooked: Boolean,
+    price: Long?,
     modifier: Modifier = Modifier
 ) {
+    val backgroundColor = when {
+        isBooked -> Color.Red.copy(alpha = 0.3f)
+        !isAvailable -> Color.Gray.copy(alpha = 0.3f)
+        else -> MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+    }
+    
+    val textColor = when {
+        isBooked -> Color.Red
+        !isAvailable -> Color.Gray
+        else -> MaterialTheme.colorScheme.primary
+    }
+    
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(36.dp)
+            .height(48.dp) // ✅ FIX: Tăng chiều cao để hiển thị giá
             .clip(RoundedCornerShape(6.dp))
-            .background(
-                if (isAvailable) 
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-                else 
-                    Color.Gray.copy(alpha = 0.3f)
-            )
+            .background(backgroundColor)
             .padding(horizontal = 6.dp, vertical = 3.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = time,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Medium,
-            color = if (isAvailable) 
-                MaterialTheme.colorScheme.primary
-            else 
-                Color.Gray,
-            textAlign = TextAlign.Center
-        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = time,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Medium,
+                color = textColor,
+                textAlign = TextAlign.Center
+            )
+            
+            // ✅ FIX: Hiển thị giá nếu có
+            if (price != null && price > 0) {
+                Text(
+                    text = "${price}₫",
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                    fontWeight = FontWeight.Bold,
+                    color = textColor,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
     }
 }
 
-private fun isTimeSlotAvailable(timeSlot: String, startHour: Int, endHour: Int): Boolean {
+private fun isTimeSlotAvailable(timeSlot: String, startHour: Int, endHour: Int, isOpen24h: Boolean): Boolean {
+    if (isOpen24h) return true
+    
     val hour = timeSlot.split(":")[0].toInt()
     return hour in startHour until endHour
+}
+
+// ✅ FIX: Hàm tính giá dựa trên PricingRules
+private fun calculatePriceForTimeSlot(
+    timeSlot: String,
+    selectedDate: LocalDate,
+    pricingRules: List<PricingRule>
+): Long? {
+    if (pricingRules.isEmpty()) return null
+    
+    // Xác định loại ngày (WEEKDAY/WEEKEND) - Sử dụng Calendar
+    val calendar = java.util.Calendar.getInstance()
+    calendar.set(selectedDate.year, selectedDate.monthValue - 1, selectedDate.dayOfMonth)
+    val dayOfWeek = calendar.get(java.util.Calendar.DAY_OF_WEEK) // 1=Sunday, 2=Monday, ..., 7=Saturday
+    val dayType = when (dayOfWeek) {
+        java.util.Calendar.SUNDAY, java.util.Calendar.SATURDAY -> "WEEKEND" // Chủ nhật, Thứ 7
+        else -> "WEEKDAY" // Thứ 2-6
+    }
+    
+    // Xác định khung giờ dựa trên timeSlot
+    val hour = timeSlot.split(":")[0].toInt()
+    val timeSlotType = when {
+        hour in 5..11 -> "5h - 12h"
+        hour in 12..17 -> "12h - 18h"
+        hour in 18..23 -> "18h - 24h"
+        else -> "5h - 12h" // Fallback
+    }
+    
+    // Tìm pricing rule phù hợp
+    val matchingRule = pricingRules.find { rule ->
+        rule.dayType == dayType && 
+        rule.description.contains(timeSlotType)
+    }
+    
+    println("💰 DEBUG: Price calculation for $timeSlot on ${selectedDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))}:")
+    println("  - dayType: $dayType")
+    println("  - timeSlotType: $timeSlotType")
+    println("  - matchingRule: ${matchingRule?.price ?: "Not found"}")
+    
+    return matchingRule?.price
+}
+
+// ✅ FIX: Hàm load slots từ Firebase
+private fun loadSlotsForDate(fieldId: String, date: LocalDate, fieldViewModel: FieldViewModel) {
+    val dateString = date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+    println("🔄 DEBUG: Loading slots for fieldId: $fieldId, date: $dateString")
+    
+    fieldViewModel.handleEvent(FieldEvent.LoadSlotsByFieldIdAndDate(fieldId, dateString))
+}
+
+// ✅ FIX: Hàm load pricing rules
+private fun loadPricingRules(fieldId: String, fieldViewModel: FieldViewModel) {
+    println("🔄 DEBUG: Loading pricing rules for fieldId: $fieldId")
+    fieldViewModel.handleEvent(FieldEvent.LoadPricingRulesByFieldId(fieldId))
 }
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -262,6 +435,17 @@ private fun isTimeSlotAvailable(timeSlot: String, startHour: Int, endHour: Int):
 @Composable
 fun TimeSlotsPreview() {
     FBTP_CNTheme {
-        TimeSlots()
+        // Tạo mock Field để preview
+        val mockField = Field(
+            fieldId = "preview_field",
+            name = "Sân Tennis 1",
+            openHours = com.trungkien.fbtp_cn.model.OpenHours(
+                start = "08:00",
+                end = "22:00",
+                isOpen24h = false
+            )
+        )
+        
+        TimeSlots(field = mockField)
     }
 }
