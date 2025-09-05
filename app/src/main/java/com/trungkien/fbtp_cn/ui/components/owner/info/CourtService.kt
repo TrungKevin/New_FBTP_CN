@@ -47,11 +47,7 @@ fun CourtService(
     // State cho danh sách dịch vụ - Không còn cần thiết vì đã chuyển sang FieldServiceManager
     // var services by remember { mutableStateOf(emptyList<CourtServiceItem>()) }
     
-            // State cho việc thêm dịch vụ mới - Không còn cần thiết vì đã chuyển sang FieldServiceManager
-        // var showAddServiceDialog by remember { mutableStateOf(false) }
-        // var newServiceCategory by remember { mutableStateOf("Banh") }
-        // var newServiceName by remember { mutableStateOf("") }
-        // var newServicePrice by remember { mutableStateOf("") }
+
     
     // State để force refresh UI khi cần thiết
     var refreshTrigger by remember { mutableStateOf(0) }
