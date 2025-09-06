@@ -22,6 +22,8 @@ class FieldRepository {
         private const val PRICING_RULES_COLLECTION = "pricing_rules"
         private const val FIELD_SERVICES_COLLECTION = "field_services"
         private const val SLOTS_COLLECTION = "slots"
+        private const val BOOKINGS_COLLECTION = "bookings"
+        private const val REVIEWS_COLLECTION = "reviews"
     }
     
     /**
@@ -384,42 +386,187 @@ class FieldRepository {
     }
     
     /**
-     * Xóa sân
+     * Kiểm tra xem sân có booking chưa hoàn thành và chưa qua thời gian sử dụng không
+     */
+    suspend fun checkFieldHasActiveBookings(fieldId: String): Result<Boolean> {
+        return try {
+            println("🔄 DEBUG: FieldRepository.checkFieldHasActiveBookings($fieldId)")
+            
+            // Kiểm tra bookings có status PENDING hoặc PAID (chưa hoàn thành)
+            val bookingsSnapshot = firestore.collection(BOOKINGS_COLLECTION)
+                .whereEqualTo("fieldId", fieldId)
+                .whereIn("status", listOf("PENDING", "PAID"))
+                .get()
+                .await()
+            
+            println("🔍 DEBUG: Found ${bookingsSnapshot.size()} active bookings for field $fieldId")
+            
+            if (bookingsSnapshot.size() == 0) {
+                println("✅ DEBUG: No active bookings found - field can be deleted")
+                return Result.success(false)
+            }
+            
+            // Kiểm tra từng booking xem có còn trong thời gian sử dụng không
+            val currentTime = System.currentTimeMillis()
+            var hasValidBookings = false
+            
+            bookingsSnapshot.documents.forEach { doc ->
+                val bookingData = doc.data
+                val date = bookingData?.get("date") as? String
+                val startAt = bookingData?.get("startAt") as? String
+                val status = bookingData?.get("status") as? String
+                
+                println("  📄 Booking ${doc.id}: status=$status, date=$date, startAt=$startAt")
+                
+                if (date != null && startAt != null) {
+                    // Tạo timestamp cho thời điểm kết thúc booking (giả sử mỗi booking 1 giờ)
+                    val bookingDateTime = try {
+                        val dateParts = date.split("-")
+                        val timeParts = startAt.split(":")
+                        val year = dateParts[0].toInt()
+                        val month = dateParts[1].toInt() - 1 // Java Calendar months are 0-based
+                        val day = dateParts[2].toInt()
+                        val hour = timeParts[0].toInt()
+                        val minute = timeParts[1].toInt()
+                        
+                        val calendar = java.util.Calendar.getInstance()
+                        calendar.set(year, month, day, hour, minute, 0)
+                        calendar.timeInMillis
+                    } catch (e: Exception) {
+                        println("  ❌ Error parsing date/time: ${e.message}")
+                        currentTime + 86400000 // Default to tomorrow if parsing fails
+                    }
+                    
+                    // Thêm 1 giờ để có thời gian kết thúc booking
+                    val bookingEndTime = bookingDateTime + (60 * 60 * 1000)
+                    
+                    println("  🕐 Booking end time: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm").format(java.util.Date(bookingEndTime))}")
+                    println("  🕐 Current time: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm").format(java.util.Date(currentTime))}")
+                    
+                    if (bookingEndTime > currentTime) {
+                        println("  ⚠️ Booking ${doc.id} is still active (not expired)")
+                        hasValidBookings = true
+                    } else {
+                        println("  ✅ Booking ${doc.id} has expired")
+                    }
+                }
+            }
+            
+            println("🔍 DEBUG: Has valid (non-expired) bookings: $hasValidBookings")
+            Result.success(hasValidBookings)
+        } catch (e: Exception) {
+            println("❌ ERROR: FieldRepository.checkFieldHasActiveBookings failed: ${e.message}")
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * Xóa sân với kiểm tra booking status
+     * Xóa: field info, pricing rules, field services, reviews, slots
+     * Giữ lại: bookings (lịch sử đặt sân)
      */
     suspend fun deleteField(fieldId: String): Result<Unit> {
         return try {
-            // Xóa field
+            println("🔄 DEBUG: FieldRepository.deleteField($fieldId)")
+            
+            // 0. Kiểm tra authentication state
+            val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+            println("🔍 DEBUG: Current Firebase Auth User: ${currentUser?.uid}")
+            if (currentUser == null) {
+                println("❌ DEBUG: No authenticated user - cannot delete field")
+                return Result.failure(Exception("Bạn cần đăng nhập để xóa sân"))
+            }
+            
+            // 1. Kiểm tra xem có booking chưa hoàn thành không
+            val checkResult = checkFieldHasActiveBookings(fieldId)
+            checkResult.fold(
+                onSuccess = { hasActiveBookings ->
+                    if (hasActiveBookings) {
+                        println("❌ DEBUG: Cannot delete field - has active bookings")
+                        return Result.failure(Exception("Không thể xóa sân vì có khách hàng đã đặt và chưa qua thời gian sử dụng. Vui lòng đợi đến khi tất cả các khe giờ đã đặt đều qua thời gian sử dụng."))
+                    }
+                },
+                onFailure = { exception ->
+                    println("❌ DEBUG: Failed to check booking status: ${exception.message}")
+                    return Result.failure(exception)
+                }
+            )
+            
+            println("✅ DEBUG: No active bookings found, proceeding with deletion")
+            
+            // 2. Xóa field info
             firestore.collection(FIELDS_COLLECTION)
                 .document(fieldId)
                 .delete()
                 .await()
+            println("✅ DEBUG: Field info deleted")
             
-            // Xóa pricing rules
+            // 3. Xóa pricing rules
             val rulesSnapshot = firestore.collection(PRICING_RULES_COLLECTION)
                 .whereEqualTo("fieldId", fieldId)
                 .get()
                 .await()
             
-            val batch = firestore.batch()
-            rulesSnapshot.documents.forEach { doc ->
-                batch.delete(doc.reference)
+            if (rulesSnapshot.size() > 0) {
+                val batch = firestore.batch()
+                rulesSnapshot.documents.forEach { doc ->
+                    batch.delete(doc.reference)
+                }
+                batch.commit().await()
+                println("✅ DEBUG: ${rulesSnapshot.size()} pricing rules deleted")
             }
-            batch.commit().await()
             
-            // Xóa field services
+            // 4. Xóa field services
             val servicesSnapshot = firestore.collection(FIELD_SERVICES_COLLECTION)
                 .whereEqualTo("fieldId", fieldId)
                 .get()
                 .await()
             
-            val servicesBatch = firestore.batch()
-            servicesSnapshot.documents.forEach { doc ->
-                servicesBatch.delete(doc.reference)
+            if (servicesSnapshot.size() > 0) {
+                val servicesBatch = firestore.batch()
+                servicesSnapshot.documents.forEach { doc ->
+                    servicesBatch.delete(doc.reference)
+                }
+                servicesBatch.commit().await()
+                println("✅ DEBUG: ${servicesSnapshot.size()} field services deleted")
             }
-            servicesBatch.commit().await()
+            
+            // 5. Xóa reviews (đánh giá sân)
+            val reviewsSnapshot = firestore.collection(REVIEWS_COLLECTION)
+                .whereEqualTo("fieldId", fieldId)
+                .get()
+                .await()
+            
+            if (reviewsSnapshot.size() > 0) {
+                val reviewsBatch = firestore.batch()
+                reviewsSnapshot.documents.forEach { doc ->
+                    reviewsBatch.delete(doc.reference)
+                }
+                reviewsBatch.commit().await()
+                println("✅ DEBUG: ${reviewsSnapshot.size()} reviews deleted")
+            }
+            
+            // 6. Xóa slots (khe giờ) của sân
+            val slotsSnapshot = firestore.collection(SLOTS_COLLECTION)
+                .whereEqualTo("fieldId", fieldId)
+                .get()
+                .await()
+            
+            if (slotsSnapshot.size() > 0) {
+                val slotsBatch = firestore.batch()
+                slotsSnapshot.documents.forEach { doc ->
+                    slotsBatch.delete(doc.reference)
+                }
+                slotsBatch.commit().await()
+                println("✅ DEBUG: ${slotsSnapshot.size()} slots deleted")
+            }
+            
+            // 7. Giữ lại bookings (lịch sử đặt sân) để tham khảo
+            println("ℹ️ DEBUG: Bookings are preserved for historical records")
             
             Result.success(Unit)
         } catch (e: Exception) {
+            println("❌ ERROR: FieldRepository.deleteField failed: ${e.message}")
             Result.failure(e)
         }
     }

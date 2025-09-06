@@ -371,59 +371,77 @@ fun CourtService(
                         BasicTextField(
                             value = existingRule?.price ?: "",
                             onValueChange = { newPrice ->
-                                println("🔍 DEBUG: onValueChange cho $dayOfWeek - $timeSlot với giá: '$newPrice'")
-                                println("  - existingRule: $existingRule")
-                                println("  - dayOfWeek: '$dayOfWeek', timeSlot: '$timeSlot'")
-                                println("  - pricingRules.size trước: ${pricingRules.size}")
-                                
-                                if (existingRule != null) {
-                                    // ✅ FIX: Cập nhật rule hiện có - Tìm index bằng cách so sánh dayOfWeek và timeSlot với trim()
-                                    val index = pricingRules.indexOfFirst { rule ->
-                                        rule.dayOfWeek.trim() == dayOfWeek && 
-                                        rule.timeSlot.trim() == timeSlot
-                                    }
-                                    println("  - Cập nhật rule tại index: $index")
+                                try {
+                                    println("🔍 DEBUG: onValueChange cho $dayOfWeek - $timeSlot với giá: '$newPrice'")
+                                    println("  - existingRule: $existingRule")
+                                    println("  - dayOfWeek: '$dayOfWeek', timeSlot: '$timeSlot'")
+                                    println("  - pricingRules.size trước: ${pricingRules.size}")
                                     
-                                    if (index != -1) {
-                                        val updatedRules = pricingRules.toMutableList()
-                                        updatedRules[index] = existingRule.copy(
+                                    if (existingRule != null) {
+                                        // ✅ FIX: Sử dụng synchronized để tránh race condition
+                                        synchronized(pricingRules) {
+                                            // ✅ FIX: Cập nhật rule hiện có - Tìm index bằng cách so sánh dayOfWeek và timeSlot với trim()
+                                            val index = pricingRules.indexOfFirst { rule ->
+                                                rule.dayOfWeek.trim() == dayOfWeek && 
+                                                rule.timeSlot.trim() == timeSlot
+                                            }
+                                            println("  - Cập nhật rule tại index: $index")
+                                            println("  - pricingRules.size: ${pricingRules.size}")
+                                            
+                                            // ✅ FIX: Thêm validation mạnh mẽ để tránh IndexOutOfBoundsException
+                                            if (index != -1 && index >= 0 && index < pricingRules.size) {
+                                                val updatedRules = pricingRules.toMutableList()
+                                                // ✅ FIX: Double check index sau khi tạo MutableList
+                                                if (index < updatedRules.size) {
+                                                    updatedRules[index] = existingRule.copy(
+                                                        dayOfWeek = dayOfWeek,
+                                                        timeSlot = timeSlot,
+                                                        price = newPrice
+                                                    )
+                                                    pricingRules = updatedRules.toList() // ✅ FIX: Force new instance
+                                                    println("  - Đã cập nhật rule tại index: $index với giá: '$newPrice'")
+                                                } else {
+                                                    println("  - ❌ ERROR: Index $index vượt quá size ${updatedRules.size}")
+                                                }
+                                            } else {
+                                            // ✅ FIX: Nếu không tìm thấy index, tạo rule mới với trim() để nhất quán
+                                            println("  - Không tìm thấy index, tạo rule mới cho: $dayOfWeek - $timeSlot")
+                                            val newRule = existingRule.copy(
+                                                dayOfWeek = dayOfWeek,
+                                                timeSlot = timeSlot,
+                                                price = newPrice
+                                            )
+                                            pricingRules = pricingRules + newRule // ✅ FIX: Force new instance
+                                            println("  - Đã thêm rule mới: $newRule")
+                                        }
+                                    }
+                                } else {
+                                    // ✅ FIX: Tạo rule mới nếu không tìm thấy với trim() để nhất quán
+                                    synchronized(pricingRules) {
+                                        println("  - Tạo rule mới cho: $dayOfWeek - $timeSlot")
+                                        val newRule = CourtPricingRule(
+                                            id = (System.currentTimeMillis()).toString(), // ✅ FIX: Unique ID
                                             dayOfWeek = dayOfWeek,
                                             timeSlot = timeSlot,
-                                            price = newPrice
-                                        )
-                                        pricingRules = updatedRules.toList() // ✅ FIX: Force new instance
-                                        println("  - Đã cập nhật rule tại index: $index với giá: '$newPrice'")
-                                    } else {
-                                        // ✅ FIX: Nếu không tìm thấy index, tạo rule mới với trim() để nhất quán
-                                        println("  - Không tìm thấy index, tạo rule mới cho: $dayOfWeek - $timeSlot")
-                                        val newRule = existingRule.copy(
-                                            dayOfWeek = dayOfWeek,
-                                            timeSlot = timeSlot,
-                                            price = newPrice
+                                            price = newPrice,
+                                            dayType = if (dayOfWeek == "T2 - T6") "WEEKDAY" else "WEEKEND",
+                                            minutes = 30,
+                                            description = "Giá $dayOfWeek - $timeSlot"
                                         )
                                         pricingRules = pricingRules + newRule // ✅ FIX: Force new instance
                                         println("  - Đã thêm rule mới: $newRule")
                                     }
-                                } else {
-                                    // ✅ FIX: Tạo rule mới nếu không tìm thấy với trim() để nhất quán
-                                    println("  - Tạo rule mới cho: $dayOfWeek - $timeSlot")
-                                    val newRule = CourtPricingRule(
-                                        id = (System.currentTimeMillis()).toString(), // ✅ FIX: Unique ID
-                                        dayOfWeek = dayOfWeek,
-                                        timeSlot = timeSlot,
-                                        price = newPrice,
-                                        dayType = if (dayOfWeek == "T2 - T6") "WEEKDAY" else "WEEKEND",
-                                        minutes = 30,
-                                        description = "Giá $dayOfWeek - $timeSlot"
-                                    )
-                                    pricingRules = pricingRules + newRule // ✅ FIX: Force new instance
-                                    println("  - Đã thêm rule mới: $newRule")
                                 }
                                 
                                 println("  - pricingRules.size sau: ${pricingRules.size}")
                                 println("  - pricingRules hiện tại (normalized):")
                                 pricingRules.forEachIndexed { i, rule ->
                                     println("    [$i] ${rule.dayOfWeek.trim()} - ${rule.timeSlot.trim()}: '${rule.price}'")
+                                }
+                                } catch (e: Exception) {
+                                    println("❌ ERROR: Exception trong onValueChange: ${e.message}")
+                                    println("  - Stack trace: ${e.stackTraceToString()}")
+                                    // Không làm gì để tránh crash, chỉ log lỗi
                                 }
                             },
                             modifier = Modifier

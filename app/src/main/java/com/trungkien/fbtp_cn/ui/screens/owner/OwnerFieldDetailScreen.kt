@@ -53,6 +53,7 @@ import com.trungkien.fbtp_cn.ui.components.owner.info.CourtService
 import com.trungkien.fbtp_cn.ui.components.owner.info.DetailInfoCourt
 import com.trungkien.fbtp_cn.ui.components.owner.info.EvaluateCourt
 import com.trungkien.fbtp_cn.ui.components.owner.info.TimeSlots
+import com.trungkien.fbtp_cn.ui.components.owner.dialogs.DeleteFieldDialog
 import com.trungkien.fbtp_cn.viewmodel.FieldViewModel
 import com.trungkien.fbtp_cn.viewmodel.FieldEvent
 import com.trungkien.fbtp_cn.viewmodel.AuthViewModel
@@ -142,6 +143,9 @@ fun OwnerFieldDetailScreen(
     val tabs = listOf("Thông tin", "Dịch vụ", "Đánh giá", "Khung giờ")
     val tabPagerState = rememberPagerState(pageCount = { tabs.size })
     val coroutineScope = rememberCoroutineScope()
+    
+    // State cho dialog xóa
+    var showDeleteDialog by remember { mutableStateOf(false) }
 
     // Hiển thị loading state nếu đang tải dữ liệu
     if (uiState.isLoading) {
@@ -207,23 +211,10 @@ fun OwnerFieldDetailScreen(
                     },
                     actions = {
                         IconButton(
-                            onClick = { /* Xử lý chỉnh sửa sân */ },
-                            modifier = Modifier
-                                .size(40.dp)
-                                .background(
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                                    CircleShape
-                                )
-                        ) {
-                            Icon(
-                                Icons.Default.Edit,
-                                contentDescription = "Chỉnh sửa",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        IconButton(
-                            onClick = { /* Xử lý xóa sân */ },
+                            onClick = { 
+                                // Hiển thị dialog xác nhận xóa
+                                showDeleteDialog = true
+                            },
                             modifier = Modifier
                                 .size(40.dp)
                                 .background(
@@ -406,7 +397,11 @@ fun OwnerFieldDetailScreen(
                         .height(600.dp) // Tăng height từ 400.dp lên 600.dp để hiển thị đầy đủ khung giờ
                 ) { page ->
                     when (page) {
-                        0 -> DetailInfoCourt(field = field)// Hiển thị thông tin chi tiết sân
+                        0 -> DetailInfoCourt(
+                            field = field,
+                            fieldViewModel = fieldViewModel,
+                            onBackClick = onBackClick
+                        )// Hiển thị thông tin chi tiết sân
 
                         1 -> {
                             // Hiển thị dịch vụ sân với FieldViewModel được chia sẻ
@@ -468,6 +463,20 @@ fun OwnerFieldDetailScreen(
                 }
             }
         } // Scaffold
+        
+        // Dialog xác nhận xóa sân
+        if (showDeleteDialog) {
+            DeleteFieldDialog(
+                field = field,
+                fieldViewModel = fieldViewModel,
+                onDismiss = { showDeleteDialog = false },
+                onConfirm = { 
+                    showDeleteDialog = false
+                    onBackClick() // Quay lại màn hình trước
+                }
+            )
+        }
+        
     } // else
 }
 

@@ -193,7 +193,7 @@ class FieldViewModel(
                     onSuccess = {
                         _uiState.value = _uiState.value.copy(
                             isLoading = false,
-                            success = "Xóa sân thành công!"
+                            success = "Xóa sân thành công! Lịch sử đặt sân đã được giữ lại."
                         )
                         
                         // Remove from fields list
@@ -203,7 +203,7 @@ class FieldViewModel(
                     onFailure = { exception ->
                         _uiState.value = _uiState.value.copy(
                             isLoading = false,
-                            error = "Xóa sân thất bại: ${exception.message}"
+                            error = exception.message ?: "Xóa sân thất bại"
                         )
                     }
                 )
