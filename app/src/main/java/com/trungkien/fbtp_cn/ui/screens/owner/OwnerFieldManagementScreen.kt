@@ -17,6 +17,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.delay
 import com.trungkien.fbtp_cn.ui.components.owner.FieldCard
 import com.trungkien.fbtp_cn.model.Field
 import com.trungkien.fbtp_cn.model.OpenHours
@@ -76,6 +77,8 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
             uiState.success?.contains("Xóa sân thành công") == true) {
             currentUser?.userId?.let { ownerId ->
                 println("DEBUG: 🔄 Reloading fields after success for ownerId: $ownerId")
+                // Đợi một chút để đảm bảo UI cập nhật hoàn toàn
+                delay(1500)
                 localFieldViewModel.handleEvent(FieldEvent.LoadFieldsByOwner(ownerId))
             }
         }

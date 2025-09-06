@@ -41,6 +41,9 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 
 import com.trungkien.fbtp_cn.R
 import com.trungkien.fbtp_cn.model.Field
@@ -70,12 +73,21 @@ fun OwnerFieldDetailScreen(
     val authViewModel: AuthViewModel = viewModel()
     val uiState by fieldViewModel.uiState.collectAsState()
     val currentUser by authViewModel.currentUser.collectAsState()
+    
+    val context = LocalContext.current
 
     // Load field data từ Firebase khi có fieldId
     LaunchedEffect(fieldId) {
         if (fieldId.isNotEmpty()) {
             // Loading field details from Firebase
             fieldViewModel.handleEvent(FieldEvent.LoadFieldById(fieldId))
+        }
+    }
+    
+    // Xử lý success message và hiển thị Toast
+    LaunchedEffect(uiState.success) {
+        uiState.success?.let { successMessage ->
+            Toast.makeText(context, successMessage, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -212,8 +224,10 @@ fun OwnerFieldDetailScreen(
                     actions = {
                         IconButton(
                             onClick = { 
-                                // Hiển thị dialog xác nhận xóa
-                                showDeleteDialog = true
+                                // Kiểm tra điều kiện trước khi hiển thị dialog xác nhận xóa
+                                if (field.fieldId.isNotEmpty()) {
+                                    showDeleteDialog = true
+                                }
                             },
                             modifier = Modifier
                                 .size(40.dp)
@@ -464,15 +478,27 @@ fun OwnerFieldDetailScreen(
             }
         } // Scaffold
         
-        // Dialog xác nhận xóa sân
+        // Dialog xác nhận xóa sân - chỉ hiển thị khi đã xác nhận
         if (showDeleteDialog) {
             DeleteFieldDialog(
                 field = field,
                 fieldViewModel = fieldViewModel,
-                onDismiss = { showDeleteDialog = false },
+                onDismiss = { 
+                    showDeleteDialog = false
+                    println("DEBUG: ❌ User cancelled field deletion")
+                },
                 onConfirm = { 
                     showDeleteDialog = false
-                    onBackClick() // Quay lại màn hình trước
+                    println("DEBUG: ✅ User confirmed field deletion for field: ${field.fieldId}")
+                    
+                    // Thực hiện xóa sân sau khi xác nhận
+                    fieldViewModel.handleEvent(FieldEvent.DeleteField(field.fieldId))
+                    
+                    // Đợi một chút để đảm bảo xóa hoàn tất trước khi navigate back
+                    coroutineScope.launch {
+                        delay(1500) // Đợi 1.5 giây để đảm bảo UI cập nhật hoàn toàn
+                        onBackClick()
+                    }
                 }
             )
         }

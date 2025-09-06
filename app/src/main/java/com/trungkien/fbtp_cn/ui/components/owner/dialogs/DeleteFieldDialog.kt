@@ -111,7 +111,7 @@ fun DeleteFieldDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    fieldViewModel.handleEvent(FieldEvent.DeleteField(field.fieldId))
+                    // Chỉ gọi onConfirm, việc xóa sẽ được thực hiện trong OwnerFieldDetailScreen
                     onConfirm()
                 },
                 colors = ButtonDefaults.buttonColors(
@@ -147,18 +147,6 @@ fun DeleteFieldDialog(
         },
         modifier = modifier
     )
-    
-    // Hiển thị thông báo kết quả
-    LaunchedEffect(uiState.success, uiState.error) {
-        when {
-            uiState.success != null -> {
-                onConfirm() // Quay lại màn hình trước khi xóa thành công
-            }
-            uiState.error != null -> {
-                // Error sẽ được hiển thị trong UI chính
-            }
-        }
-    }
 }
 
 @Preview

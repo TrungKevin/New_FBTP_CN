@@ -43,6 +43,7 @@ import com.trungkien.fbtp_cn.ui.components.owner.home.HomeSummary
 import com.trungkien.fbtp_cn.ui.components.owner.home.HomeSummaryCard
 import com.trungkien.fbtp_cn.ui.components.owner.home.HomeUpcomingBookings
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trungkien.fbtp_cn.viewmodel.AuthViewModel
 import com.trungkien.fbtp_cn.viewmodel.FieldViewModel
@@ -74,11 +75,16 @@ fun OwnerHomeScreen(
         }
     }
     
-    // Auto-reload fields khi có sân mới được thêm
+    // Auto-reload fields khi có sân mới được thêm hoặc xóa
     LaunchedEffect(uiState.success) {
         uiState.success?.let { success ->
-            if (success.contains("Thêm sân thành công")) {
+            if (success.contains("Thêm sân thành công") || 
+                success.contains("Xóa sân thành công") ||
+                success.contains("Cập nhật sân thành công")) {
                 user?.userId?.let { ownerId ->
+                    println("DEBUG: 🔄 OwnerHomeScreen - Reloading fields after success: $success")
+                    // Đợi một chút để đảm bảo UI cập nhật hoàn toàn
+                    delay(1500)
                     localFieldViewModel.handleEvent(FieldEvent.LoadFieldsByOwner(ownerId))
                 }
             }

@@ -494,12 +494,40 @@ class FieldRepository {
             
             println("✅ DEBUG: No active bookings found, proceeding with deletion")
             
-            // 2. Xóa field info
-            firestore.collection(FIELDS_COLLECTION)
+            // 2. Lấy thông tin field để kiểm tra owner
+            val fieldDoc = firestore.collection(FIELDS_COLLECTION)
                 .document(fieldId)
-                .delete()
+                .get()
                 .await()
-            println("✅ DEBUG: Field info deleted")
+            
+            if (!fieldDoc.exists()) {
+                println("❌ ERROR: Field document does not exist: $fieldId")
+                return Result.failure(Exception("Sân không tồn tại"))
+            }
+            
+            val fieldData = fieldDoc.data
+            val fieldOwnerId = fieldData?.get("ownerId") as? String
+            
+            println("🔄 DEBUG: Attempting to delete field document: $fieldId")
+            println("🔍 DEBUG: Current user UID: ${currentUser.uid}")
+            println("🔍 DEBUG: Field owner ID: $fieldOwnerId")
+            println("🔍 DEBUG: Is current user the owner? ${currentUser.uid == fieldOwnerId}")
+            
+            try {
+                println("🔄 DEBUG: Starting field document deletion...")
+                val deleteTask = firestore.collection(FIELDS_COLLECTION)
+                    .document(fieldId)
+                    .delete()
+                
+                println("🔄 DEBUG: Delete task created, awaiting completion...")
+                deleteTask.await()
+                println("✅ DEBUG: Field info deleted successfully")
+            } catch (e: Exception) {
+                println("❌ ERROR: Failed to delete field document: ${e.message}")
+                println("❌ ERROR: Exception type: ${e.javaClass.simpleName}")
+                println("❌ ERROR: Stack trace: ${e.stackTraceToString()}")
+                throw e
+            }
             
             // 3. Xóa pricing rules
             val rulesSnapshot = firestore.collection(PRICING_RULES_COLLECTION)
@@ -567,6 +595,8 @@ class FieldRepository {
             Result.success(Unit)
         } catch (e: Exception) {
             println("❌ ERROR: FieldRepository.deleteField failed: ${e.message}")
+            println("❌ ERROR: Exception type: ${e.javaClass.simpleName}")
+            println("❌ ERROR: Stack trace: ${e.stackTraceToString()}")
             Result.failure(e)
         }
     }

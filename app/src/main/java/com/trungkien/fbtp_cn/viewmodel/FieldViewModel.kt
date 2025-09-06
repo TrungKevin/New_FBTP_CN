@@ -13,6 +13,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import com.trungkien.fbtp_cn.repository.AuthRepository
+import com.google.firebase.auth.FirebaseAuth
 
 data class FieldUiState(
     val isLoading: Boolean = false,
@@ -60,7 +63,8 @@ sealed class FieldEvent {
 }
 
 class FieldViewModel(
-    private val repository: FieldRepository = FieldRepository()
+    private val repository: FieldRepository = FieldRepository(),
+    private val authRepository: AuthRepository = AuthRepository()
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(FieldUiState())
@@ -183,22 +187,34 @@ class FieldViewModel(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(
                 isLoading = true,
-                error = null
+                error = null,
+                success = null
             )
             
             try {
                 val result = repository.deleteField(fieldId)
                 
                 result.fold(
-                    onSuccess = {
+                    onSuccess = { _ ->
+                        // Cập nhật local state ngay lập tức
+                        val updatedFields = _uiState.value.fields.filter { it.fieldId != fieldId }
                         _uiState.value = _uiState.value.copy(
+                            fields = updatedFields,
                             isLoading = false,
                             success = "Xóa sân thành công! Lịch sử đặt sân đã được giữ lại."
                         )
                         
-                        // Remove from fields list
-                        val updatedFields = _uiState.value.fields.filter { it.fieldId != fieldId }
-                        _uiState.value = _uiState.value.copy(fields = updatedFields)
+                        // Đợi một chút để đảm bảo UI cập nhật hoàn toàn
+                        delay(500)
+                        
+                        // Trigger reload để đồng bộ với Firebase
+                        val currentUser = FirebaseAuth.getInstance().currentUser
+                        if (currentUser != null) {
+                            println("🔄 DEBUG: Reloading fields after deletion for user: ${currentUser.uid}")
+                            handleEvent(FieldEvent.LoadFieldsByOwner(currentUser.uid))
+                        } else {
+                            println("❌ ERROR: Current user is null after deletion")
+                        }
                     },
                     onFailure = { exception ->
                         _uiState.value = _uiState.value.copy(
