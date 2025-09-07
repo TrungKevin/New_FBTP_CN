@@ -68,28 +68,8 @@ fun OwnerHomeScreen(
         if (user == null) authViewModel.fetchProfile()
     }
     
-    // Load fields khi user có sẵn
-    LaunchedEffect(user?.userId) {
-        user?.userId?.let { ownerId ->
-            localFieldViewModel.handleEvent(FieldEvent.LoadFieldsByOwner(ownerId))
-        }
-    }
-    
-    // Auto-reload fields khi có sân mới được thêm hoặc xóa
-    LaunchedEffect(uiState.success) {
-        uiState.success?.let { success ->
-            if (success.contains("Thêm sân thành công") || 
-                success.contains("Xóa sân thành công") ||
-                success.contains("Cập nhật sân thành công")) {
-                user?.userId?.let { ownerId ->
-                    println("DEBUG: 🔄 OwnerHomeScreen - Reloading fields after success: $success")
-                    // Đợi một chút để đảm bảo UI cập nhật hoàn toàn
-                    delay(1500)
-                    localFieldViewModel.handleEvent(FieldEvent.LoadFieldsByOwner(ownerId))
-                }
-            }
-        }
-    }
+    // 🔥 KHÔNG CẦN LOAD DỮ LIỆU TẠI ĐÂY NỮA - ĐÃ ĐƯỢC XỬ LÝ TẠI OWNERMAINSCREEN
+    // Chỉ sử dụng dữ liệu từ parent ViewModel
     
     val fields = uiState.fields // Sử dụng dữ liệu thực từ Firebase
     val bookings = remember { mockBookings() }

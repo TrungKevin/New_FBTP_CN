@@ -513,6 +513,37 @@ class FieldRepository {
             println("🔍 DEBUG: Field owner ID: $fieldOwnerId")
             println("🔍 DEBUG: Is current user the owner? ${currentUser.uid == fieldOwnerId}")
             
+            // 3. Xóa pricing rules TRƯỚC KHI xóa field document
+            val rulesSnapshot = firestore.collection(PRICING_RULES_COLLECTION)
+                .whereEqualTo("fieldId", fieldId)
+                .get()
+                .await()
+            
+            if (rulesSnapshot.size() > 0) {
+                val batch = firestore.batch()
+                rulesSnapshot.documents.forEach { doc ->
+                    batch.delete(doc.reference)
+                }
+                batch.commit().await()
+                println("✅ DEBUG: ${rulesSnapshot.size()} pricing rules deleted")
+            }
+            
+            // 4. Xóa field services TRƯỚC KHI xóa field document
+            val servicesSnapshot = firestore.collection(FIELD_SERVICES_COLLECTION)
+                .whereEqualTo("fieldId", fieldId)
+                .get()
+                .await()
+            
+            if (servicesSnapshot.size() > 0) {
+                val servicesBatch = firestore.batch()
+                servicesSnapshot.documents.forEach { doc ->
+                    servicesBatch.delete(doc.reference)
+                }
+                servicesBatch.commit().await()
+                println("✅ DEBUG: ${servicesSnapshot.size()} field services deleted")
+            }
+            
+            // 5. Xóa field document CUỐI CÙNG
             try {
                 println("🔄 DEBUG: Starting field document deletion...")
                 val deleteTask = firestore.collection(FIELDS_COLLECTION)
@@ -529,37 +560,7 @@ class FieldRepository {
                 throw e
             }
             
-            // 3. Xóa pricing rules
-            val rulesSnapshot = firestore.collection(PRICING_RULES_COLLECTION)
-                .whereEqualTo("fieldId", fieldId)
-                .get()
-                .await()
-            
-            if (rulesSnapshot.size() > 0) {
-                val batch = firestore.batch()
-                rulesSnapshot.documents.forEach { doc ->
-                    batch.delete(doc.reference)
-                }
-                batch.commit().await()
-                println("✅ DEBUG: ${rulesSnapshot.size()} pricing rules deleted")
-            }
-            
-            // 4. Xóa field services
-            val servicesSnapshot = firestore.collection(FIELD_SERVICES_COLLECTION)
-                .whereEqualTo("fieldId", fieldId)
-                .get()
-                .await()
-            
-            if (servicesSnapshot.size() > 0) {
-                val servicesBatch = firestore.batch()
-                servicesSnapshot.documents.forEach { doc ->
-                    servicesBatch.delete(doc.reference)
-                }
-                servicesBatch.commit().await()
-                println("✅ DEBUG: ${servicesSnapshot.size()} field services deleted")
-            }
-            
-            // 5. Xóa reviews (đánh giá sân)
+            // 6. Xóa reviews (đánh giá sân)
             val reviewsSnapshot = firestore.collection(REVIEWS_COLLECTION)
                 .whereEqualTo("fieldId", fieldId)
                 .get()

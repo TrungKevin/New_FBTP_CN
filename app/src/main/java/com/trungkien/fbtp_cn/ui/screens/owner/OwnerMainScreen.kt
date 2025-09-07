@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import com.trungkien.fbtp_cn.model.Field
 import com.trungkien.fbtp_cn.viewmodel.FieldViewModel
 import com.trungkien.fbtp_cn.viewmodel.FieldEvent
+import com.trungkien.fbtp_cn.viewmodel.AuthViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.collectAsState
 
@@ -39,6 +40,34 @@ fun OwnerMainScreen(
     
     // Shared FieldViewModel để chia sẻ dữ liệu fields giữa các màn hình
     val fieldViewModel: FieldViewModel = viewModel()
+    val uiState by fieldViewModel.uiState.collectAsState()
+    
+    // AuthViewModel để lấy thông tin user
+    val authViewModel: AuthViewModel = viewModel()
+    val currentUser by authViewModel.currentUser.collectAsState()
+    
+    // 🔥 TẬP TRUNG VIỆC LOAD DỮ LIỆU TẠI ĐÂY
+    LaunchedEffect(currentUser?.userId) {
+        currentUser?.userId?.let { ownerId ->
+            println("🔄 OwnerMainScreen - Loading fields for ownerId: $ownerId")
+            fieldViewModel.handleEvent(FieldEvent.LoadFieldsByOwner(ownerId))
+        }
+    }
+    
+    // 🔄 ĐỒNG BỘ DỮ LIỆU KHI CÓ THAY ĐỔI
+    LaunchedEffect(uiState.success) {
+        uiState.success?.let { success ->
+            if (success.contains("Thêm sân thành công") || 
+                success.contains("Xóa sân thành công") ||
+                success.contains("Cập nhật sân thành công")) {
+                currentUser?.userId?.let { ownerId ->
+                    println("🔄 OwnerMainScreen - Reloading fields after success: $success")
+                    // Reload ngay lập tức không delay để đồng bộ
+                    fieldViewModel.handleEvent(FieldEvent.LoadFieldsByOwner(ownerId))
+                }
+            }
+        }
+    }
     
     Scaffold(
         modifier = modifier,
@@ -199,7 +228,8 @@ fun OwnerMainScreen(
                         showTopAppBar = true
                         showBottomNavBar = true
                         navController.navigateUp()
-                    }
+                    },
+                    fieldViewModel = fieldViewModel // TRUYỀN VIEWMODEL ĐỂ CHIA SẺ DỮ LIỆU
                 )
             }
             
@@ -231,7 +261,8 @@ fun OwnerMainScreen(
                         navController.navigate("owner_field_list") {
                             popUpTo("owner_home") { inclusive = true }
                         }
-                    }
+                    },
+                    fieldViewModel = fieldViewModel // TRUYỀN VIEWMODEL ĐỂ CHIA SẺ DỮ LIỆU
                 )
             }
         }

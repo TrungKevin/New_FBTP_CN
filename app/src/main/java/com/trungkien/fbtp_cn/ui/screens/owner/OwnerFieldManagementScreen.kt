@@ -60,29 +60,8 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
         println("DEBUG: 🔍 OwnerFieldManagementScreen - uiState.fields count: ${uiState.fields.size}")
     }
     
-    // LUÔN LUÔN LOAD DỮ LIỆU THỰC TỪ FIREBASE
-    LaunchedEffect(currentUser?.userId) {
-        if (currentUser?.userId != null) {
-            println("DEBUG: 🔥 LOADING FIELDS FROM FIREBASE for ownerId: ${currentUser?.userId}")
-            localFieldViewModel.handleEvent(FieldEvent.LoadFieldsByOwner(currentUser?.userId!!))
-        } else {
-            println("DEBUG: ❌ No current user - cannot load fields")
-        }
-    }
-    
-    // Auto-reload fields khi có sân mới được thêm
-    LaunchedEffect(uiState.success) {
-        if (uiState.success?.contains("Thêm sân thành công") == true || 
-            uiState.success?.contains("Cập nhật sân thành công") == true ||
-            uiState.success?.contains("Xóa sân thành công") == true) {
-            currentUser?.userId?.let { ownerId ->
-                println("DEBUG: 🔄 Reloading fields after success for ownerId: $ownerId")
-                // Đợi một chút để đảm bảo UI cập nhật hoàn toàn
-                delay(1500)
-                localFieldViewModel.handleEvent(FieldEvent.LoadFieldsByOwner(ownerId))
-            }
-        }
-    }
+    // 🔥 KHÔNG CẦN LOAD DỮ LIỆU TẠI ĐÂY NỮA - ĐÃ ĐƯỢC XỬ LÝ TẠI OWNERMAINSCREEN
+    // Chỉ sử dụng dữ liệu từ parent ViewModel
     
 
     

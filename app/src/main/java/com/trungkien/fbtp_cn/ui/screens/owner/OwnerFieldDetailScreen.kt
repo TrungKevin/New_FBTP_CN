@@ -66,12 +66,13 @@ import com.trungkien.fbtp_cn.viewmodel.AuthViewModel
 fun OwnerFieldDetailScreen(
     fieldId: String,
     onBackClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    fieldViewModel: FieldViewModel? = null // NHẬN VIEWMODEL TỪ PARENT
 ) {
     // Lấy dữ liệu thực từ Firebase thay vì mock data
-    val fieldViewModel: FieldViewModel = viewModel()
+    val localFieldViewModel: FieldViewModel = fieldViewModel ?: viewModel()
     val authViewModel: AuthViewModel = viewModel()
-    val uiState by fieldViewModel.uiState.collectAsState()
+    val uiState by localFieldViewModel.uiState.collectAsState()
     val currentUser by authViewModel.currentUser.collectAsState()
     
     val context = LocalContext.current
@@ -80,7 +81,7 @@ fun OwnerFieldDetailScreen(
     LaunchedEffect(fieldId) {
         if (fieldId.isNotEmpty()) {
             // Loading field details from Firebase
-            fieldViewModel.handleEvent(FieldEvent.LoadFieldById(fieldId))
+            localFieldViewModel.handleEvent(FieldEvent.LoadFieldById(fieldId))
         }
     }
     
@@ -185,7 +186,7 @@ fun OwnerFieldDetailScreen(
                 )
                 Button(
                     onClick = {
-                        fieldViewModel.handleEvent(FieldEvent.LoadFieldById(fieldId))
+                        localFieldViewModel.handleEvent(FieldEvent.LoadFieldById(fieldId))
                     }
                 ) {
                     Text("Thử lại")
@@ -421,7 +422,7 @@ fun OwnerFieldDetailScreen(
                             // Hiển thị dịch vụ sân với FieldViewModel được chia sẻ
                             CourtService(
                                 field = field, 
-                                fieldViewModel = fieldViewModel
+                                fieldViewModel = localFieldViewModel
                             )
                         }
 
@@ -441,7 +442,7 @@ fun OwnerFieldDetailScreen(
                                     field?.let { fieldData ->
                                         TimeSlots(
                                             field = fieldData,
-                                            fieldViewModel = fieldViewModel
+                                            fieldViewModel = localFieldViewModel
                                         )
                                     } ?: run {
                                         // Hiển thị loading nếu chưa có field data
@@ -482,7 +483,7 @@ fun OwnerFieldDetailScreen(
         if (showDeleteDialog) {
             DeleteFieldDialog(
                 field = field,
-                fieldViewModel = fieldViewModel,
+                fieldViewModel = localFieldViewModel,
                 onDismiss = { 
                     showDeleteDialog = false
                     println("DEBUG: ❌ User cancelled field deletion")
@@ -492,7 +493,7 @@ fun OwnerFieldDetailScreen(
                     println("DEBUG: ✅ User confirmed field deletion for field: ${field.fieldId}")
                     
                     // Thực hiện xóa sân sau khi xác nhận
-                    fieldViewModel.handleEvent(FieldEvent.DeleteField(field.fieldId))
+                    localFieldViewModel.handleEvent(FieldEvent.DeleteField(field.fieldId))
                     
                     // Đợi một chút để đảm bảo xóa hoàn tất trước khi navigate back
                     coroutineScope.launch {

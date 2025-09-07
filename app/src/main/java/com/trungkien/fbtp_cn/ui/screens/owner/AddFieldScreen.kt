@@ -54,11 +54,12 @@ import com.trungkien.fbtp_cn.utils.ImagePicker
 fun AddFieldScreen(
     onBackClick: () -> Unit,
     onFieldAdded: (String) -> Unit, // fieldId
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    fieldViewModel: FieldViewModel? = null // NHẬN VIEWMODEL TỪ PARENT
 ) {
-    val fieldViewModel: FieldViewModel = viewModel()
+    val localFieldViewModel: FieldViewModel = fieldViewModel ?: viewModel()
     val authViewModel: AuthViewModel = viewModel()
-    val uiState by fieldViewModel.uiState.collectAsState()
+    val uiState by localFieldViewModel.uiState.collectAsState()
     val currentUser by authViewModel.currentUser.collectAsState()
     
     // Focus management for keyboard hiding
@@ -163,7 +164,7 @@ fun AddFieldScreen(
 
         
         // Submit to ViewModel - ảnh sẽ được convert thành base64 và lưu trực tiếp vào Firestore
-        fieldViewModel.handleEvent(
+        localFieldViewModel.handleEvent(
             FieldEvent.AddField(field, images, emptyList(), fieldServices)
         )
     }
