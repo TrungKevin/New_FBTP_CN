@@ -47,6 +47,7 @@ import com.trungkien.fbtp_cn.model.FieldImages
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 import com.trungkien.fbtp_cn.ui.theme.CommonShadows
 import kotlin.random.Random
+import androidx.compose.runtime.remember
 
 // Helper function to get random avatar
 private fun getRandomAvatar(): Int {
@@ -68,6 +69,7 @@ private val RedAccent = Color(0xFFFF5252)
 fun FieldCard(
     field: Field,
     ownerAvatar: Int = getRandomAvatar(),
+    ownerAvatarUrl: String? = null,
     rating: Float = 5.0f,
     isFavorite: Boolean = false,
     onFavoriteClick: () -> Unit = {},
@@ -333,15 +335,58 @@ fun FieldCard(
                                 shadowElevation = CommonShadows.Button,
                                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
                             ) {
-                                Image(
-                                    painter = painterResource(id = ownerAvatar),
-                                    contentDescription = "Owner avatar",
-                                    modifier = Modifier
-                                        .size(42.dp)
-                                        .padding(2.dp)
-                                        .clip(CircleShape),
-                                    contentScale = ContentScale.Crop
-                                )
+                                if (!ownerAvatarUrl.isNullOrBlank()) {
+                                    if (ownerAvatarUrl.startsWith("data:image", ignoreCase = true)) {
+                                        val bitmap = remember(ownerAvatarUrl) {
+                                            try {
+                                                val base64 = ownerAvatarUrl.substringAfter(",")
+                                                val bytes = Base64.decode(base64, Base64.DEFAULT)
+                                                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                                            } catch (e: Exception) { null }
+                                        }
+                                        if (bitmap != null) {
+                                            Image(
+                                                bitmap = bitmap.asImageBitmap(),
+                                                contentDescription = "Owner avatar",
+                                                modifier = Modifier
+                                                    .size(42.dp)
+                                                    .padding(2.dp)
+                                                    .clip(CircleShape),
+                                                contentScale = ContentScale.Crop
+                                            )
+                                        } else {
+                                            AsyncImage(
+                                                model = ownerAvatarUrl,
+                                                contentDescription = "Owner avatar",
+                                                modifier = Modifier
+                                                    .size(42.dp)
+                                                    .padding(2.dp)
+                                                    .clip(CircleShape),
+                                                contentScale = ContentScale.Crop
+                                            )
+                                        }
+                                    } else {
+                                        AsyncImage(
+                                            model = ownerAvatarUrl,
+                                            contentDescription = "Owner avatar",
+                                            modifier = Modifier
+                                                .size(42.dp)
+                                                .padding(2.dp)
+                                                .clip(CircleShape),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    }
+                                } else {
+                                    Image(
+                                        painter = painterResource(id = ownerAvatar),
+                                        contentDescription = "Owner avatar",
+                                        modifier = Modifier
+                                            .size(42.dp)
+                                            .padding(2.dp)
+                                            .clip(CircleShape),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
                             }
 
                             Column(

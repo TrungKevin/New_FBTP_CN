@@ -87,6 +87,9 @@ dependencies {
     implementation("com.google.firebase:firebase-storage-ktx")
     implementation("com.google.firebase:firebase-messaging-ktx")
     
+    // IMAGE PICKER DEPENDENCIES
+    implementation("com.github.dhaval2404:imagepicker:2.1")
+    
     // implementation(libs.hilt.android)
     // ksp(libs.hilt.compiler)
     // implementation(libs.androidx.hilt.navigation.compose)

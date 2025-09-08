@@ -19,7 +19,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
+import android.util.Base64
+import android.graphics.BitmapFactory
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.runtime.remember
 
 @Composable
 fun ProfileHeader(
@@ -27,7 +33,8 @@ fun ProfileHeader(
     ownerEmail: String,
     ownerPhone: String,
     onEditProfile: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    avatarUrl: String? = null
 ) {
     Card(
         modifier = modifier
@@ -52,16 +59,58 @@ fun ProfileHeader(
                 modifier = Modifier
                     .size(80.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF00C853))
-                    .padding(16.dp),
+                    .background(Color(0xFF00C853)),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = ownerName.take(1).uppercase(),
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
+                when {
+                    !avatarUrl.isNullOrEmpty() -> {
+                        if (avatarUrl.startsWith("data:image", ignoreCase = true)) {
+                            val bitmap = remember(avatarUrl) {
+                                try {
+                                    val base64 = avatarUrl.substringAfter(",")
+                                    val bytes = Base64.decode(base64, Base64.DEFAULT)
+                                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                                } catch (e: Exception) { null }
+                            }
+                            if (bitmap != null) {
+                                androidx.compose.foundation.Image(
+                                    bitmap = bitmap.asImageBitmap(),
+                                    contentDescription = "Owner Avatar",
+                                    modifier = Modifier
+                                        .size(80.dp)
+                                        .clip(CircleShape),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                AsyncImage(
+                                    model = avatarUrl,
+                                    contentDescription = "Owner Avatar",
+                                    modifier = Modifier
+                                        .size(80.dp)
+                                        .clip(CircleShape),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                        } else {
+                            AsyncImage(
+                                model = avatarUrl,
+                                contentDescription = "Owner Avatar",
+                                modifier = Modifier
+                                    .size(80.dp)
+                                    .clip(CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                    }
+                    else -> {
+                        Text(
+                            text = ownerName.take(1).uppercase(),
+                            fontSize = 32.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                }
             }
             
             Spacer(modifier = Modifier.height(16.dp))

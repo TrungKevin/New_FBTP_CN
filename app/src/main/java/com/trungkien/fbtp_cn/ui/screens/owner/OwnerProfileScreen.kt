@@ -51,7 +51,8 @@ fun OwnerProfileScreen(
                     ownerName = user?.name ?: "",
                     ownerEmail = user?.email ?: "",
                     ownerPhone = user?.phone ?: "",
-                    onEditProfile = onEditProfileClick
+                    onEditProfile = onEditProfileClick,
+                    avatarUrl = user?.avatarUrl
                 )
             }
             

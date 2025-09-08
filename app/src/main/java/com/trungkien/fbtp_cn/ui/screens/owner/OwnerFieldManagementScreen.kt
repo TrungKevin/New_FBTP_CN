@@ -1,5 +1,6 @@
 package com.trungkien.fbtp_cn.ui.screens.owner // Package màn hình phía owner
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -28,6 +29,7 @@ import com.trungkien.fbtp_cn.viewmodel.FieldUiState
 import com.trungkien.fbtp_cn.viewmodel.FieldEvent
 import com.trungkien.fbtp_cn.viewmodel.AuthViewModel
 
+@SuppressLint("ContextCastToActivity")
 @OptIn(ExperimentalMaterial3Api::class) // Cho phép dùng API experimental của Material3
 @Composable // Định nghĩa một composable function
 fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở hữu
@@ -44,10 +46,23 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
     
     // Sử dụng ViewModel từ parent nếu có, nếu không thì tạo mới
     val localFieldViewModel: FieldViewModel = fieldViewModel ?: viewModel()
-    val authViewModel: AuthViewModel = viewModel()
+    val activity = androidx.compose.ui.platform.LocalContext.current as androidx.activity.ComponentActivity
+    val authViewModel: AuthViewModel = androidx.lifecycle.viewmodel.compose.viewModel(viewModelStoreOwner = activity)
     val uiState by localFieldViewModel.uiState.collectAsState()
     val currentUser by authViewModel.currentUser.collectAsState()
-    
+ 
+    // Refresh profile on resume to ensure latest avatar for FieldCard
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                authViewModel.fetchProfile()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     // Lấy dữ liệu từ Firebase giống như OwnerHomeScreen
     val fields = if (testMode) getMockFields() else uiState.fields
     val isLoading = if (testMode) false else uiState.isLoading
@@ -322,7 +337,8 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
                         FieldCard(
                             field = field,
                             onClick = { clickedField -> onFieldClick(clickedField.fieldId) },
-                            onViewDetailsClick = { onFieldClick(field.fieldId) }
+                            onViewDetailsClick = { onFieldClick(field.fieldId) },
+                            ownerAvatarUrl = currentUser?.avatarUrl
                         )
                     }
                 }

@@ -67,6 +67,18 @@ class UserRepository(
                     
                     Log.d(TAG, "Processed createdAt: $createdAt, updatedAt: $updatedAt")
                     
+                    val rawAvatar = doc.getString("avatarUrl") ?: ""
+                    println("🔄 DEBUG: avatarUrl from Firestore: ${rawAvatar.take(100)}...")
+                    println("🔄 DEBUG: avatarUrl length: ${rawAvatar.length}")
+
+                    // Normalize base64 to data URI so AsyncImage can render it
+                    val normalizedAvatarUrl = when {
+                        rawAvatar.isBlank() -> ""
+                        rawAvatar.startsWith("http", ignoreCase = true) -> rawAvatar
+                        rawAvatar.startsWith("data:image", ignoreCase = true) -> rawAvatar
+                        else -> "data:image/jpeg;base64,$rawAvatar"
+                    }
+                    
                     val user = User(
                         userId = uid,
                         role = doc.getString("role") ?: "RENTER",
@@ -76,7 +88,7 @@ class UserRepository(
                             ?: (emailFromAuth?.substringBefore('@') ?: ""),
                         email = doc.getString("email") ?: emailFromAuth ?: "",
                         phone = doc.getString("phone") ?: "",
-                        avatarUrl = doc.getString("avatarUrl") ?: avatarFromAuth ?: "",
+                        avatarUrl = normalizedAvatarUrl,
                         address = doc.getString("address") ?: "",
                         dateOfBirth = doc.getString("dateOfBirth") ?: "",
                         gender = doc.getString("gender") ?: "",
@@ -112,13 +124,27 @@ class UserRepository(
         if (email != null) updates["email"] = email
         if (phone != null) updates["phone"] = phone
         if (address != null) updates["address"] = address
-        if (avatarUrl != null) updates["avatarUrl"] = avatarUrl
+        if (avatarUrl != null) {
+            println("🔄 DEBUG: Updating avatarUrl in Firestore...")
+            println("🔄 DEBUG: avatarUrl length: ${avatarUrl.length}")
+            println("🔄 DEBUG: avatarUrl first 100 chars: ${avatarUrl.take(100)}")
+            updates["avatarUrl"] = avatarUrl
+        }
         updates["updatedAt"] = System.currentTimeMillis()
-
+        
+        println("🔄 DEBUG: Firestore updates: $updates")
+        println("🔄 DEBUG: User ID: $uid")
+        
         firestore.collection("users").document(uid)
             .set(updates, SetOptions.merge())
-            .addOnSuccessListener { getCurrentUserProfile(onSuccess, onError) }
-            .addOnFailureListener { e -> onError(e) }
+            .addOnSuccessListener {
+                println("✅ DEBUG: Firestore update successful")
+                getCurrentUserProfile(onSuccess, onError)
+            }
+            .addOnFailureListener { e ->
+                println("❌ ERROR: Firestore update failed: ${e.message}")
+                onError(e)
+            }
     }
 }
 

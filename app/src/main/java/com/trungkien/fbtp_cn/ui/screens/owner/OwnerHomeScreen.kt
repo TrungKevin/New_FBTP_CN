@@ -125,7 +125,8 @@ fun OwnerHomeScreen(
                 ownerName = user?.name ?: "",
                 onCalendarClick = {
                     coroutineScope.launch { setShowSheet(true) }
-                }
+                },
+                avatarUrl = user?.avatarUrl
             )
         }
         item { HomeSearchBar(onSearch = { /* TODO: filter */ }) }
@@ -142,7 +143,8 @@ fun OwnerHomeScreen(
             item {
                 HomeMyFieldsSection( // Display my fields section
                     fields = fields,
-                    onFieldClick = { f -> onNavigateToFieldDetail(f.fieldId) }
+                    onFieldClick = { f -> onNavigateToFieldDetail(f.fieldId) },
+                    ownerAvatarUrl = user?.avatarUrl
                 )
             }
         }

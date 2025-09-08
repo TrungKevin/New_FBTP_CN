@@ -24,7 +24,8 @@ import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
     fun HomeMyFieldsSection(
     fields: List<Field>,
     onFieldClick: (Field) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    ownerAvatarUrl: String? = null
 ) {
     Column(modifier = modifier) {
         // Section Header
@@ -78,6 +79,7 @@ import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
                 fields.forEach { field ->
                     FieldCard(
                         field = field, 
+                        ownerAvatarUrl = ownerAvatarUrl,
                         onClick = onFieldClick,
                         onViewDetailsClick = { onFieldClick(field) }
                     )

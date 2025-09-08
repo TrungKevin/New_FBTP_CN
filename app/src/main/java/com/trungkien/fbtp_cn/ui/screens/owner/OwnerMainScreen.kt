@@ -12,7 +12,7 @@ import androidx.navigation.compose.rememberNavController
 import com.trungkien.fbtp_cn.ui.components.owner.OwnerBottomNavBar
 import com.trungkien.fbtp_cn.ui.components.owner.OwnerTopAppBar
 import com.trungkien.fbtp_cn.ui.components.owner.OwnerNavScreen
-import com.trungkien.fbtp_cn.ui.screens.EditProfileScreen
+import com.trungkien.fbtp_cn.ui.screens.ModernEditProfileScreen
 import com.trungkien.fbtp_cn.ui.screens.owner.AddFieldScreen
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 import androidx.compose.ui.graphics.Color
@@ -42,9 +42,22 @@ fun OwnerMainScreen(
     val fieldViewModel: FieldViewModel = viewModel()
     val uiState by fieldViewModel.uiState.collectAsState()
     
-    // AuthViewModel để lấy thông tin user
-    val authViewModel: AuthViewModel = viewModel()
+    // AuthViewModel để lấy thông tin user (scoped theo Activity để chia sẻ giữa các màn)
+    val activity = androidx.compose.ui.platform.LocalContext.current as androidx.activity.ComponentActivity
+    val authViewModel: AuthViewModel = androidx.lifecycle.viewmodel.compose.viewModel(viewModelStoreOwner = activity)
     val currentUser by authViewModel.currentUser.collectAsState()
+    
+    // Refresh profile on resume to ensure latest avatar
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                authViewModel.fetchProfile()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     
     // 🔥 TẬP TRUNG VIỆC LOAD DỮ LIỆU TẠI ĐÂY
     LaunchedEffect(currentUser?.userId) {
@@ -81,7 +94,8 @@ fun OwnerMainScreen(
                         navController.navigate("owner_profile") {
                             popUpTo("owner_home") { inclusive = true }
                         }
-                    }
+                    },
+                    avatarUrl = currentUser?.avatarUrl
                 )
             }
         },
@@ -208,7 +222,7 @@ fun OwnerMainScreen(
             
             // Màn hình chỉnh sửa hồ sơ
             composable("owner_edit_profile") {
-                EditProfileScreen(
+                ModernEditProfileScreen(
                     onBackClick = {
                         showTopAppBar = true
                         showBottomNavBar = true

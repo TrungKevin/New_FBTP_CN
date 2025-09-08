@@ -24,12 +24,18 @@ import com.trungkien.fbtp_cn.ui.theme.GreenContainer
 import com.trungkien.fbtp_cn.ui.theme.OnPrimary
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
+import coil.compose.AsyncImage
+import android.util.Base64
+import android.graphics.BitmapFactory
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.runtime.remember
 
 @Composable
 fun HomeHeader(
     ownerName: String,
     modifier: Modifier = Modifier,
-    onCalendarClick: () -> Unit = {}
+    onCalendarClick: () -> Unit = {},
+    avatarUrl: String? = null
 ) {
     Box(
         modifier = modifier
@@ -50,14 +56,63 @@ fun HomeHeader(
                     shape = CircleShape,
                     elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.avta1),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clip(CircleShape),
-                        contentScale = ContentScale.Crop
-                    )
+                    when {
+                        !avatarUrl.isNullOrEmpty() -> {
+                            if (avatarUrl.startsWith("data:image", ignoreCase = true)) {
+                                val bitmap = remember(avatarUrl) {
+                                    try {
+                                        val base64 = avatarUrl.substringAfter(",")
+                                        val bytes = Base64.decode(base64, Base64.DEFAULT)
+                                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                                    } catch (e: Exception) { null }
+                                }
+                                if (bitmap != null) {
+                                    Image(
+                                        bitmap = bitmap.asImageBitmap(),
+                                        contentDescription = "Owner Avatar",
+                                        modifier = Modifier
+                                            .size(56.dp)
+                                            .clip(CircleShape),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    AsyncImage(
+                                        model = avatarUrl,
+                                        contentDescription = "Owner Avatar",
+                                        modifier = Modifier
+                                            .size(56.dp)
+                                            .clip(CircleShape),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
+                            } else {
+                                AsyncImage(
+                                    model = avatarUrl,
+                                    contentDescription = "Owner Avatar",
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .clip(CircleShape),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                        }
+                        else -> {
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF00C853)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = ownerName.take(1).uppercase(),
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
                 }
 
                 Column {

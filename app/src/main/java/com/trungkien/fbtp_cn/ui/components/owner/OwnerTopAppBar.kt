@@ -24,13 +24,21 @@ import androidx.compose.ui.tooling.preview.Preview // Import Preview
 import androidx.compose.ui.unit.dp // Import dp
 import com.trungkien.fbtp_cn.R // Import R
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme // Import FBTP_CNTheme
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+import android.util.Base64
+import android.graphics.BitmapFactory
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.runtime.remember
 
 @OptIn(ExperimentalMaterial3Api::class) // Sử dụng API thực nghiệm của Material3
 @Composable // Đánh dấu đây là một composable function
 fun OwnerTopAppBar( // Hàm tạo thanh ứng dụng trên cho owner
     onMenuClick: () -> Unit, // Callback khi nhấn menu
     onProfileClick: () -> Unit, // Callback khi nhấn profile
-    modifier: Modifier = Modifier // Modifier tùy chỉnh
+    modifier: Modifier = Modifier, // Modifier tùy chỉnh
+    avatarUrl: String? = null
 ) {
     CenterAlignedTopAppBar( // Thanh ứng dụng căn giữa
         modifier = modifier, // Modifier tùy chỉnh
@@ -66,12 +74,52 @@ fun OwnerTopAppBar( // Hàm tạo thanh ứng dụng trên cho owner
                     .size(48.dp) // Kích thước chuẩn cho icon button
                     .padding(4.dp) // Padding nhỏ để tạo khoảng cách
             ) {
-                Icon( // Component icon
-                    imageVector = Icons.Default.AccountCircle, // Icon profile
-                    contentDescription = "Profile", // Mô tả cho accessibility
-                    tint = Color(0xFF00C853), // Màu xanh lá đậm cho icon
-                    modifier = Modifier.size(24.dp) // Kích thước icon chuẩn
-                )
+                if (!avatarUrl.isNullOrEmpty()) {
+                    if (avatarUrl.startsWith("data:image", ignoreCase = true)) {
+                        val bitmap = remember(avatarUrl) {
+                            try {
+                                val base64 = avatarUrl.substringAfter(",")
+                                val bytes = Base64.decode(base64, Base64.DEFAULT)
+                                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                            } catch (e: Exception) { null }
+                        }
+                        if (bitmap != null) {
+                            androidx.compose.foundation.Image(
+                                bitmap = bitmap.asImageBitmap(),
+                                contentDescription = "Profile avatar",
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            AsyncImage(
+                                model = avatarUrl,
+                                contentDescription = "Profile avatar",
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                    } else {
+                        AsyncImage(
+                            model = avatarUrl,
+                            contentDescription = "Profile avatar",
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                } else {
+                    Icon( // Component icon
+                        imageVector = Icons.Default.AccountCircle, // Icon profile
+                        contentDescription = "Profile", // Mô tả cho accessibility
+                        tint = Color(0xFF00C853), // Màu xanh lá đậm cho icon
+                        modifier = Modifier.size(24.dp) // Kích thước icon chuẩn
+                    )
+                }
             }
         },
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors( // Tùy chỉnh màu sắc

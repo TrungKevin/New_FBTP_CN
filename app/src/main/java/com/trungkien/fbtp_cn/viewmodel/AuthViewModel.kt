@@ -123,9 +123,16 @@ class AuthViewModel(
     }
 
     fun fetchProfile() {
+        println("🔄 DEBUG: AuthViewModel.fetchProfile() called")
         userRepository.getCurrentUserProfile(
-            onSuccess = { user -> _currentUser.value = user },
-            onError = { }
+            onSuccess = { user -> 
+                println("🔄 DEBUG: AuthViewModel.fetchProfile() success - user: $user")
+                println("🔄 DEBUG: AuthViewModel.fetchProfile() success - userId: ${user.userId}")
+                _currentUser.value = user 
+            },
+            onError = { error -> 
+                println("❌ ERROR: AuthViewModel.fetchProfile() failed: ${error.message}")
+            }
         )
     }
 
@@ -138,6 +145,20 @@ class AuthViewModel(
         onDone: (Boolean, String?) -> Unit
     ) {
         _authState.value = _authState.value.copy(isLoading = true, error = null)
+
+        // Optimistic UI update for avatar to make UI reflect immediately
+        val previousUser = _currentUser.value
+        val normalizedAvatar: String? = avatarUrl?.let { raw ->
+            when {
+                raw.isBlank() -> ""
+                raw.startsWith("http", ignoreCase = true) -> raw
+                raw.startsWith("data:image", ignoreCase = true) -> raw
+                else -> "data:image/jpeg;base64,$raw"
+            }
+        }
+        if (normalizedAvatar != null) {
+            _currentUser.value = previousUser?.copy(avatarUrl = normalizedAvatar)
+        }
         userRepository.updateCurrentUserProfile(
             name = name,
             email = email,
@@ -145,15 +166,33 @@ class AuthViewModel(
             address = address,
             avatarUrl = avatarUrl,
             onSuccess = { user ->
+                // Server truth wins; replace optimistic user with server user
                 _currentUser.value = user
                 _authState.value = _authState.value.copy(isLoading = false, isSuccess = true)
                 onDone(true, null)
             },
             onError = { e ->
+                // Revert optimistic avatar if failed
+                if (previousUser != null) {
+                    _currentUser.value = previousUser
+                }
                 _authState.value = _authState.value.copy(isLoading = false, error = e.message)
                 onDone(false, e.message)
             }
         )
+    }
+
+    // Force apply avatar optimistically, used to ensure all screens update together when closing dialogs
+    fun applyOptimisticAvatar(avatarUrl: String?) {
+        val normalized = avatarUrl?.let { raw ->
+            when {
+                raw.isBlank() -> ""
+                raw.startsWith("http", ignoreCase = true) -> raw
+                raw.startsWith("data:image", ignoreCase = true) -> raw
+                else -> "data:image/jpeg;base64,$raw"
+            }
+        }
+        _currentUser.value = _currentUser.value?.copy(avatarUrl = normalized.orEmpty())
     }
 
     private fun resetPassword(email: String) {
