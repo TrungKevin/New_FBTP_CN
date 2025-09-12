@@ -10,7 +10,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.trungkien.fbtp_cn.ui.components.renter.RenterNavScreen
 import com.trungkien.fbtp_cn.ui.components.renter.RenterBottomNavBar
 import com.trungkien.fbtp_cn.ui.components.renter.RenterTopAppBar
-import com.trungkien.fbtp_cn.ui.screens.EditProfileScreen
+import com.trungkien.fbtp_cn.viewmodel.AuthViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.trungkien.fbtp_cn.ui.screens.ModernEditProfileScreen
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 import androidx.compose.ui.graphics.Color
 
@@ -31,10 +33,13 @@ fun RenterMainScreen(
         topBar = {
             // Ẩn TopAppBar khi đang hiển thị RenterOrderDetailScreen trong tab Search
             val shouldShowTop = !(selectedScreen == RenterNavScreen.Search && activeOrderDetailFieldId != null) && !isEditingProfile
+            val authViewModel: AuthViewModel = viewModel()
+            val currentUser = authViewModel.currentUser.collectAsState().value
             if (shouldShowTop) {
                 RenterTopAppBar(
                     onMenuClick = { /* TODO open drawer or menu */ },
-                    onProfileClick = { selectedScreen = RenterNavScreen.Profile }
+                    onProfileClick = { selectedScreen = RenterNavScreen.Profile },
+                    avatarUrl = currentUser?.avatarUrl
                 )
             }
         },
@@ -55,7 +60,7 @@ fun RenterMainScreen(
                 .padding(paddingValues)
         ) {
             if (isEditingProfile) {
-                EditProfileScreen(onBackClick = { isEditingProfile = false })
+                ModernEditProfileScreen(onBackClick = { isEditingProfile = false })
             } else when (selectedScreen) {
                 RenterNavScreen.Home -> {
                     RenterHomeScreen(

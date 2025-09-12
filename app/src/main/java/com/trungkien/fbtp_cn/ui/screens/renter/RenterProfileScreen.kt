@@ -47,6 +47,7 @@ fun RenterProfileScreen(
                     renterName = user?.name ?: "",
                     renterEmail = user?.email ?: "",
                     renterPhone = user?.phone ?: "",
+                    renterAvatarUrl = user?.avatarUrl,
                     onEditProfile = onEditProfileClick
                 )
             }

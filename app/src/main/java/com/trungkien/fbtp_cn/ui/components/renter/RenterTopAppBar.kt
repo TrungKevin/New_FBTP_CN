@@ -8,6 +8,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.vector.ImageVector
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import android.util.Base64
+import android.graphics.BitmapFactory
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.runtime.remember
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -30,6 +38,7 @@ import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 fun RenterTopAppBar(
     onMenuClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
+    avatarUrl: String? = null,
     modifier: Modifier = Modifier
 ) {
     CenterAlignedTopAppBar(
@@ -66,12 +75,52 @@ fun RenterTopAppBar(
                     .size(48.dp)
                     .padding(4.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.AccountCircle,
-                    contentDescription = "Profile",
-                    tint = Color(0xFF00C853),
-                    modifier = Modifier.size(24.dp)
-                )
+                if (!avatarUrl.isNullOrEmpty()) {
+                    if (avatarUrl.startsWith("data:image", ignoreCase = true)) {
+                        val bitmap = remember(avatarUrl) {
+                            try {
+                                val base64 = avatarUrl.substringAfter(",")
+                                val bytes = Base64.decode(base64, Base64.DEFAULT)
+                                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                            } catch (e: Exception) { null }
+                        }
+                        if (bitmap != null) {
+                            androidx.compose.foundation.Image(
+                                bitmap = bitmap.asImageBitmap(),
+                                contentDescription = "Profile",
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            AsyncImage(
+                                model = avatarUrl,
+                                contentDescription = "Profile",
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                    } else {
+                        AsyncImage(
+                            model = avatarUrl,
+                            contentDescription = "Profile",
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.AccountCircle,
+                        contentDescription = "Profile",
+                        tint = Color(0xFF00C853),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
         },
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(

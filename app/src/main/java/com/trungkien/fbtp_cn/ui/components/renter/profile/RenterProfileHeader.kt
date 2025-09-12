@@ -22,6 +22,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import android.util.Base64
+import android.graphics.BitmapFactory
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.runtime.remember
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 
 @Composable
@@ -49,14 +53,43 @@ fun RenterProfileHeader(
         ) {
             // Avatar
             if (!renterAvatarUrl.isNullOrBlank()) {
-                AsyncImage(
-                    model = renterAvatarUrl,
-                    contentDescription = "Avatar",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(CircleShape)
-                )
+                if (renterAvatarUrl.startsWith("data:image", ignoreCase = true)) {
+                    val bitmap = remember(renterAvatarUrl) {
+                        try {
+                            val base64 = renterAvatarUrl.substringAfter(",")
+                            val bytes = Base64.decode(base64, Base64.DEFAULT)
+                            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        } catch (e: Exception) { null }
+                    }
+                    if (bitmap != null) {
+                        Image(
+                            bitmap = bitmap.asImageBitmap(),
+                            contentDescription = "Avatar",
+                            modifier = Modifier
+                                .size(80.dp)
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        AsyncImage(
+                            model = renterAvatarUrl,
+                            contentDescription = "Avatar",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(80.dp)
+                                .clip(CircleShape)
+                        )
+                    }
+                } else {
+                    AsyncImage(
+                        model = renterAvatarUrl,
+                        contentDescription = "Avatar",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clip(CircleShape)
+                    )
+                }
             } else {
                 Box(
                     modifier = Modifier
