@@ -76,32 +76,39 @@ class AuthViewModel(
         role: String
     ) {
         viewModelScope.launch {
-            _authState.value = _authState.value.copy(
-                isLoading = true,
-                error = null,
-                isSuccess = false
-            )
+            try {
+                _authState.value = _authState.value.copy(
+                    isLoading = true,
+                    error = null,
+                    isSuccess = false
+                )
 
-            authRepository.registerUser(
-                username = username,
-                password = password,
-                email = email,
-                phone = phone,
-                role = role,
-                onSuccess = { userId ->
-                    _authState.value = _authState.value.copy(
-                        isLoading = false,
-                        isSuccess = true,
-                        userId = userId
-                    )
-                },
-                onError = { error ->
-                    _authState.value = _authState.value.copy(
-                        isLoading = false,
-                        error = error.message ?: "Đăng ký thất bại"
-                    )
-                }
-            )
+                authRepository.registerUser(
+                    username = username,
+                    password = password,
+                    email = email,
+                    phone = phone,
+                    role = role,
+                    onSuccess = { userId ->
+                        _authState.value = _authState.value.copy(
+                            isLoading = false,
+                            isSuccess = true,
+                            userId = userId
+                        )
+                    },
+                    onError = { error ->
+                        _authState.value = _authState.value.copy(
+                            isLoading = false,
+                            error = error.message ?: "Đăng ký thất bại"
+                        )
+                    }
+                )
+            } catch (e: Exception) {
+                _authState.value = _authState.value.copy(
+                    isLoading = false,
+                    error = e.message ?: "Có lỗi xảy ra"
+                )
+            }
         }
     }
 

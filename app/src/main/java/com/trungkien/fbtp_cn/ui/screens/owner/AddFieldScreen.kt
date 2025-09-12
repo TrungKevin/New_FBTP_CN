@@ -105,9 +105,13 @@ fun AddFieldScreen(
     // Handle success and error states
     LaunchedEffect(uiState.success) {
         uiState.success?.let { success ->
-            // Extract fieldId from success message
-            val fieldId = success.substringAfter("ID: ").substringBefore("!")
-            onFieldAdded(fieldId)
+            if (success.contains("Thêm sân thành công")) {
+                // Extract fieldId from success message
+                val fieldId = success.substringAfter("ID: ").substringBefore("!")
+                if (fieldId.isNotEmpty()) {
+                    onFieldAdded(fieldId)
+                }
+            }
         }
     }
     

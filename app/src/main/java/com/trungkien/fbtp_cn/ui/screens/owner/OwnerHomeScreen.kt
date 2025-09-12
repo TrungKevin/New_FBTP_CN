@@ -56,6 +56,9 @@ import androidx.compose.runtime.LaunchedEffect
 fun OwnerHomeScreen(
     onNavigateToFieldDetail: (String) -> Unit,
     onNavigateToAddField: () -> Unit,
+    onNavigateToFieldList: () -> Unit = {},
+    onNavigateToBookingList: () -> Unit = {},
+    onNavigateToStats: () -> Unit = {},
     modifier: Modifier = Modifier,
     fieldViewModel: FieldViewModel? = null // NHẬN VIEWMODEL TỪ PARENT
 ) {
@@ -132,10 +135,10 @@ fun OwnerHomeScreen(
         item { HomeSearchBar(onSearch = { /* TODO: filter */ }) }
         item {
             HomeQuickActions(
-                onManageFields = { /* TODO: Navigate to field list */ },
-                onBookingList = { /* TODO: Navigate to booking list */ },
+                onManageFields = onNavigateToFieldList,
+                onBookingList = onNavigateToBookingList,
                 onAddField = onNavigateToAddField,
-                onStatistics = { /* TODO: Navigate to stats */ }
+                onStatistics = onNavigateToStats
             )
         }
         item { HomeSummaryCard(summary = summary) } // Display summary card
@@ -260,7 +263,10 @@ fun PreviewOwnerHomeScreen() {
     FBTP_CNTheme {
         OwnerHomeScreen(
             onNavigateToFieldDetail = { /* Preview callback */ },
-            onNavigateToAddField = { /* Preview callback */ }
+            onNavigateToAddField = { /* Preview callback */ },
+            onNavigateToFieldList = { /* Preview callback */ },
+            onNavigateToBookingList = { /* Preview callback */ },
+            onNavigateToStats = { /* Preview callback */ }
         )
     }
 }

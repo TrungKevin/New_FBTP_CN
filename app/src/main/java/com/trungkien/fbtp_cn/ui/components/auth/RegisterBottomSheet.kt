@@ -25,6 +25,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.trungkien.fbtp_cn.ui.theme.*
 import android.widget.Toast
 import androidx.compose.foundation.Image
@@ -42,17 +43,25 @@ fun RegisterBottomSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val context = LocalContext.current
-    var username by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var confirm by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
-    var confirmVisible by remember { mutableStateOf(false) }
-    var agreeTerms by remember { mutableStateOf(true) }
-    val roles = listOf("Chủ sân", "Khách hàng")
-    var selectedRole by remember { mutableStateOf(roles[1]) }
-    var roleExpanded by remember { mutableStateOf(false) }
+    
+    // Optimize state management with rememberSaveable for better performance
+    var username by rememberSaveable { mutableStateOf("") }
+    var email by rememberSaveable { mutableStateOf("") }
+    var phone by rememberSaveable { mutableStateOf("") }
+    var password by rememberSaveable { mutableStateOf("") }
+    var confirm by rememberSaveable { mutableStateOf("") }
+    var passwordVisible by rememberSaveable { mutableStateOf(false) }
+    var confirmVisible by rememberSaveable { mutableStateOf(false) }
+    var agreeTerms by rememberSaveable { mutableStateOf(true) }
+    
+    // Move roles outside composable to avoid recreation
+    val roles = remember { listOf("Chủ sân", "Khách hàng") }
+    var selectedRole by rememberSaveable { mutableStateOf(roles[1]) }
+    var roleExpanded by rememberSaveable { mutableStateOf(false) }
+    
+    // Pre-compile regex patterns for better performance
+    val phoneRegex = remember { Regex("^\\d{10,11}$") }
+    val emailRegex = remember { Regex("^[A-Za-z0-9._%+-]+@gmail\\.com$") }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -280,19 +289,35 @@ fun RegisterBottomSheet(
             // Register button
             Button( // dùng để đăng ký tài khoản
                 onClick = {
-                    val phoneOk = phone.matches(Regex("^\\d{10,11}$"))
-                    val emailOk = email.matches(Regex("^[A-Za-z0-9._%+-]+@gmail\\.com$"))
+                    // Use pre-compiled regex patterns for validation
+                    val phoneOk = phoneRegex.matches(phone)
+                    val emailOk = emailRegex.matches(email)
                     val passwordOk = password.length >= 6
                     val confirmOk = confirm == password
 
                     when {
-                        username.isBlank() -> Toast.makeText(context, "Vui lòng nhập tên đăng nhập", Toast.LENGTH_SHORT).show()
-                        !emailOk -> Toast.makeText(context, "Email phải đúng định dạng và có đuôi @gmail.com", Toast.LENGTH_SHORT).show()
-                        !phoneOk -> Toast.makeText(context, "Số điện thoại phải là 10-11 chữ số", Toast.LENGTH_SHORT).show()
-                        !passwordOk -> Toast.makeText(context, "Mật khẩu phải có ít nhất 6 ký tự", Toast.LENGTH_SHORT).show()
-                        !confirmOk -> Toast.makeText(context, "Nhập lại mật khẩu không khớp", Toast.LENGTH_SHORT).show()
-                        !agreeTerms -> Toast.makeText(context, "Bạn cần đồng ý điều khoản sử dụng", Toast.LENGTH_SHORT).show()
-                        else -> onRegister(username, password, email, phone, selectedRole)
+                        username.isBlank() -> {
+                            Toast.makeText(context, "Vui lòng nhập tên đăng nhập", Toast.LENGTH_SHORT).show()
+                        }
+                        !emailOk -> {
+                            Toast.makeText(context, "Email phải đúng định dạng và có đuôi @gmail.com", Toast.LENGTH_SHORT).show()
+                        }
+                        !phoneOk -> {
+                            Toast.makeText(context, "Số điện thoại phải là 10-11 chữ số", Toast.LENGTH_SHORT).show()
+                        }
+                        !passwordOk -> {
+                            Toast.makeText(context, "Mật khẩu phải có ít nhất 6 ký tự", Toast.LENGTH_SHORT).show()
+                        }
+                        !confirmOk -> {
+                            Toast.makeText(context, "Nhập lại mật khẩu không khớp", Toast.LENGTH_SHORT).show()
+                        }
+                        !agreeTerms -> {
+                            Toast.makeText(context, "Bạn cần đồng ý điều khoản sử dụng", Toast.LENGTH_SHORT).show()
+                        }
+                        else -> {
+                            // Call registration in a coroutine to avoid blocking UI
+                            onRegister(username, password, email, phone, selectedRole)
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp),

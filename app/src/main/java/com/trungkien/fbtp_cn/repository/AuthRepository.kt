@@ -27,6 +27,17 @@ class AuthRepository(
         onSuccess: (String) -> Unit,
         onError: (Throwable) -> Unit
     ) {
+        // Pre-validate inputs to avoid unnecessary network calls
+        if (username.isBlank() || email.isBlank() || password.isBlank()) {
+            onError(IllegalArgumentException("Thông tin không được để trống"))
+            return
+        }
+        
+        if (password.length < 6) {
+            onError(IllegalArgumentException("Mật khẩu phải có ít nhất 6 ký tự"))
+            return
+        }
+
         // Create account in Firebase Auth directly (avoid Firestore read which may be blocked by rules)
         firebaseAuth.createUserWithEmailAndPassword(email, password)
             .addOnSuccessListener { result ->
@@ -60,11 +71,23 @@ class AuthRepository(
                     .addOnFailureListener { e -> onError(e) }
             }
             .addOnFailureListener { e ->
-                // Map duplicate email to friendly message
-                if (e is FirebaseAuthUserCollisionException || (e.message ?: "").contains("already in use", ignoreCase = true)) {
-                    onError(IllegalStateException("Email đã được sử dụng"))
-                } else {
-                    onError(e)
+                // Map duplicate email to friendly message with better error handling
+                when {
+                    e is FirebaseAuthUserCollisionException -> {
+                        onError(IllegalStateException("Email đã được sử dụng"))
+                    }
+                    (e.message ?: "").contains("already in use", ignoreCase = true) -> {
+                        onError(IllegalStateException("Email đã được sử dụng"))
+                    }
+                    (e.message ?: "").contains("network", ignoreCase = true) -> {
+                        onError(IllegalStateException("Lỗi kết nối mạng. Vui lòng thử lại"))
+                    }
+                    (e.message ?: "").contains("timeout", ignoreCase = true) -> {
+                        onError(IllegalStateException("Kết nối quá chậm. Vui lòng thử lại"))
+                    }
+                    else -> {
+                        onError(e)
+                    }
                 }
             }
     }

@@ -155,6 +155,24 @@ fun OwnerMainScreen(
                         showBottomNavBar = false
                         navController.navigate("owner_add_field")
                     },
+                    onNavigateToFieldList = {
+                        currentScreen = OwnerNavScreen.Field
+                        navController.navigate("owner_field_list") {
+                            popUpTo("owner_home") { inclusive = true }
+                        }
+                    },
+                    onNavigateToBookingList = {
+                        currentScreen = OwnerNavScreen.Booking
+                        navController.navigate("owner_booking_list") {
+                            popUpTo("owner_home") { inclusive = true }
+                        }
+                    },
+                    onNavigateToStats = {
+                        currentScreen = OwnerNavScreen.Stats
+                        navController.navigate("owner_stats") {
+                            popUpTo("owner_home") { inclusive = true }
+                        }
+                    },
                     fieldViewModel = fieldViewModel // TRUYỀN VIEWMODEL ĐỂ CHIA SẺ DỮ LIỆU
                 )
             }
