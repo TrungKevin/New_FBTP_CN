@@ -43,9 +43,22 @@ fun OwnerMainScreen(
     val uiState by fieldViewModel.uiState.collectAsState()
     
     // AuthViewModel để lấy thông tin user (scoped theo Activity để chia sẻ giữa các màn)
-    val activity = androidx.compose.ui.platform.LocalContext.current as androidx.activity.ComponentActivity
-    val authViewModel: AuthViewModel = androidx.lifecycle.viewmodel.compose.viewModel(viewModelStoreOwner = activity)
+    val authViewModel: AuthViewModel = viewModel()
     val currentUser by authViewModel.currentUser.collectAsState()
+    
+    // Debug logs để kiểm tra currentUser
+    LaunchedEffect(currentUser) {
+        println("🔄 DEBUG: OwnerMainScreen - currentUser changed")
+        println("🔄 DEBUG: - currentUser: ${currentUser?.name}")
+        println("🔄 DEBUG: - avatarUrl: ${currentUser?.avatarUrl?.take(50)}...")
+        println("🔄 DEBUG: - avatarUrl length: ${currentUser?.avatarUrl?.length}")
+        println("🔄 DEBUG: - authViewModel instance: ${authViewModel.hashCode()}")
+    }
+    
+    // Debug logs để kiểm tra AuthViewModel instance
+    LaunchedEffect(authViewModel) {
+        println("🔄 DEBUG: OwnerMainScreen - AuthViewModel instance: ${authViewModel.hashCode()}")
+    }
     
     // Refresh profile on resume to ensure latest avatar
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
@@ -87,6 +100,9 @@ fun OwnerMainScreen(
         containerColor = Color.White, // Thêm background màu trắng
         topBar = {
             if (showTopAppBar) {
+                val currentUserForTopBar = authViewModel.currentUser.collectAsState().value
+                println("🔄 DEBUG: OwnerMainScreen topBar - currentUserForTopBar: ${currentUserForTopBar?.name}")
+                println("🔄 DEBUG: OwnerMainScreen topBar - avatarUrl: ${currentUserForTopBar?.avatarUrl?.take(50)}...")
                 OwnerTopAppBar(
                     onMenuClick = { /* TODO: Xử lý menu */ },
                     onProfileClick = { 
@@ -95,7 +111,7 @@ fun OwnerMainScreen(
                             popUpTo("owner_home") { inclusive = true }
                         }
                     },
-                    avatarUrl = currentUser?.avatarUrl
+                    avatarUrl = currentUserForTopBar?.avatarUrl
                 )
             }
         },
@@ -244,6 +260,8 @@ fun OwnerMainScreen(
                     onBackClick = {
                         showTopAppBar = true
                         showBottomNavBar = true
+                        // Refresh profile to ensure latest avatar is loaded
+                        authViewModel.fetchProfile()
                         navController.navigateUp()
                     }
                 )

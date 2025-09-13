@@ -29,6 +29,8 @@ fun RenterFieldInfoSection(
     contactPhone: String,
     distance: String,
     rating: Float,
+    amenities: List<String> = emptyList(),
+    description: String = "",
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.padding(18.dp)) {
@@ -63,6 +65,13 @@ fun RenterFieldInfoSection(
                     label = "Đánh giá",
                     value = "$rating / 5.0"
                 )
+                if (amenities.isNotEmpty()) {
+                    InfoRowItem(
+                        painter = painterResource(id = R.drawable.stadium),
+                        label = "Tiện ích",
+                        value = amenities.joinToString(", ")
+                    )
+                }
             }
         }
 
@@ -110,6 +119,27 @@ fun RenterFieldInfoSection(
                         label = "Khoảng cách",
                         value = distance
                     )
+                }
+            }
+        }
+
+        if (description.isNotBlank()) {
+            Spacer(modifier = Modifier.height(18.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+            ) {
+                Column(Modifier.padding(22.dp)) {
+                    Text(
+                        text = "Mô tả",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    Text(text = description, style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }

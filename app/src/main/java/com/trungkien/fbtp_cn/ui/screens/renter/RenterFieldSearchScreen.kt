@@ -12,6 +12,11 @@ import com.trungkien.fbtp_cn.ui.components.renter.fieldsearch.RenterSearchHeader
 import com.trungkien.fbtp_cn.ui.components.renter.fieldsearch.RenterSearchResultsList
 import com.trungkien.fbtp_cn.ui.components.renter.fieldsearch.SearchResultField
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.trungkien.fbtp_cn.viewmodel.FieldViewModel
+import com.trungkien.fbtp_cn.viewmodel.FieldEvent
+import com.trungkien.fbtp_cn.repository.UserRepository
+import com.trungkien.fbtp_cn.model.User
 
 @Composable
 fun RenterFieldSearchScreen(
@@ -21,45 +26,126 @@ fun RenterFieldSearchScreen(
     var searchQuery by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf<String?>(null) }
 
-    val results by remember(selectedType, searchQuery) {
-        mutableStateOf(
-            listOf(
-                SearchResultField(
-                    id = "field1",
-                    name = "Sân Tennis ABC",
-                    type = "Tennis",
-                    price = "120k/giờ",
-                    location = "Quận 1, TP.HCM",
-                    rating = 4.8f,
-                    distance = "2.5km",
-                    isAvailable = true
-                ),
-                SearchResultField(
-                    id = "field2",
-                    name = "Sân Cầu lông XYZ",
-                    type = "Badminton",
-                    price = "80k/giờ",
-                    location = "Quận 2, TP.HCM",
-                    rating = 4.6f,
-                    distance = "3.2km",
-                    isAvailable = true
-                ),
-                SearchResultField(
-                    id = "field3",
-                    name = "Sân Bóng đá 5 người",
-                    type = "Football",
-                    price = "200k/giờ",
-                    location = "Quận 3, TP.HCM",
-                    rating = 4.7f,
-                    distance = "1.8km",
-                    isAvailable = false
-                )
-            ).filter { field ->
-                val matchType = selectedType == null || field.type.equals(selectedType, ignoreCase = true) || selectedType == "all"
-                val matchQuery = searchQuery.isBlank() || field.name.contains(searchQuery, ignoreCase = true)
+    val fieldViewModel: FieldViewModel = viewModel()
+    val uiState = fieldViewModel.uiState.collectAsState().value
+    LaunchedEffect(Unit) { fieldViewModel.handleEvent(FieldEvent.LoadAllFields) }
+
+    // State để lưu thông tin owner cho mỗi field
+    var ownerInfoMap by remember { mutableStateOf<Map<String, User>>(emptyMap()) }
+    val userRepository = UserRepository()
+
+    // Load owner info for all fields - sử dụng getCurrentUserProfile thay vì getUserById
+    LaunchedEffect(uiState.allFields) {
+        val ownerIds = uiState.allFields.map { it.ownerId }.distinct().filter { it.isNotBlank() }
+        println("🔄 DEBUG: Loading owner info for ${ownerIds.size} owners: $ownerIds")
+        
+        val newOwnerInfoMap = mutableMapOf<String, User>()
+        
+        if (ownerIds.isEmpty()) {
+            ownerInfoMap = emptyMap()
+            return@LaunchedEffect
+        }
+        
+        // Fetch owner data thực từ Firebase (sau khi cập nhật security rules)
+        var completedCount = 0
+        val totalCount = ownerIds.size
+        
+        if (totalCount == 0) {
+            ownerInfoMap = emptyMap()
+            return@LaunchedEffect
+        }
+        
+        ownerIds.forEach { ownerId ->
+            userRepository.getUserById(
+                userId = ownerId,
+                onSuccess = { user ->
+                    println("✅ DEBUG: Successfully loaded owner $ownerId: ${user.name}")
+                    println("✅ DEBUG: Owner avatarUrl: ${user.avatarUrl?.take(50)}...")
+                    newOwnerInfoMap[ownerId] = user
+                    completedCount++
+                    
+                    // Update state after each successful fetch
+                    ownerInfoMap = newOwnerInfoMap.toMap()
+                    
+                    if (completedCount == totalCount) {
+                        println("✅ DEBUG: All owners loaded successfully!")
+                    }
+                },
+                onError = { error ->
+                    println("❌ DEBUG: Error loading owner info for $ownerId: ${error.message}")
+                    
+                    // Fallback: tạo dummy owner data nếu không fetch được
+                    val dummyOwner = User(
+                        userId = ownerId,
+                        role = "OWNER",
+                        name = "Chủ sân",
+                        email = "",
+                        phone = "",
+                        avatarUrl = "",
+                        address = "",
+                        dateOfBirth = "",
+                        gender = "",
+                        isVerified = false,
+                        createdAt = System.currentTimeMillis(),
+                        updatedAt = System.currentTimeMillis()
+                    )
+                    newOwnerInfoMap[ownerId] = dummyOwner
+                    completedCount++
+                    
+                    // Update state after each attempt
+                    ownerInfoMap = newOwnerInfoMap.toMap()
+                    
+                    if (completedCount == totalCount) {
+                        println("✅ DEBUG: All owner fetch attempts completed!")
+                    }
+                }
+            )
+        }
+    }
+
+    val results = remember(uiState.allFields, selectedType, searchQuery, uiState.pricingRules, ownerInfoMap) {
+        uiState.allFields
+            .filter { f ->
+                val matchType = selectedType == null || f.sports.any { it.equals(selectedType, true) }
+                val matchQuery = searchQuery.isBlank() || f.name.contains(searchQuery, true) || f.address.contains(searchQuery, true)
                 matchType && matchQuery
             }
-        )
+            .map { f ->
+                val owner = ownerInfoMap[f.ownerId]
+                
+                // Debug logs
+                println("🔄 DEBUG: Field ${f.name}")
+                println("🔄 DEBUG: - field.ownerId: ${f.ownerId}")
+                println("🔄 DEBUG: - mainImage: ${f.images.mainImage.take(50)}...")
+                println("🔄 DEBUG: - owner: ${owner?.name}")
+                println("🔄 DEBUG: - owner?.userId: ${owner?.userId}")
+                println("🔄 DEBUG: - ownerAvatarUrl: ${owner?.avatarUrl?.take(50)}...")
+                println("🔄 DEBUG: - ownerAvatarUrl length: ${owner?.avatarUrl?.length}")
+                println("🔄 DEBUG: - ownerInfoMap keys: ${ownerInfoMap.keys}")
+                println("🔄 DEBUG: - ownerInfoMap size: ${ownerInfoMap.size}")
+                
+                SearchResultField(
+                    id = f.fieldId,
+                    name = f.name,
+                    type = f.sports.firstOrNull() ?: "",
+                    price = "",
+                    location = f.address,
+                    rating = f.averageRating,
+                    distance = "", // TODO: tính theo geo nếu cần
+                    isAvailable = f.isActive,
+                    imageUrl = f.images.mainImage.ifEmpty { null },
+                    ownerName = owner?.name ?: "Chủ sân",
+                    ownerAvatarUrl = owner?.avatarUrl,
+                    ownerPhone = owner?.phone ?: "",
+                    fieldImages = f.images,
+                    address = f.address,
+                    openHours = "${f.openHours.start} - ${f.openHours.end}",
+                    amenities = f.amenities,
+                    totalReviews = f.totalReviews,
+                    contactPhone = f.contactPhone,
+                    description = f.description
+                )
+            }
     }
 
     Column(
@@ -87,8 +173,8 @@ fun RenterFieldSearchScreen(
 
         RenterSearchResultsList(
             searchResults = results,
-            isLoading = false,
-            onFieldClick = { },
+            isLoading = uiState.isLoading,
+            onFieldClick = { id -> onBookClick(id) },
             onFavoriteClick = { },
             onBookClick = onBookClick,
             onLoadMore = { },

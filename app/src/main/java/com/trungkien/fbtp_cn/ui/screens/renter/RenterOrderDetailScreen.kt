@@ -38,6 +38,10 @@ import com.trungkien.fbtp_cn.ui.components.renter.orderinfo.RenterServiceItem
 import com.trungkien.fbtp_cn.ui.components.renter.orderinfo.RenterServicesSection
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 import kotlinx.coroutines.launch
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.trungkien.fbtp_cn.viewmodel.FieldViewModel
+import com.trungkien.fbtp_cn.viewmodel.FieldEvent
+import com.trungkien.fbtp_cn.model.Field
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -48,15 +52,17 @@ fun RenterOrderDetailScreen(
     modifier: Modifier = Modifier
 ) {
     var selectedServices by remember { mutableStateOf(setOf<String>()) }
-
-    // Mock images like owner
-    val fieldImages = listOf(
-        R.drawable.court1,
-        R.drawable.court2,
-        R.drawable.court4,
-        R.drawable.court5
-    )
-    val imagePager = rememberPagerState(pageCount = { fieldImages.size })
+    val fieldViewModel: FieldViewModel = viewModel()
+    val uiState = fieldViewModel.uiState.collectAsState().value
+    LaunchedEffect(fieldId) { fieldViewModel.handleEvent(FieldEvent.LoadFieldById(fieldId)) }
+    val currentField: Field? = uiState.currentField
+    val detailImages: List<String> = listOf(
+        uiState.currentField?.images?.mainImage ?: "",
+        uiState.currentField?.images?.image1 ?: "",
+        uiState.currentField?.images?.image2 ?: "",
+        uiState.currentField?.images?.image3 ?: ""
+    ).filter { it.isNotBlank() }
+    val imagePager = rememberPagerState(pageCount = { maxOf(detailImages.size, 1) })
 
     // Tabs
     val tabs = listOf("Thông tin", "Dịch vụ", "Đánh giá")
@@ -99,23 +105,32 @@ fun RenterOrderDetailScreen(
         Column(
             modifier = modifier
                 .fillMaxSize()
-                .padding(
-                    innerPadding
-                )
+                .padding(innerPadding)
         ) {
-            // Hero images
+            // Hero images (fallback local if no images)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(260.dp)
             ) {
                 HorizontalPager(state = imagePager, modifier = Modifier.fillMaxSize()) { page ->
-                    Image(
-                        painter = painterResource(id = fieldImages[page]),
-                        contentDescription = "Field Image",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
+                    val img = detailImages.getOrNull(page)
+                    if (!img.isNullOrBlank()) {
+                        val model = if (img.startsWith("http", true) || img.startsWith("data:image", true)) img else "data:image/jpeg;base64,$img"
+                        coil.compose.AsyncImage(
+                            model = model,
+                            contentDescription = "Field Image",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Image(
+                            painter = painterResource(id = R.drawable.court1),
+                            contentDescription = "Field Image",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
                 }
                 Box(
                     modifier = Modifier
@@ -136,7 +151,7 @@ fun RenterOrderDetailScreen(
                         .padding(bottom = 80.dp),
                     horizontalArrangement = Arrangement.Center
                 ) {
-                    repeat(fieldImages.size) { index ->
+                    repeat(maxOf(detailImages.size, 1)) { index ->
                         Box(
                             modifier = Modifier
                                 .padding(horizontal = 4.dp)
@@ -181,7 +196,7 @@ fun RenterOrderDetailScreen(
                 }
             }
 
-            // Content per tab
+            // Content per tab (make each page scrollable)
             HorizontalPager(
                 state = tabPagerState,
                 modifier = Modifier
@@ -190,33 +205,38 @@ fun RenterOrderDetailScreen(
             ) { page ->
                 when (page) {
                     0 -> {
-                        Column(modifier = Modifier.padding(16.dp)) {
+                        val f = currentField
+                        Column(
+                            modifier = Modifier
+                                .padding(16.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
                             RenterFieldInfoSection(
-                                name = "POC Pickleball",
-                                type = "Pickleball",
-                                price = 150000,
-                                address = "25 Tú Xương, TP. Thủ Đức",
-                                operatingHours = "05:00 - 23:00",
-                                contactPhone = "0926666357",
-                                distance = "835.3m",
-                                rating = 4.8f
+                                name = f?.name ?: "",
+                                type = f?.sports?.firstOrNull() ?: "",
+                                price = (uiState.pricingRules.firstOrNull()?.price ?: 0).toInt(),
+                                address = f?.address ?: "",
+                                operatingHours = "${f?.openHours?.start ?: ""} - ${f?.openHours?.end ?: ""}",
+                                contactPhone = f?.contactPhone ?: "",
+                                distance = "",
+                                rating = f?.averageRating ?: 0f,
+                                amenities = f?.amenities ?: emptyList(),
+                                description = f?.description ?: ""
                             )
                         }
                     }
                     1 -> {
-                        Column(modifier = Modifier.padding(16.dp)) {
+                        Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
+                            val services = uiState.fieldServices.map { RenterServiceItem(it.fieldServiceId, it.name, it.price.toInt()) }
                             RenterServicesSection(
-                                services = listOf(
-                                    RenterServiceItem("1", "Thuê vợt", 20000),
-                                    RenterServiceItem("2", "Nước uống", 15000)
-                                ),
+                                services = services,
                                 selected = selectedServices,
                                 onToggle = { id -> selectedServices = selectedServices.toMutableSet().apply { if (contains(id)) remove(id) else add(id) }.toSet() }
                             )
                         }
                     }
                     2 -> {
-                        Column(modifier = Modifier.padding(16.dp)) {
+                        Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
                             RenterReviewsSection(
                                 reviews = listOf(
                                     RenterReview("Nguyễn A", 5, "Sân rất tốt!"),

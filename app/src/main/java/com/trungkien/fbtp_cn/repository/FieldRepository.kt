@@ -27,6 +27,33 @@ class FieldRepository {
     }
     
     /**
+     * Lấy tất cả sân (cho renter search)
+     */
+    suspend fun getAllFields(): Result<List<Field>> {
+        return try {
+            val snapshot = firestore.collection(FIELDS_COLLECTION)
+                .get()
+                .await()
+            val fields = snapshot.documents.mapNotNull { it.toObject(Field::class.java) }
+            
+            // Debug logs
+            println("🔄 DEBUG: FieldRepository.getAllFields() - Found ${fields.size} fields")
+            fields.forEach { field ->
+                println("🔄 DEBUG: - Field: ${field.name}")
+                println("🔄 DEBUG:   - fieldId: ${field.fieldId}")
+                println("🔄 DEBUG:   - ownerId: ${field.ownerId}")
+                println("🔄 DEBUG:   - ownerId.isBlank(): ${field.ownerId.isBlank()}")
+                println("🔄 DEBUG:   - ownerId.length: ${field.ownerId.length}")
+            }
+            
+            Result.success(fields)
+        } catch (e: Exception) {
+            println("❌ DEBUG: FieldRepository.getAllFields() - Error: ${e.message}")
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Thêm sân mới với đầy đủ thông tin
      */
     suspend fun addField(

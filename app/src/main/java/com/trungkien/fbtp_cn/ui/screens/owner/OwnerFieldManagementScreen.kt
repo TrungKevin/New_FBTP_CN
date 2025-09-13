@@ -46,8 +46,7 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
     
     // Sử dụng ViewModel từ parent nếu có, nếu không thì tạo mới
     val localFieldViewModel: FieldViewModel = fieldViewModel ?: viewModel()
-    val activity = androidx.compose.ui.platform.LocalContext.current as androidx.activity.ComponentActivity
-    val authViewModel: AuthViewModel = androidx.lifecycle.viewmodel.compose.viewModel(viewModelStoreOwner = activity)
+    val authViewModel: AuthViewModel = viewModel()
     val uiState by localFieldViewModel.uiState.collectAsState()
     val currentUser by authViewModel.currentUser.collectAsState()
  

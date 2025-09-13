@@ -146,6 +146,75 @@ class UserRepository(
                 onError(e)
             }
     }
+    
+    fun getUserById(
+        userId: String,
+        onSuccess: (User) -> Unit,
+        onError: (Throwable) -> Unit
+    ) {
+        if (userId.isEmpty()) {
+            onError(IllegalStateException("User ID không hợp lệ"))
+            return
+        }
+        
+        firestore.collection("users").document(userId).get()
+            .addOnSuccessListener { doc ->
+                try {
+                    if (!doc.exists()) {
+                        onError(IllegalStateException("Không tìm thấy thông tin người dùng"))
+                        return@addOnSuccessListener
+                    }
+                    
+                    // Safely handle timestamp fields
+                    val rawCreatedAt = doc.get("createdAt")
+                    val rawUpdatedAt = doc.get("updatedAt")
+                    
+                    val createdAt = when (val createdAtValue = rawCreatedAt) {
+                        is Long -> createdAtValue
+                        is FirebaseTimestamp -> createdAtValue.seconds * 1000
+                        is Number -> createdAtValue.toLong()
+                        else -> System.currentTimeMillis()
+                    }
+                    
+                    val updatedAt = when (val updatedAtValue = rawUpdatedAt) {
+                        is Long -> updatedAtValue
+                        is FirebaseTimestamp -> updatedAtValue.seconds * 1000
+                        is Number -> updatedAtValue.toLong()
+                        else -> System.currentTimeMillis()
+                    }
+                    
+                    val rawAvatar = doc.getString("avatarUrl") ?: ""
+                    
+                    // Normalize base64 to data URI so AsyncImage can render it
+                    val normalizedAvatarUrl = when {
+                        rawAvatar.isBlank() -> ""
+                        rawAvatar.startsWith("http", ignoreCase = true) -> rawAvatar
+                        rawAvatar.startsWith("data:image", ignoreCase = true) -> rawAvatar
+                        else -> "data:image/jpeg;base64,$rawAvatar"
+                    }
+                    
+                    val user = User(
+                        userId = userId,
+                        role = doc.getString("role") ?: "RENTER",
+                        name = doc.getString("name") ?: "",
+                        email = doc.getString("email") ?: "",
+                        phone = doc.getString("phone") ?: "",
+                        avatarUrl = normalizedAvatarUrl,
+                        address = doc.getString("address") ?: "",
+                        dateOfBirth = doc.getString("dateOfBirth") ?: "",
+                        gender = doc.getString("gender") ?: "",
+                        isVerified = doc.getBoolean("isVerified") ?: false,
+                        createdAt = createdAt,
+                        updatedAt = updatedAt
+                    )
+                    onSuccess(user)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error creating User object", e)
+                    onError(e)
+                }
+            }
+            .addOnFailureListener { e -> onError(e) }
+    }
 }
 
 

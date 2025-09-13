@@ -31,6 +31,7 @@ import android.util.Base64
 import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
 
 @OptIn(ExperimentalMaterial3Api::class) // Sử dụng API thực nghiệm của Material3
 @Composable // Đánh dấu đây là một composable function
@@ -40,6 +41,14 @@ fun OwnerTopAppBar( // Hàm tạo thanh ứng dụng trên cho owner
     modifier: Modifier = Modifier, // Modifier tùy chỉnh
     avatarUrl: String? = null
 ) {
+    // Debug logs để kiểm tra avatarUrl
+    LaunchedEffect(avatarUrl) {
+        println("🔄 DEBUG: OwnerTopAppBar - avatarUrl changed")
+        println("🔄 DEBUG: - avatarUrl: ${avatarUrl?.take(50)}...")
+        println("🔄 DEBUG: - avatarUrl length: ${avatarUrl?.length}")
+        println("🔄 DEBUG: - avatarUrl.isNullOrEmpty(): ${avatarUrl.isNullOrEmpty()}")
+        println("🔄 DEBUG: - avatarUrl starts with data:image: ${avatarUrl?.startsWith("data:image", ignoreCase = true)}")
+    }
     CenterAlignedTopAppBar( // Thanh ứng dụng căn giữa
         modifier = modifier, // Modifier tùy chỉnh
         navigationIcon = { // Icon điều hướng (menu)
@@ -75,15 +84,23 @@ fun OwnerTopAppBar( // Hàm tạo thanh ứng dụng trên cho owner
                     .padding(4.dp) // Padding nhỏ để tạo khoảng cách
             ) {
                 if (!avatarUrl.isNullOrEmpty()) {
+                    println("🔄 DEBUG: OwnerTopAppBar - Displaying avatar")
                     if (avatarUrl.startsWith("data:image", ignoreCase = true)) {
+                        println("🔄 DEBUG: OwnerTopAppBar - Processing base64 avatar")
                         val bitmap = remember(avatarUrl) {
                             try {
                                 val base64 = avatarUrl.substringAfter(",")
                                 val bytes = Base64.decode(base64, Base64.DEFAULT)
-                                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                            } catch (e: Exception) { null }
+                                val decodedBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                                println("🔄 DEBUG: OwnerTopAppBar - Bitmap decoded: ${decodedBitmap != null}")
+                                decodedBitmap
+                            } catch (e: Exception) { 
+                                println("❌ DEBUG: OwnerTopAppBar - Error decoding bitmap: ${e.message}")
+                                null 
+                            }
                         }
                         if (bitmap != null) {
+                            println("🔄 DEBUG: OwnerTopAppBar - Displaying decoded bitmap")
                             androidx.compose.foundation.Image(
                                 bitmap = bitmap.asImageBitmap(),
                                 contentDescription = "Profile avatar",
@@ -93,6 +110,7 @@ fun OwnerTopAppBar( // Hàm tạo thanh ứng dụng trên cho owner
                                 contentScale = ContentScale.Crop
                             )
                         } else {
+                            println("🔄 DEBUG: OwnerTopAppBar - Fallback to AsyncImage")
                             AsyncImage(
                                 model = avatarUrl,
                                 contentDescription = "Profile avatar",
@@ -103,6 +121,7 @@ fun OwnerTopAppBar( // Hàm tạo thanh ứng dụng trên cho owner
                             )
                         }
                     } else {
+                        println("🔄 DEBUG: OwnerTopAppBar - Displaying URL avatar")
                         AsyncImage(
                             model = avatarUrl,
                             contentDescription = "Profile avatar",
@@ -113,6 +132,7 @@ fun OwnerTopAppBar( // Hàm tạo thanh ứng dụng trên cho owner
                         )
                     }
                 } else {
+                    println("🔄 DEBUG: OwnerTopAppBar - No avatar, showing default icon")
                     Icon( // Component icon
                         imageVector = Icons.Default.AccountCircle, // Icon profile
                         contentDescription = "Profile", // Mô tả cho accessibility

@@ -135,7 +135,10 @@ class AuthViewModel(
             onSuccess = { user -> 
                 println("🔄 DEBUG: AuthViewModel.fetchProfile() success - user: $user")
                 println("🔄 DEBUG: AuthViewModel.fetchProfile() success - userId: ${user.userId}")
+                println("🔄 DEBUG: AuthViewModel.fetchProfile() success - avatarUrl: ${user.avatarUrl?.take(50)}...")
                 _currentUser.value = user 
+                println("🔄 DEBUG: AuthViewModel.fetchProfile() - _currentUser.value updated")
+                println("🔄 DEBUG: AuthViewModel.fetchProfile() - _currentUser.value: ${_currentUser.value?.name}")
             },
             onError = { error -> 
                 println("❌ ERROR: AuthViewModel.fetchProfile() failed: ${error.message}")

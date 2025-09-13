@@ -44,6 +44,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 
 import com.trungkien.fbtp_cn.R
 import com.trungkien.fbtp_cn.model.Field
@@ -517,81 +519,25 @@ fun FieldImage(
     when (imageSource) {
         is String -> {
             if (imageSource.isNotEmpty()) {
-                if (imageSource.startsWith("http")) {
-                    // TODO: Implement Coil image loading for Firebase URLs
-                    // Hiển thị placeholder cho ảnh từ Firebase với thông báo rõ ràng
-                    Box(
-                        modifier = modifier.background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Image,
-                                contentDescription = null,
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "🖼️ Ảnh sân thực tế",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Đang tải ảnh từ Firebase...",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = "URL: ${imageSource.take(30)}...",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 16.dp),
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
-                } else if (imageSource.startsWith("data:image") || imageSource.length > 100) {
-                    // Base64 encoded image from Firebase
-                    val base64String = if (imageSource.startsWith("data:image")) {
-                        imageSource.substringAfter(",")
-                    } else {
-                        imageSource
-                    }
-                    
-                    val decodedBytes = Base64.decode(base64String, Base64.DEFAULT)
-                    val bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
-                    
-                    if (bitmap != null) {
-                        Image(
-                            bitmap = bitmap.asImageBitmap(),
-                            contentDescription = contentDescription,
-                            modifier = modifier,
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        // Fallback if Base64 decoding fails
-                        Image(
-                            painter = painterResource(id = R.drawable.court1),
-                            contentDescription = contentDescription,
-                            modifier = modifier,
-                            contentScale = ContentScale.Crop
-                        )
-                    }
-                } else {
-                    // String rỗng, hiển thị ảnh mặc định
-                    Image(
-                        painter = painterResource(id = R.drawable.court1),
-                        contentDescription = contentDescription,
-                        modifier = modifier,
-                        contentScale = ContentScale.Crop
-                    )
+                val context = LocalContext.current
+                val dataString = when {
+                    imageSource.startsWith("http", ignoreCase = true) -> imageSource
+                    imageSource.startsWith("data:image", ignoreCase = true) -> imageSource
+                    else -> "data:image/jpeg;base64,$imageSource"
                 }
+                val model = ImageRequest.Builder(context)
+                    .data(dataString)
+                    .crossfade(true)
+                    .allowHardware(false)
+                    .placeholder(R.drawable.court1)
+                    .error(R.drawable.court1)
+                    .build()
+                AsyncImage(
+                    model = model,
+                    contentDescription = contentDescription,
+                    modifier = modifier,
+                    contentScale = ContentScale.Crop
+                )
             } else {
                 // String rỗng, hiển thị ảnh mặc định
                 Image(

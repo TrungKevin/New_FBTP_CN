@@ -23,6 +23,7 @@ data class FieldUiState(
     val success: String? = null,
     val uploadProgress: Map<Int, Float> = emptyMap(),
     val fields: List<Field> = emptyList(),
+    val allFields: List<Field> = emptyList(),
     val currentField: Field? = null,
     val pricingRules: List<PricingRule> = emptyList(),
     val fieldServices: List<FieldService> = emptyList(),
@@ -40,6 +41,7 @@ sealed class FieldEvent {
     data class UpdateField(val field: Field) : FieldEvent()
     data class DeleteField(val fieldId: String) : FieldEvent()
     data class LoadFieldsByOwner(val ownerId: String) : FieldEvent()
+    object LoadAllFields : FieldEvent()
     data class LoadFieldById(val fieldId: String) : FieldEvent()
     data class LoadPricingRules(val fieldId: String) : FieldEvent()
     data class LoadFieldServices(val fieldId: String) : FieldEvent()
@@ -76,6 +78,7 @@ class FieldViewModel(
             is FieldEvent.UpdateField -> updateField(event.field)
             is FieldEvent.DeleteField -> deleteField(event.fieldId)
             is FieldEvent.LoadFieldsByOwner -> loadFieldsByOwner(event.ownerId)
+            is FieldEvent.LoadAllFields -> loadAllFields()
             is FieldEvent.LoadFieldById -> loadFieldById(event.fieldId)
             is FieldEvent.LoadPricingRules -> loadPricingRules(event.fieldId)
             is FieldEvent.LoadFieldServices -> loadFieldServices(event.fieldId)
@@ -95,6 +98,24 @@ class FieldViewModel(
             )
             is FieldEvent.ClearError -> clearError()
             is FieldEvent.ClearSuccess -> clearSuccess()
+        }
+    }
+    private fun loadAllFields() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            try {
+                val result = repository.getAllFields()
+                result.fold(
+                    onSuccess = { fields ->
+                        _uiState.value = _uiState.value.copy(isLoading = false, allFields = fields)
+                    },
+                    onFailure = { e ->
+                        _uiState.value = _uiState.value.copy(isLoading = false, error = e.message)
+                    }
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoading = false, error = e.message)
+            }
         }
     }
     
