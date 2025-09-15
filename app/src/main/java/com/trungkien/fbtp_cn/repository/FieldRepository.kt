@@ -238,14 +238,19 @@ class FieldRepository {
      */
     suspend fun getFieldById(fieldId: String): Result<Field?> {
         return try {
+            println("🔄 DEBUG: FieldRepository.getFieldById($fieldId)")
             val doc = firestore.collection(FIELDS_COLLECTION)
                 .document(fieldId)
                 .get()
                 .await()
             
+            println("🔄 DEBUG: Document exists: ${doc.exists()}")
             val field = doc.toObject(Field::class.java)
+            println("🔄 DEBUG: Field loaded: ${field?.name}")
+            println("🔄 DEBUG: Field images: ${field?.images?.mainImage?.take(50)}...")
             Result.success(field)
         } catch (e: Exception) {
+            println("❌ DEBUG: Error loading field by ID: ${e.message}")
             Result.failure(e)
         }
     }

@@ -28,11 +28,41 @@ fun RenterFieldSearchScreen(
 
     val fieldViewModel: FieldViewModel = viewModel()
     val uiState = fieldViewModel.uiState.collectAsState().value
-    LaunchedEffect(Unit) { fieldViewModel.handleEvent(FieldEvent.LoadAllFields) }
+    LaunchedEffect(Unit) { 
+        fieldViewModel.handleEvent(FieldEvent.LoadAllFields)
+    }
 
     // State để lưu thông tin owner cho mỗi field
     var ownerInfoMap by remember { mutableStateOf<Map<String, User>>(emptyMap()) }
     val userRepository = UserRepository()
+    
+    // State để lưu pricing rules cho tất cả fields
+    var fieldPricingMap by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
+
+    // Load pricing rules for all fields - improved approach
+    LaunchedEffect(uiState.allFields) {
+        if (uiState.allFields.isNotEmpty()) {
+            println("🔄 DEBUG: Loading pricing rules for ${uiState.allFields.size} fields")
+            val newPricingMap = mutableMapOf<String, Long>()
+            
+            // Load pricing rules for each field
+            uiState.allFields.forEach { field ->
+                fieldViewModel.handleEvent(FieldEvent.LoadPricingRulesByFieldId(field.fieldId))
+                // Small delay to ensure pricing rules are loaded
+                kotlinx.coroutines.delay(50)
+                
+                // Get pricing rules from current uiState
+                val pricingRules = fieldViewModel.uiState.value.pricingRules
+                val fieldPrice = pricingRules.firstOrNull()?.price ?: 0L
+                newPricingMap[field.fieldId] = fieldPrice
+                
+                println("🔄 DEBUG: Field ${field.name} - price: $fieldPrice")
+            }
+            
+            fieldPricingMap = newPricingMap.toMap()
+            println("✅ DEBUG: Loaded pricing for ${fieldPricingMap.size} fields")
+        }
+    }
 
     // Load owner info for all fields - sử dụng getCurrentUserProfile thay vì getUserById
     LaunchedEffect(uiState.allFields) {
@@ -103,7 +133,7 @@ fun RenterFieldSearchScreen(
         }
     }
 
-    val results = remember(uiState.allFields, selectedType, searchQuery, uiState.pricingRules, ownerInfoMap) {
+    val results = remember(uiState.allFields, selectedType, searchQuery, uiState.pricingRules, ownerInfoMap, fieldPricingMap) {
         uiState.allFields
             .filter { f ->
                 val matchType = selectedType == null || f.sports.any { it.equals(selectedType, true) }
@@ -112,10 +142,14 @@ fun RenterFieldSearchScreen(
             }
             .map { f ->
                 val owner = ownerInfoMap[f.ownerId]
+                val fieldPrice = fieldPricingMap[f.fieldId] ?: 0L
+                val priceText = if (fieldPrice > 0) "${String.format("%,d", fieldPrice)} VND/giờ" else "Liên hệ"
                 
                 // Debug logs
                 println("🔄 DEBUG: Field ${f.name}")
                 println("🔄 DEBUG: - field.ownerId: ${f.ownerId}")
+                println("🔄 DEBUG: - fieldPrice: $fieldPrice")
+                println("🔄 DEBUG: - priceText: $priceText")
                 println("🔄 DEBUG: - mainImage: ${f.images.mainImage.take(50)}...")
                 println("🔄 DEBUG: - owner: ${owner?.name}")
                 println("🔄 DEBUG: - owner?.userId: ${owner?.userId}")
@@ -128,7 +162,7 @@ fun RenterFieldSearchScreen(
                     id = f.fieldId,
                     name = f.name,
                     type = f.sports.firstOrNull() ?: "",
-                    price = "",
+                    price = priceText,
                     location = f.address,
                     rating = f.averageRating,
                     distance = "", // TODO: tính theo geo nếu cần

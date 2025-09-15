@@ -288,6 +288,7 @@ class FieldViewModel(
     
     private fun loadFieldById(fieldId: String) {
         viewModelScope.launch {
+            println("🔄 DEBUG: FieldViewModel.loadFieldById($fieldId)")
             _uiState.value = _uiState.value.copy(
                 isLoading = true,
                 error = null
@@ -298,6 +299,8 @@ class FieldViewModel(
                 
                 result.fold(
                     onSuccess = { field ->
+                        println("🔄 DEBUG: FieldViewModel.loadFieldById success - field: ${field?.name}")
+                        println("🔄 DEBUG: FieldViewModel.loadFieldById success - field images: ${field?.images?.mainImage?.take(50)}...")
                         _uiState.value = _uiState.value.copy(
                             isLoading = false,
                             currentField = field
@@ -310,6 +313,7 @@ class FieldViewModel(
                         }
                     },
                     onFailure = { exception ->
+                        println("❌ DEBUG: FieldViewModel.loadFieldById failed: ${exception.message}")
                         _uiState.value = _uiState.value.copy(
                             isLoading = false,
                             error = "Không thể tải thông tin sân: ${exception.message}"
@@ -317,6 +321,7 @@ class FieldViewModel(
                     }
                 )
             } catch (e: Exception) {
+                println("❌ DEBUG: FieldViewModel.loadFieldById exception: ${e.message}")
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     error = "Lỗi không xác định: ${e.message}"

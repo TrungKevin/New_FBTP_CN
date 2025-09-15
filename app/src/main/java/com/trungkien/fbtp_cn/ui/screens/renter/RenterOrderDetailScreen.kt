@@ -31,6 +31,12 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalContext
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import android.util.Base64
+import android.graphics.BitmapFactory
+import androidx.compose.ui.graphics.asImageBitmap
 import com.trungkien.fbtp_cn.ui.components.renter.orderinfo.RenterFieldInfoSection
 import com.trungkien.fbtp_cn.ui.components.renter.orderinfo.RenterReviewsSection
 import com.trungkien.fbtp_cn.ui.components.renter.orderinfo.RenterReview
@@ -55,14 +61,57 @@ fun RenterOrderDetailScreen(
     val fieldViewModel: FieldViewModel = viewModel()
     val uiState = fieldViewModel.uiState.collectAsState().value
     LaunchedEffect(fieldId) { fieldViewModel.handleEvent(FieldEvent.LoadFieldById(fieldId)) }
-    val currentField: Field? = uiState.currentField
-    val detailImages: List<String> = listOf(
-        uiState.currentField?.images?.mainImage ?: "",
-        uiState.currentField?.images?.image1 ?: "",
-        uiState.currentField?.images?.image2 ?: "",
-        uiState.currentField?.images?.image3 ?: ""
-    ).filter { it.isNotBlank() }
-    val imagePager = rememberPagerState(pageCount = { maxOf(detailImages.size, 1) })
+    // Tìm field từ allFields nếu currentField chưa load được
+    val currentField: Field? = uiState.currentField ?: uiState.allFields.find { it.fieldId == fieldId }
+    // Lấy hình ảnh thực tế từ dữ liệu sân - tối đa 4 ảnh (tương tự OwnerFieldDetailScreen)
+    val fieldImages = remember(currentField?.images, currentField?.fieldId, fieldId) {
+        println("🔄 DEBUG: RenterOrderDetailScreen - Building fieldImages")
+        println("🔄 DEBUG: - fieldId: $fieldId")
+        println("🔄 DEBUG: - currentField: ${currentField?.name}")
+        println("🔄 DEBUG: - mainImage: ${currentField?.images?.mainImage?.take(50)}...")
+        println("🔄 DEBUG: - image1: ${currentField?.images?.image1?.take(50)}...")
+        println("🔄 DEBUG: - image2: ${currentField?.images?.image2?.take(50)}...")
+        println("🔄 DEBUG: - image3: ${currentField?.images?.image3?.take(50)}...")
+        
+        if (currentField != null) {
+            buildList<Any> {
+                // Thêm mainImage nếu có (ưu tiên cao nhất)
+                if (currentField.images.mainImage.isNotEmpty()) {
+                    add(currentField.images.mainImage)
+                    println("🔄 DEBUG: - Added mainImage")
+                }
+                // Thêm các ảnh chi tiết nếu có
+                if (currentField.images.image1.isNotEmpty()) {
+                    add(currentField.images.image1)
+                    println("🔄 DEBUG: - Added image1")
+                }
+                if (currentField.images.image2.isNotEmpty()) {
+                    add(currentField.images.image2)
+                    println("🔄 DEBUG: - Added image2")
+                }
+                if (currentField.images.image3.isNotEmpty()) {
+                    add(currentField.images.image3)
+                    println("🔄 DEBUG: - Added image3")
+                }
+                
+                // Đảm bảo luôn có ít nhất 4 ảnh để hiển thị
+                while (size < 4) {
+                    when (size) {
+                        0 -> add(R.drawable.court1)
+                        1 -> add(R.drawable.court2)
+                        2 -> add(R.drawable.court4)
+                        3 -> add(R.drawable.court5)
+                    }
+                }
+                println("🔄 DEBUG: - Final fieldImages size: $size")
+            }
+        } else {
+            // Nếu chưa có dữ liệu từ Firebase, sử dụng ảnh mặc định
+            println("🔄 DEBUG: - Using default images (no field data)")
+            listOf<Any>(R.drawable.court1, R.drawable.court2, R.drawable.court4, R.drawable.court5)
+        }
+    }
+    val imagePager = rememberPagerState(pageCount = { fieldImages.size })
 
     // Tabs
     val tabs = listOf("Thông tin", "Dịch vụ", "Đánh giá")
@@ -114,23 +163,11 @@ fun RenterOrderDetailScreen(
                     .height(260.dp)
             ) {
                 HorizontalPager(state = imagePager, modifier = Modifier.fillMaxSize()) { page ->
-                    val img = detailImages.getOrNull(page)
-                    if (!img.isNullOrBlank()) {
-                        val model = if (img.startsWith("http", true) || img.startsWith("data:image", true)) img else "data:image/jpeg;base64,$img"
-                        coil.compose.AsyncImage(
-                            model = model,
-                            contentDescription = "Field Image",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Image(
-                            painter = painterResource(id = R.drawable.court1),
-                            contentDescription = "Field Image",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    }
+                    FieldImage(
+                        imageSource = fieldImages[page],
+                        contentDescription = "Field Image ${page + 1}",
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
                 Box(
                     modifier = Modifier
@@ -151,7 +188,7 @@ fun RenterOrderDetailScreen(
                         .padding(bottom = 80.dp),
                     horizontalArrangement = Arrangement.Center
                 ) {
-                    repeat(maxOf(detailImages.size, 1)) { index ->
+                    repeat(fieldImages.size) { index ->
                         Box(
                             modifier = Modifier
                                 .padding(horizontal = 4.dp)
@@ -214,7 +251,7 @@ fun RenterOrderDetailScreen(
                             RenterFieldInfoSection(
                                 name = f?.name ?: "",
                                 type = f?.sports?.firstOrNull() ?: "",
-                                price = (uiState.pricingRules.firstOrNull()?.price ?: 0).toInt(),
+                                price = (uiState.pricingRules.firstOrNull()?.price ?: 0L).toInt(),
                                 address = f?.address ?: "",
                                 operatingHours = "${f?.openHours?.start ?: ""} - ${f?.openHours?.end ?: ""}",
                                 contactPhone = f?.contactPhone ?: "",
@@ -247,6 +284,65 @@ fun RenterOrderDetailScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun FieldImage(
+    imageSource: Any,
+    contentDescription: String?,
+    modifier: Modifier = Modifier
+) {
+    when (imageSource) {
+        is String -> {
+            if (imageSource.isNotEmpty()) {
+                val context = LocalContext.current
+                val dataString = when {
+                    imageSource.startsWith("http", ignoreCase = true) -> imageSource
+                    imageSource.startsWith("data:image", ignoreCase = true) -> imageSource
+                    else -> "data:image/jpeg;base64,$imageSource"
+                }
+                val model = ImageRequest.Builder(context)
+                    .data(dataString)
+                    .crossfade(true)
+                    .allowHardware(false)
+                    .placeholder(R.drawable.court1)
+                    .error(R.drawable.court1)
+                    .build()
+                AsyncImage(
+                    model = model,
+                    contentDescription = contentDescription,
+                    modifier = modifier,
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                // String rỗng, hiển thị ảnh mặc định
+                Image(
+                    painter = painterResource(id = R.drawable.court1),
+                    contentDescription = contentDescription,
+                    modifier = modifier,
+                    contentScale = ContentScale.Crop
+                )
+            }
+        }
+        is Int -> {
+            // Nếu là resource ID (ảnh mặc định)
+            Image(
+                painter = painterResource(id = imageSource),
+                contentDescription = contentDescription,
+                modifier = modifier,
+                contentScale = ContentScale.Crop
+            )
+        }
+        else -> {
+            // Fallback
+            Image(
+                painter = painterResource(id = R.drawable.court1),
+                contentDescription = contentDescription,
+                modifier = modifier,
+                contentScale = ContentScale.Crop
+            )
         }
     }
 }

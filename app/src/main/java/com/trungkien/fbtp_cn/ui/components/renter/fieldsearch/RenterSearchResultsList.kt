@@ -190,7 +190,18 @@ fun RenterSearchResultsListPreview() {
                     location = "Quận 1, TP.HCM",
                     rating = 4.8f,
                     distance = "2.5km",
-                    isAvailable = true
+                    isAvailable = true,
+                    imageUrl = null,
+                    ownerName = "Chủ sân ABC",
+                    ownerAvatarUrl = null,
+                    ownerPhone = "0123456789",
+                    fieldImages = null,
+                    address = "123 ABC Street, Quận 1, TP.HCM",
+                    openHours = "06:00 - 22:00",
+                    amenities = listOf("PARKING", "SHOWER"),
+                    totalReviews = 128,
+                    contactPhone = "0123456789",
+                    description = "Sân Tennis chất lượng cao"
                 ),
                 SearchResultField(
                     id = "field2",
@@ -200,7 +211,18 @@ fun RenterSearchResultsListPreview() {
                     location = "Quận 2, TP.HCM",
                     rating = 4.6f,
                     distance = "3.2km",
-                    isAvailable = true
+                    isAvailable = true,
+                    imageUrl = null,
+                    ownerName = "Chủ sân XYZ",
+                    ownerAvatarUrl = null,
+                    ownerPhone = "0987654321",
+                    fieldImages = null,
+                    address = "456 XYZ Street, Quận 2, TP.HCM",
+                    openHours = "07:00 - 21:00",
+                    amenities = listOf("EQUIPMENT", "LIGHTING"),
+                    totalReviews = 95,
+                    contactPhone = "0987654321",
+                    description = "Sân Cầu lông hiện đại"
                 )
             )
         )

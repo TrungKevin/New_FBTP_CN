@@ -11,6 +11,7 @@ import com.trungkien.fbtp_cn.ui.components.renter.RenterNavScreen
 import com.trungkien.fbtp_cn.ui.components.renter.RenterBottomNavBar
 import com.trungkien.fbtp_cn.ui.components.renter.RenterTopAppBar
 import com.trungkien.fbtp_cn.viewmodel.AuthViewModel
+import com.trungkien.fbtp_cn.viewmodel.FieldViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trungkien.fbtp_cn.ui.screens.ModernEditProfileScreen
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
@@ -26,6 +27,16 @@ fun RenterMainScreen(
     // If not null, we're viewing order detail inside Search tab
     var activeOrderDetailFieldId by remember { mutableStateOf<String?>(null) }
     var isEditingProfile by remember { mutableStateOf(false) }
+    
+    // FieldViewModel để load pricing rules
+    val fieldViewModel: FieldViewModel = viewModel()
+    
+    // Load pricing rules when we have a fieldId
+    LaunchedEffect(activeOrderDetailFieldId) {
+        activeOrderDetailFieldId?.let { fieldId ->
+            fieldViewModel.handleEvent(com.trungkien.fbtp_cn.viewmodel.FieldEvent.LoadPricingRulesByFieldId(fieldId))
+        }
+    }
     
     Scaffold(
         modifier = modifier,
@@ -90,9 +101,12 @@ fun RenterMainScreen(
                                 onBookNow = { goCheckout = true }
                             )
                         } else {
+                            // Get actual price from pricing rules
+                            val uiState by fieldViewModel.uiState.collectAsState()
+                            val fieldPrice = uiState.pricingRules.firstOrNull()?.price?.toInt() ?: 150000
                             RenterBookingCheckoutScreen(
                                 fieldId = activeOrderDetailFieldId!!,
-                                basePricePerHour = 150000,
+                                basePricePerHour = fieldPrice,
                                 onBackClick = { goCheckout = false },
                                 onConfirmBooking = { /* TODO: finalize booking */ }
                             )
