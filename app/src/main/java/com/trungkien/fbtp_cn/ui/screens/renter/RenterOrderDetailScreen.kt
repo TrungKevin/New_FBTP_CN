@@ -48,6 +48,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trungkien.fbtp_cn.viewmodel.FieldViewModel
 import com.trungkien.fbtp_cn.viewmodel.FieldEvent
 import com.trungkien.fbtp_cn.model.Field
+import com.trungkien.fbtp_cn.model.GeoLocation
+import com.trungkien.fbtp_cn.model.FieldImages
+import com.trungkien.fbtp_cn.model.OpenHours
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -60,57 +63,70 @@ fun RenterOrderDetailScreen(
     var selectedServices by remember { mutableStateOf(setOf<String>()) }
     val fieldViewModel: FieldViewModel = viewModel()
     val uiState = fieldViewModel.uiState.collectAsState().value
-    LaunchedEffect(fieldId) { fieldViewModel.handleEvent(FieldEvent.LoadFieldById(fieldId)) }
-    // Tìm field từ allFields nếu currentField chưa load được
-    val currentField: Field? = uiState.currentField ?: uiState.allFields.find { it.fieldId == fieldId }
-    // Lấy hình ảnh thực tế từ dữ liệu sân - tối đa 4 ảnh (tương tự OwnerFieldDetailScreen)
-    val fieldImages = remember(currentField?.images, currentField?.fieldId, fieldId) {
-        println("🔄 DEBUG: RenterOrderDetailScreen - Building fieldImages")
-        println("🔄 DEBUG: - fieldId: $fieldId")
-        println("🔄 DEBUG: - currentField: ${currentField?.name}")
-        println("🔄 DEBUG: - mainImage: ${currentField?.images?.mainImage?.take(50)}...")
-        println("🔄 DEBUG: - image1: ${currentField?.images?.image1?.take(50)}...")
-        println("🔄 DEBUG: - image2: ${currentField?.images?.image2?.take(50)}...")
-        println("🔄 DEBUG: - image3: ${currentField?.images?.image3?.take(50)}...")
-        
-        if (currentField != null) {
+    // Load field data từ Firebase khi có fieldId
+    LaunchedEffect(fieldId) {
+        if (fieldId.isNotEmpty()) {
+            println("🔄 DEBUG: RenterOrderDetailScreen - Loading field data for fieldId: $fieldId")
+            fieldViewModel.handleEvent(FieldEvent.LoadFieldById(fieldId))
+            // Load pricing rules cho field này
+            fieldViewModel.handleEvent(FieldEvent.LoadPricingRulesByFieldId(fieldId))
+        }
+    }
+    // Lấy field data từ ViewModel (giống hệt OwnerFieldDetailScreen)
+    val currentField = uiState.currentField ?: Field(
+        fieldId = fieldId,
+        ownerId = "",
+        name = "Đang tải...",
+        address = "",
+        geo = GeoLocation(),
+        sports = emptyList(),
+        images = FieldImages(),
+        slotMinutes = 30,
+        openHours = OpenHours(),
+        amenities = emptyList(),
+        description = "",
+        contactPhone = "",
+        averageRating = 0f,
+        totalReviews = 0
+    )
+
+    // Lấy hình ảnh thực tế từ dữ liệu sân - tối đa 4 ảnh (giống hệt OwnerFieldDetailScreen)
+    val fieldImages = remember(uiState.currentField?.images, uiState.currentField?.fieldId) {
+        val field = uiState.currentField
+        if (field != null) {
             buildList<Any> {
-                // Thêm mainImage nếu có (ưu tiên cao nhất)
-                if (currentField.images.mainImage.isNotEmpty()) {
-                    add(currentField.images.mainImage)
-                    println("🔄 DEBUG: - Added mainImage")
-                }
-                // Thêm các ảnh chi tiết nếu có
-                if (currentField.images.image1.isNotEmpty()) {
-                    add(currentField.images.image1)
-                    println("🔄 DEBUG: - Added image1")
-                }
-                if (currentField.images.image2.isNotEmpty()) {
-                    add(currentField.images.image2)
-                    println("🔄 DEBUG: - Added image2")
-                }
-                if (currentField.images.image3.isNotEmpty()) {
-                    add(currentField.images.image3)
-                    println("🔄 DEBUG: - Added image3")
-                }
-                
-                // Đảm bảo luôn có ít nhất 4 ảnh để hiển thị
-                while (size < 4) {
-                    when (size) {
-                        0 -> add(R.drawable.court1)
-                        1 -> add(R.drawable.court2)
-                        2 -> add(R.drawable.court4)
-                        3 -> add(R.drawable.court5)
+                // Thêm ảnh thực từ dữ liệu
+                if (field.images.mainImage.isNotEmpty()) add(field.images.mainImage)
+                if (field.images.image1.isNotEmpty()) add(field.images.image1)
+                if (field.images.image2.isNotEmpty()) add(field.images.image2)
+                if (field.images.image3.isNotEmpty()) add(field.images.image3)
+
+                // Nếu đã có ảnh thực nhưng < 4, lặp lại ảnh có sẵn để đủ 4
+                if (isNotEmpty()) {
+                    var index = 0
+                    while (size < 4) {
+                        add(this[index % this.size])
+                        index++
                     }
+                } else {
+                    // Không có ảnh trong dữ liệu, dùng ảnh mặc định
+                    add(R.drawable.court1)
+                    add(R.drawable.court2)
+                    add(R.drawable.court4)
+                    add(R.drawable.court5)
                 }
-                println("🔄 DEBUG: - Final fieldImages size: $size")
             }
         } else {
             // Nếu chưa có dữ liệu từ Firebase, sử dụng ảnh mặc định
-            println("🔄 DEBUG: - Using default images (no field data)")
             listOf<Any>(R.drawable.court1, R.drawable.court2, R.drawable.court4, R.drawable.court5)
         }
     }
+    
+    // Cập nhật fieldImages khi dữ liệu thay đổi
+    LaunchedEffect(uiState.currentField, uiState.isLoading, uiState.error) {
+        // FieldImages sẽ tự động cập nhật khi currentField thay đổi
+    }
+    
     val imagePager = rememberPagerState(pageCount = { fieldImages.size })
 
     // Tabs
@@ -123,7 +139,9 @@ fun RenterOrderDetailScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        "Chi tiết sân",
+                        text = currentField.name,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
                     )
@@ -136,16 +154,45 @@ fun RenterOrderDetailScreen(
             )
         },
         bottomBar = {
-            Surface(shadowElevation = 8.dp) {
+            // Bottom bar với nút Đặt lịch
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(80.dp),
+                shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            ) {
                 Row(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .fillMaxSize()
+                        .padding(horizontal = 20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(text = "Tổng tạm tính", style = MaterialTheme.typography.titleMedium)
-                    Button(onClick = onBookNow) { Text("Đặt lịch ngay") }
+                    Column {
+                        Text(
+                            text = "Giá từ",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "${String.format("%,d", uiState.pricingRules.firstOrNull()?.price ?: 0L)} VND/giờ",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Button(
+                        onClick = { onBookNow() },
+                        modifier = Modifier
+                            .height(50.dp)
+                            .width(150.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Text(text = "ĐẶT LỊCH", style = MaterialTheme.typography.titleMedium)
+                    }
                 }
             }
         }
@@ -208,7 +255,7 @@ fun RenterOrderDetailScreen(
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = MaterialTheme.colorScheme.primary,
                 indicator = { positions ->
-                    TabRowDefaults.Indicator(
+                    TabRowDefaults.SecondaryIndicator(
                         modifier = Modifier
                             .tabIndicatorOffset(positions[tabPagerState.currentPage])
                             .height(3.dp),
@@ -233,32 +280,36 @@ fun RenterOrderDetailScreen(
                 }
             }
 
-            // Content per tab (make each page scrollable)
+            // Tab Content
             HorizontalPager(
                 state = tabPagerState,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 400.dp)
+                    .weight(1f)
             ) { page ->
                 when (page) {
                     0 -> {
-                        val f = currentField
                         Column(
                             modifier = Modifier
-                                .padding(16.dp)
+                                .fillMaxSize()
                                 .verticalScroll(rememberScrollState())
                         ) {
                             RenterFieldInfoSection(
-                                name = f?.name ?: "",
-                                type = f?.sports?.firstOrNull() ?: "",
+                                name = currentField.name,
+                                type = currentField.sports.firstOrNull() ?: "",
                                 price = (uiState.pricingRules.firstOrNull()?.price ?: 0L).toInt(),
-                                address = f?.address ?: "",
-                                operatingHours = "${f?.openHours?.start ?: ""} - ${f?.openHours?.end ?: ""}",
-                                contactPhone = f?.contactPhone ?: "",
+                                address = currentField.address,
+                                operatingHours = "${currentField.openHours.start} - ${currentField.openHours.end}",
+                                contactPhone = currentField.contactPhone,
                                 distance = "",
-                                rating = f?.averageRating ?: 0f,
-                                amenities = f?.amenities ?: emptyList(),
-                                description = f?.description ?: ""
+                                rating = currentField.averageRating,
+                                amenities = currentField.amenities,
+                                description = currentField.description,
+                                totalReviews = currentField.totalReviews,
+                                slotMinutes = currentField.slotMinutes,
+                                latitude = currentField.geo.lat,
+                                longitude = currentField.geo.lng,
+                                isActive = currentField.isActive
                             )
                         }
                     }
@@ -298,24 +349,53 @@ private fun FieldImage(
         is String -> {
             if (imageSource.isNotEmpty()) {
                 val context = LocalContext.current
-                val dataString = when {
-                    imageSource.startsWith("http", ignoreCase = true) -> imageSource
-                    imageSource.startsWith("data:image", ignoreCase = true) -> imageSource
-                    else -> "data:image/jpeg;base64,$imageSource"
+                // Ưu tiên decode Base64 giống OwnerFieldDetailScreen
+                val base64Data = remember(imageSource) {
+                    if (imageSource.startsWith("data:image", ignoreCase = true)) {
+                        imageSource.substringAfter(",")
+                    } else if (imageSource.startsWith("http", ignoreCase = true)) {
+                        null
+                    } else {
+                        imageSource
+                    }
                 }
-                val model = ImageRequest.Builder(context)
-                    .data(dataString)
-                    .crossfade(true)
-                    .allowHardware(false)
-                    .placeholder(R.drawable.court1)
-                    .error(R.drawable.court1)
-                    .build()
-                AsyncImage(
-                    model = model,
-                    contentDescription = contentDescription,
-                    modifier = modifier,
-                    contentScale = ContentScale.Crop
-                )
+                val decodedBitmap = remember(base64Data) {
+                    try {
+                        if (base64Data != null && base64Data.isNotEmpty()) {
+                            val bytes = Base64.decode(base64Data, Base64.DEFAULT)
+                            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        } else {
+                            null
+                        }
+                    } catch (_: Exception) { null }
+                }
+                if (decodedBitmap != null) {
+                    Image(
+                        bitmap = decodedBitmap.asImageBitmap(),
+                        contentDescription = contentDescription,
+                        modifier = modifier,
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    val dataString = when {
+                        imageSource.startsWith("http", ignoreCase = true) -> imageSource
+                        imageSource.startsWith("data:image", ignoreCase = true) -> imageSource
+                        else -> "data:image/jpeg;base64,$imageSource"
+                    }
+                    val model = ImageRequest.Builder(context)
+                        .data(dataString)
+                        .crossfade(true)
+                        .allowHardware(false)
+                        .placeholder(R.drawable.court1)
+                        .error(R.drawable.court1)
+                        .build()
+                    AsyncImage(
+                        model = model,
+                        contentDescription = contentDescription,
+                        modifier = modifier,
+                        contentScale = ContentScale.Crop
+                    )
+                }
             } else {
                 // String rỗng, hiển thị ảnh mặc định
                 Image(
