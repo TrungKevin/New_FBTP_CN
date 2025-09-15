@@ -112,38 +112,30 @@ fun OwnerFieldDetailScreen(
         totalReviews = 0
     )
 
-    // Lấy hình ảnh thực tế từ dữ liệu sân - tối đa 4 ảnh
+    // Lấy hình ảnh thực tế từ dữ liệu sân - tối đa 4 ảnh (ưu tiên ảnh Firebase, lặp lại nếu ít hơn 4)
     val fieldImages = remember(uiState.currentField?.images, uiState.currentField?.fieldId) {
         val currentField = uiState.currentField
         if (currentField != null) {
             buildList<Any> {
-                // Thêm mainImage nếu có (ưu tiên cao nhất)
-                if (currentField.images.mainImage.isNotEmpty()) {
-                    add(currentField.images.mainImage)
-                }
-                // Thêm các ảnh chi tiết nếu có
-                if (currentField.images.image1.isNotEmpty()) {
-                    add(currentField.images.image1)
-                }
-                if (currentField.images.image2.isNotEmpty()) {
-                    add(currentField.images.image2)
-                }
-                if (currentField.images.image3.isNotEmpty()) {
-                    add(currentField.images.image3)
-                }
-                
-                // Đảm bảo luôn có ít nhất 4 ảnh để hiển thị
-                while (size < 4) {
-                    when (size) {
-                        0 -> add(R.drawable.court1)
-                        1 -> add(R.drawable.court2)
-                        2 -> add(R.drawable.court4)
-                        3 -> add(R.drawable.court5)
+                if (currentField.images.mainImage.isNotEmpty()) add(currentField.images.mainImage)
+                if (currentField.images.image1.isNotEmpty()) add(currentField.images.image1)
+                if (currentField.images.image2.isNotEmpty()) add(currentField.images.image2)
+                if (currentField.images.image3.isNotEmpty()) add(currentField.images.image3)
+
+                if (isNotEmpty()) {
+                    var index = 0
+                    while (size < 4) {
+                        add(this[index % this.size])
+                        index++
                     }
+                } else {
+                    add(R.drawable.court1)
+                    add(R.drawable.court2)
+                    add(R.drawable.court4)
+                    add(R.drawable.court5)
                 }
             }
         } else {
-            // Nếu chưa có dữ liệu từ Firebase, sử dụng ảnh mặc định
             listOf<Any>(R.drawable.court1, R.drawable.court2, R.drawable.court4, R.drawable.court5)
         }
     }
@@ -520,24 +512,54 @@ fun FieldImage(
         is String -> {
             if (imageSource.isNotEmpty()) {
                 val context = LocalContext.current
-                val dataString = when {
-                    imageSource.startsWith("http", ignoreCase = true) -> imageSource
-                    imageSource.startsWith("data:image", ignoreCase = true) -> imageSource
-                    else -> "data:image/jpeg;base64,$imageSource"
+                // Ưu tiên decode Base64 thủ công giống FieldCard để đảm bảo hiển thị
+                val base64Data = remember(imageSource) {
+                    if (imageSource.startsWith("data:image", ignoreCase = true)) {
+                        imageSource.substringAfter(",")
+                    } else if (imageSource.startsWith("http", ignoreCase = true)) {
+                        null // Không decode khi là URL
+                    } else {
+                        imageSource
+                    }
                 }
-                val model = ImageRequest.Builder(context)
-                    .data(dataString)
-                    .crossfade(true)
-                    .allowHardware(false)
-                    .placeholder(R.drawable.court1)
-                    .error(R.drawable.court1)
-                    .build()
-                AsyncImage(
-                    model = model,
-                    contentDescription = contentDescription,
-                    modifier = modifier,
-                    contentScale = ContentScale.Crop
-                )
+                val decodedBitmap = remember(base64Data) {
+                    try {
+                        if (base64Data != null && base64Data.isNotEmpty()) {
+                            val bytes = Base64.decode(base64Data, Base64.DEFAULT)
+                            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        } else {
+                            null
+                        }
+                    } catch (_: Exception) { null }
+                }
+                if (decodedBitmap != null) {
+                    Image(
+                        bitmap = decodedBitmap.asImageBitmap(),
+                        contentDescription = contentDescription,
+                        modifier = modifier,
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    // Fallback dùng Coil cho URL hoặc khi decode thất bại
+                    val dataString = when {
+                        imageSource.startsWith("http", ignoreCase = true) -> imageSource
+                        imageSource.startsWith("data:image", ignoreCase = true) -> imageSource
+                        else -> "data:image/jpeg;base64,$imageSource"
+                    }
+                    val model = ImageRequest.Builder(context)
+                        .data(dataString)
+                        .crossfade(true)
+                        .allowHardware(false)
+                        .placeholder(R.drawable.court1)
+                        .error(R.drawable.court1)
+                        .build()
+                    AsyncImage(
+                        model = model,
+                        contentDescription = contentDescription,
+                        modifier = modifier,
+                        contentScale = ContentScale.Crop
+                    )
+                }
             } else {
                 // String rỗng, hiển thị ảnh mặc định
                 Image(
