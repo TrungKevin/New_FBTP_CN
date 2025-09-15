@@ -38,8 +38,7 @@ import android.util.Base64
 import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.asImageBitmap
 import com.trungkien.fbtp_cn.ui.components.renter.orderinfo.RenterFieldInfoSection
-import com.trungkien.fbtp_cn.ui.components.renter.orderinfo.RenterReviewsSection
-import com.trungkien.fbtp_cn.ui.components.renter.orderinfo.RenterReview
+import com.trungkien.fbtp_cn.ui.components.renter.reviews.RenterReviewsSection
 import com.trungkien.fbtp_cn.ui.components.renter.orderinfo.RenterServiceItem
 import com.trungkien.fbtp_cn.ui.components.renter.orderinfo.RenterServicesSection
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
@@ -154,44 +153,46 @@ fun RenterOrderDetailScreen(
             )
         },
         bottomBar = {
-            // Bottom bar với nút Đặt lịch
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(80.dp),
-                shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-            ) {
-                Row(
+            // Ẩn bottom bar khi đang ở tab "Đánh giá" để có không gian rộng hơn
+            if (tabPagerState.currentPage != 2) {
+                Card(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 20.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .fillMaxWidth()
+                        .height(80.dp),
+                    shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
                 ) {
-                    Column {
-                        Text(
-                            text = "Giá từ",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "${String.format("%,d", uiState.pricingRules.firstOrNull()?.price ?: 0L)} VND/giờ",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    Button(
-                        onClick = { onBookNow() },
+                    Row(
                         modifier = Modifier
-                            .height(50.dp)
-                            .width(150.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                            .fillMaxSize()
+                            .padding(horizontal = 20.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(text = "ĐẶT LỊCH", style = MaterialTheme.typography.titleMedium)
+                        Column {
+                            Text(
+                                text = "Giá từ",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "${String.format("%,d", uiState.pricingRules.firstOrNull()?.price ?: 0L)} VND/giờ",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Button(
+                            onClick = { onBookNow() },
+                            modifier = Modifier
+                                .height(50.dp)
+                                .width(150.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Text(text = "ĐẶT LỊCH", style = MaterialTheme.typography.titleMedium)
+                        }
                     }
                 }
             }
@@ -325,12 +326,7 @@ fun RenterOrderDetailScreen(
                     }
                     2 -> {
                         Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
-                            RenterReviewsSection(
-                                reviews = listOf(
-                                    RenterReview("Nguyễn A", 5, "Sân rất tốt!"),
-                                    RenterReview("Trần B", 4, "Ổn áp")
-                                )
-                            )
+                            RenterReviewsSection(fieldId = currentField.fieldId)
                         }
                     }
                 }

@@ -111,9 +111,22 @@ fun EvaluateCourt(
                                     )
                                 }
                             },
-                            onReply = {
-                                // TODO: Show reply dialog
-                                println("✅ DEBUG: User muốn reply review: ${review.reviewId}")
+                            onReply = { text ->
+                                currentUser?.let { user ->
+                                    viewModel.handleEvent(
+                                        EvaluateCourtEvent.AddReply(
+                                            reviewId = review.reviewId,
+                                            reply = com.trungkien.fbtp_cn.model.Reply(
+                                                userId = user.userId,
+                                                userName = user.name,
+                                                userAvatar = user.avatarUrl,
+                                                userRole = if (isOwner) com.trungkien.fbtp_cn.model.UserRole.OWNER.name else com.trungkien.fbtp_cn.model.UserRole.RENTER.name,
+                                                comment = text,
+                                                isOwner = isOwner
+                                            )
+                                        )
+                                    )
+                                }
                             },
                             onReport = {
                                 // TODO: Show report dialog

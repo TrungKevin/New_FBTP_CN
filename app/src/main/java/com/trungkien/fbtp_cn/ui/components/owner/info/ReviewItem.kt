@@ -1,6 +1,8 @@
 package com.trungkien.fbtp_cn.ui.components.owner.info
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -8,15 +10,26 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.trungkien.fbtp_cn.R
 import com.trungkien.fbtp_cn.model.Reply
 import com.trungkien.fbtp_cn.model.Review
 import com.trungkien.fbtp_cn.model.User
+import com.trungkien.fbtp_cn.repository.UserRepository
 import java.text.SimpleDateFormat
 import java.util.*
+import android.util.Base64
+import android.graphics.BitmapFactory
+import androidx.compose.ui.graphics.asImageBitmap
 
 /**
  * COMPONENT HIỂN THỊ TỪNG REVIEW RIÊNG BIỆT
@@ -34,7 +47,7 @@ fun ReviewItem(
     currentUser: User?,
     isOwner: Boolean,
     onLike: () -> Unit,
-    onReply: () -> Unit,
+    onReply: (String) -> Unit,
     onReport: () -> Unit,
     onDelete: () -> Unit,
     onDeleteReply: (String) -> Unit,
@@ -42,6 +55,8 @@ fun ReviewItem(
 ) {
     var showReplies by remember { mutableStateOf(false) }
     var showMoreOptions by remember { mutableStateOf(false) }
+    var showReplyBox by remember { mutableStateOf(false) }
+    var replyText by remember { mutableStateOf("") }
     
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -73,53 +88,51 @@ fun ReviewItem(
             Spacer(modifier = Modifier.height(16.dp))
             
             // Actions - Like, Reply, Report
+            // Replies section
+            if (review.replies.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                ReplyList(
+                    replies = review.replies,
+                    currentUser = currentUser,
+                    isOwner = isOwner,
+                    onDeleteReply = onDeleteReply
+                )
+            }
+
+            if (showReplyBox) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = replyText,
+                        onValueChange = { replyText = it },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Viết phản hồi...") }
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            val text = replyText.trim()
+                            if (text.isNotEmpty()) {
+                                onReply(text)
+                                replyText = ""
+                                showReplyBox = false
+                            }
+                        }
+                    ) { Text("Gửi") }
+                }
+            }
+
             ReviewActions(
                 review = review,
                 currentUser = currentUser,
                 onLike = onLike,
-                onReply = onReply,
+                onReply = {
+                    showReplyBox = !showReplyBox
+                },
                 onReport = onReport
             )
-            
-            // Replies section
-            if (review.replies.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                // Toggle replies
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "${review.replies.size} phản hồi",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    
-                    Spacer(modifier = Modifier.width(8.dp))
-                    
-                    IconButton(
-                        onClick = { showReplies = !showReplies }
-                    ) {
-                        Icon(
-                            imageVector = if (showReplies) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                            contentDescription = if (showReplies) "Ẩn phản hồi" else "Hiện phản hồi"
-                        )
-                    }
-                }
-                
-                // Hiển thị replies
-                if (showReplies) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    ReplyList(
-                        replies = review.replies,
-                        currentUser = currentUser,
-                        isOwner = isOwner,
-                        onDeleteReply = onDeleteReply
-                    )
-                }
-            }
         }
     }
     
@@ -157,30 +170,51 @@ private fun ReviewHeader(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Avatar
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = MaterialTheme.colorScheme.primaryContainer
-        ) {
-            Box(
-                modifier = Modifier.size(40.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                if (review.renterAvatar.isNotEmpty()) {
-                    // TODO: Load image từ URL
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = "Avatar",
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = "Avatar",
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
+        // Avatar thực: ưu tiên renterAvatar, nếu trống thì lấy từ UserRepository theo renterId
+        val context = LocalContext.current
+        val userRepository = remember { UserRepository() }
+        val avatarData by produceState(initialValue = review.renterAvatar, key1 = review.renterId, key2 = review.renterAvatar) {
+            var v = review.renterAvatar
+            if (v.isBlank() && review.renterId.isNotBlank()) {
+                userRepository.getUserById(
+                    review.renterId,
+                    onSuccess = { user -> value = user.avatarUrl ?: "" },
+                    onError = { _ -> }
+                )
+            } else {
+                value = v
             }
+        }
+        if (avatarData.isNotBlank()) {
+            val decoded = try {
+                val base = if (avatarData.startsWith("data:image")) avatarData.substringAfter(",") else avatarData
+                val bytes = Base64.decode(base, Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            } catch (_: Exception) { null }
+            if (decoded != null) {
+                Image(
+                    bitmap = decoded.asImageBitmap(),
+                    contentDescription = null,
+                    modifier = Modifier.size(40.dp).clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                AsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data(if (avatarData.startsWith("http") || avatarData.startsWith("data:image")) avatarData else "data:image/jpeg;base64,$avatarData")
+                        .allowHardware(false)
+                        .build(),
+                    contentDescription = null,
+                    modifier = Modifier.size(40.dp).clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            }
+        } else {
+            Image(
+                painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                contentDescription = null,
+                modifier = Modifier.size(40.dp).clip(CircleShape)
+            )
         }
         
         Spacer(modifier = Modifier.width(12.dp))
@@ -433,24 +467,51 @@ private fun ReplyItem(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Avatar nhỏ
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = if (reply.isOwner) MaterialTheme.colorScheme.primaryContainer 
-                           else MaterialTheme.colorScheme.secondaryContainer
-                ) {
-                    Box(
-                        modifier = Modifier.size(32.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Avatar",
-                            tint = if (reply.isOwner) MaterialTheme.colorScheme.onPrimaryContainer 
-                                   else MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.size(20.dp)
+                // Avatar nhỏ thực
+                val context = LocalContext.current
+                val userRepository = remember { UserRepository() }
+                val repAvatar by produceState(initialValue = reply.userAvatar, key1 = reply.userId, key2 = reply.userAvatar) {
+                    var v = reply.userAvatar
+                    if (v.isBlank() && reply.userId.isNotBlank()) {
+                        userRepository.getUserById(
+                            reply.userId,
+                            onSuccess = { user -> value = user.avatarUrl ?: "" },
+                            onError = { _ -> }
+                        )
+                    } else {
+                        value = v
+                    }
+                }
+                if (repAvatar.isNotBlank()) {
+                    val bm = try {
+                        val base = if (repAvatar.startsWith("data:image")) repAvatar.substringAfter(",") else repAvatar
+                        val bytes = Base64.decode(base, Base64.DEFAULT)
+                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    } catch (_: Exception) { null }
+                    if (bm != null) {
+                        Image(
+                            bitmap = bm.asImageBitmap(),
+                            contentDescription = null,
+                            modifier = Modifier.size(32.dp).clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(if (repAvatar.startsWith("http") || repAvatar.startsWith("data:image")) repAvatar else "data:image/jpeg;base64,$repAvatar")
+                                .allowHardware(false)
+                                .build(),
+                            contentDescription = null,
+                            modifier = Modifier.size(32.dp).clip(CircleShape),
+                            contentScale = ContentScale.Crop
                         )
                     }
+                } else {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                        contentDescription = null,
+                        modifier = Modifier.size(32.dp).clip(CircleShape)
+                    )
                 }
                 
                 Spacer(modifier = Modifier.width(8.dp))
