@@ -19,12 +19,15 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
+import com.trungkien.fbtp_cn.model.PricingRule
+import com.trungkien.fbtp_cn.model.FieldService
 
 data class RenterServiceItem(val id: String, val name: String, val price: Int)
 
 @Composable
 fun RenterServicesSection(
-    services: List<RenterServiceItem>,
+    pricingRules: List<PricingRule>,
+    fieldServices: List<FieldService>,
     selected: Set<String>,
     onToggle: (String) -> Unit,
     modifier: Modifier = Modifier
@@ -39,7 +42,7 @@ fun RenterServicesSection(
             color = MaterialTheme.colorScheme.primary
         )
 
-        CourtPriceTableCompact()
+        CourtPriceTableReadOnly(pricingRules)
 
         // DANH SÁCH DỊCH VỤ (giống CourtService)
         Row(
@@ -77,13 +80,13 @@ fun RenterServicesSection(
         }
 
         if (!isServicesCollapsed) {
-            ServicesListRenter()
+            ServicesListRenter(fieldServices)
         }
     }
 }
 
 @Composable
-private fun CourtPriceTableCompact() {
+private fun CourtPriceTableReadOnly(pricingRules: List<PricingRule>) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -102,12 +105,23 @@ private fun CourtPriceTableCompact() {
                 HeaderCell("Giá", modifier = Modifier.weight(1f))
             }
 
-            PriceRow("T2 - T6", "5h - 9h", "120.000 ₫")
-            PriceRow("", "9h - 17h", "120.000 ₫")
-            PriceRow("", "17h - 23h", "170.000 ₫")
-            PriceRow("T7 - CN", "5h - 9h", "120.000 ₫")
-            PriceRow("", "9h - 17h", "120.000 ₫")
-            PriceRow("", "17h - 23h", "170.000 ₫")
+            val weekday = pricingRules.filter { (it.dayType).contains("WEEKDAY", true) || (it.description).contains("T2", true) }
+            val weekend = pricingRules.filter { (it.dayType).contains("WEEKEND", true) || (it.description).contains("T7", true) || (it.description).contains("CN", true) }
+
+            fun findPrice(rules: List<PricingRule>, range: String): String {
+                // Ưu tiên match theo description chứa đúng range, fallback theo index nếu không tìm thấy
+                val matched = rules.firstOrNull { it.description.contains(range, ignoreCase = true) }
+                val price = (matched?.price ?: 0L)
+                return if (matched != null && price > 0) formatPrice(price) + " ₫" else "-"
+            }
+
+            // Hiển thị đầy đủ cột "Thứ" cho mọi hàng giống CourtService
+            PriceRow("T2 - T6", "5h - 12h", findPrice(weekday, "5h - 12h"))
+            PriceRow("T2 - T6", "12h - 18h", findPrice(weekday, "12h - 18h"))
+            PriceRow("T2 - T6", "18h - 24h", findPrice(weekday, "18h - 24h"))
+            PriceRow("T7 - CN", "5h - 12h", findPrice(weekend, "5h - 12h"))
+            PriceRow("T7 - CN", "12h - 18h", findPrice(weekend, "12h - 18h"))
+            PriceRow("T7 - CN", "18h - 24h", findPrice(weekend, "18h - 24h"))
         }
     }
 }
@@ -150,10 +164,8 @@ private fun CellText(text: String, modifier: Modifier = Modifier) {
 private fun RenterServicesSectionPreview() {
     FBTP_CNTheme {
         RenterServicesSection(
-            services = listOf(
-                RenterServiceItem("1", "Thuê vợt", 20000),
-                RenterServiceItem("2", "Nước uống", 15000)
-            ),
+            pricingRules = emptyList(),
+            fieldServices = emptyList(),
             selected = setOf("1"),
             onToggle = {}
         )
@@ -161,37 +173,11 @@ private fun RenterServicesSectionPreview() {
 }
 
 @Composable
-private fun ServicesListRenter() {
+private fun ServicesListRenter(services: List<FieldService>) {
     Column(modifier = Modifier.fillMaxWidth()) {
         ServiceCategoryRenter(
-            title = "Banh",
-            services = listOf(
-                ServiceItemRenter("Hộp banh", "180.000 ₫ / Trái"),
-                ServiceItemRenter("Hộp Banh", "180.000 ₫")
-            )
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        ServiceCategoryRenter(
-            title = "Nước đóng chai",
-            services = listOf(
-                ServiceItemRenter("Revive", "15.000 ₫ / Chai"),
-                ServiceItemRenter("Red bull", "25.000 ₫ / Chai"),
-                ServiceItemRenter("Aqua", "15.000 ₫ / Chai"),
-                ServiceItemRenter("Nước suối", "10.000 ₫ / Chai"),
-                ServiceItemRenter("Bugari", "16.000 ₫ / Chai"),
-                ServiceItemRenter("Bogari", "30.000 ₫ / Chai")
-            )
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        ServiceCategoryRenter(
-            title = "Phí Thuê Vợt",
-            services = listOf(
-                ServiceItemRenter("Phí Thuê Vợt Banh", "20.000 ₫ / Cái")
-            )
+            title = "Dịch vụ tại sân",
+            services = services.map { ServiceItemRenter(it.name ?: "Dịch vụ", formatPrice(it.price ?: 0) + " ₫") }
         )
     }
 }
@@ -250,5 +236,10 @@ private data class ServiceItemRenter(
     val name: String,
     val price: String
 )
+
+private fun formatPrice(value: Number): String {
+    val v = value.toLong()
+    return String.format("%,d", v).replace(',', '.')
+}
 
 

@@ -315,9 +315,9 @@ fun RenterOrderDetailScreen(
                     }
                     1 -> {
                         Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
-                            val services = uiState.fieldServices.map { RenterServiceItem(it.fieldServiceId, it.name, it.price.toInt()) }
                             RenterServicesSection(
-                                services = services,
+                                pricingRules = uiState.pricingRules,
+                                fieldServices = uiState.fieldServices,
                                 selected = selectedServices,
                                 onToggle = { id -> selectedServices = selectedServices.toMutableSet().apply { if (contains(id)) remove(id) else add(id) }.toSet() }
                             )
