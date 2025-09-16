@@ -528,6 +528,8 @@ private fun ReplyItem(
     onDelete: () -> Unit,
     onUpdate: (String) -> Unit
 ) {
+    var showEditDialog by remember { mutableStateOf(false) }
+    var editText by remember { mutableStateOf(reply.comment) }
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.Top,
@@ -622,7 +624,11 @@ private fun ReplyItem(
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                             DropdownMenuItem(
                                 text = { Text("Chỉnh sửa") },
-                                onClick = { menu = false; /* TODO: Implement edit */ },
+                                onClick = { 
+                                    menu = false
+                                    editText = reply.comment
+                                    showEditDialog = true
+                                },
                                 leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
                             )
                             DropdownMenuItem(
@@ -678,6 +684,24 @@ private fun ReplyItem(
                 }
             }
         }
+    }
+    
+    // Edit Reply Dialog
+    if (showEditDialog) {
+        EditReplyDialog(
+            currentText = editText,
+            onTextChange = { editText = it },
+            onSave = {
+                if (editText.trim().isNotEmpty()) {
+                    onUpdate(editText.trim())
+                    showEditDialog = false
+                }
+            },
+            onCancel = {
+                editText = reply.comment
+                showEditDialog = false
+            }
+        )
     }
 }
 
@@ -737,6 +761,57 @@ private fun MoreOptionsDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
+                Text("Hủy")
+            }
+        }
+    )
+}
+
+/**
+ * DIALOG CHỈNH SỬA PHẢN HỒI
+ */
+@Composable
+private fun EditReplyDialog(
+    currentText: String,
+    onTextChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onCancel: () -> Unit
+) {
+    val focusManager = LocalFocusManager.current
+    
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = {
+            Text("Chỉnh sửa phản hồi")
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .pointerInput(Unit) {
+                        detectTapGestures(onTap = { focusManager.clearFocus() })
+                    }
+            ) {
+                OutlinedTextField(
+                    value = currentText,
+                    onValueChange = onTextChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Nhập phản hồi...") },
+                    maxLines = 3,
+                    shape = RoundedCornerShape(8.dp)
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onSave,
+                enabled = currentText.trim().isNotEmpty()
+            ) {
+                Text("Lưu")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onCancel) {
                 Text("Hủy")
             }
         }

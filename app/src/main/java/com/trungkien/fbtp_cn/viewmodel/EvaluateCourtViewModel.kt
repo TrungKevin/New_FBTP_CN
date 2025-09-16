@@ -321,6 +321,7 @@ class EvaluateCourtViewModel(
      */
     private fun updateReply(reviewId: String, replyId: String, updates: Map<String, Any>) {
         viewModelScope.launch {
+            println("🔄 DEBUG: ViewModel.updateReply called - reviewId: $reviewId, replyId: $replyId, updates: $updates")
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
                 val result = repository.updateReply(reviewId, replyId, updates)

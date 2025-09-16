@@ -255,17 +255,23 @@ class ReviewRepository {
      */
     suspend fun updateReply(reviewId: String, replyId: String, updates: Map<String, Any>): Result<Unit> {
         return try {
+            println("🔄 DEBUG: Repository.updateReply called - reviewId: $reviewId, replyId: $replyId, updates: $updates")
+            
             // Update subcollection document
             val replyRef = firestore.collection(REVIEWS_COLLECTION)
                 .document(reviewId)
                 .collection(REPLIES_COLLECTION)
                 .document(replyId)
             val merged = updates + mapOf("updatedAt" to Timestamp.now())
+            println("🔄 DEBUG: Updating subcollection document...")
             replyRef.update(merged).await()
+            println("🔄 DEBUG: Subcollection document updated successfully")
             
             // Also update embedded replies array in parent review
             val reviewRef = firestore.collection(REVIEWS_COLLECTION).document(reviewId)
             val review = reviewRef.get().await().toObject(Review::class.java)
+            println("🔄 DEBUG: Review found: ${review != null}, current replies: ${review?.replies?.size ?: 0}")
+            
             if (review != null) {
                 val newReplies = review.replies.map { r ->
                     if (r.replyId == replyId) {
@@ -276,7 +282,9 @@ class ReviewRepository {
                         )
                     } else r
                 }
+                println("🔄 DEBUG: Updating embedded array with ${newReplies.size} replies")
                 reviewRef.update("replies", newReplies).await()
+                println("🔄 DEBUG: Embedded array updated successfully")
             }
             
             Result.success(Unit)
