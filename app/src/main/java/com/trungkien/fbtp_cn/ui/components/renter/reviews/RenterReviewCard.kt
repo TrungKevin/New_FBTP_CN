@@ -1,8 +1,10 @@
 package com.trungkien.fbtp_cn.ui.components.renter.reviews
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -13,8 +15,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -40,8 +44,16 @@ fun RenterReviewCard(
     var editComment by remember { mutableStateOf(review.comment) }
     var editRating by remember { mutableStateOf(review.rating) }
     var confirmDelete by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
 
-    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .pointerInput(Unit) { 
+                detectTapGestures(onTap = { focusManager.clearFocus() }) 
+            }, 
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -154,6 +166,76 @@ fun RenterReviewCard(
             }
         } else {
             Text(text = review.comment, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+
+        // Replies under the comment (show for everyone)
+        if (review.replies.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                review.replies.forEach { rep ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.Top,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Avatar for reply
+                        val context = LocalContext.current
+                        val repAvatar = rep.userAvatar
+                        if (repAvatar.isNotBlank()) {
+                            val decoded = try {
+                                val base = if (repAvatar.startsWith("data:image")) repAvatar.substringAfter(",") else repAvatar
+                                val bytes = Base64.decode(base, Base64.DEFAULT)
+                                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                            } catch (_: Exception) { null }
+                            if (decoded != null) {
+                                Image(
+                                    bitmap = decoded.asImageBitmap(),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(28.dp).clip(CircleShape),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(context)
+                                        .data(if (repAvatar.startsWith("http") || repAvatar.startsWith("data:image")) repAvatar else "data:image/jpeg;base64,$repAvatar")
+                                        .allowHardware(false)
+                                        .build(),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(28.dp).clip(CircleShape),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                        } else {
+                            Image(
+                                painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                                contentDescription = null,
+                                modifier = Modifier.size(28.dp).clip(CircleShape)
+                            )
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(text = rep.userName.ifBlank { "Người dùng" }, fontWeight = FontWeight.Medium)
+                                if (rep.isOwner) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.primary) {
+                                        Text(
+                                            text = "Chủ sân",
+                                            color = MaterialTheme.colorScheme.onPrimary,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            Text(text = rep.comment, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+                }
+            }
         }
 
         if (confirmDelete) {

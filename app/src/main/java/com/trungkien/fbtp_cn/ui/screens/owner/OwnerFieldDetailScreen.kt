@@ -77,6 +77,20 @@ fun OwnerFieldDetailScreen(
     val uiState by localFieldViewModel.uiState.collectAsState()
     val currentUser by authViewModel.currentUser.collectAsState()
     
+    // Fetch current user profile if not loaded
+    LaunchedEffect(Unit) {
+        if (currentUser == null) {
+            println("🔄 DEBUG: OwnerFieldDetailScreen - Fetching current user profile...")
+            authViewModel.fetchProfile()
+        }
+    }
+    
+    // Debug currentUser state
+    LaunchedEffect(currentUser) {
+        println("🔄 DEBUG: OwnerFieldDetailScreen - currentUser: ${currentUser?.name}")
+        println("🔄 DEBUG: OwnerFieldDetailScreen - currentUser?.userId: ${currentUser?.userId}")
+    }
+    
     val context = LocalContext.current
 
     // Load field data từ Firebase khi có fieldId

@@ -24,14 +24,19 @@ class EvaluateCourtViewModel(
      * Xử lý các events từ UI
      */
     fun handleEvent(event: EvaluateCourtEvent) {
+        println("🎮 DEBUG: ViewModel.handleEvent called - event: ${event::class.simpleName}")
         when (event) {
             is EvaluateCourtEvent.LoadReviews -> loadReviews(event.fieldId)
             is EvaluateCourtEvent.LoadReviewSummary -> loadReviewSummary(event.fieldId)
             is EvaluateCourtEvent.AddReview -> addReview(event.review)
-            is EvaluateCourtEvent.AddReply -> addReply(event.reviewId, event.reply)
+            is EvaluateCourtEvent.AddReply -> {
+                println("🎮 DEBUG: AddReply event received - reviewId: ${event.reviewId}, reply: ${event.reply.comment}")
+                addReply(event.reviewId, event.reply)
+            }
             is EvaluateCourtEvent.LikeReview -> likeReview(event.reviewId, event.userId)
             is EvaluateCourtEvent.DeleteReview -> deleteReview(event.reviewId)
             is EvaluateCourtEvent.DeleteReply -> deleteReply(event.reviewId, event.replyId)
+            is EvaluateCourtEvent.UpdateReply -> updateReply(event.reviewId, event.replyId, event.updates)
             is EvaluateCourtEvent.ReportReview -> reportReview(event.reviewId, event.reason)
             is EvaluateCourtEvent.UpdateReview -> updateReview(event.reviewId, event.updates)
             is EvaluateCourtEvent.SetCurrentUser -> setCurrentUser(event.user, event.isOwner)
@@ -144,6 +149,7 @@ class EvaluateCourtViewModel(
      */
     private fun addReply(reviewId: String, reply: Reply) {
         viewModelScope.launch {
+            println("🚀 DEBUG: addReply called - reviewId: $reviewId, reply: ${reply.comment}")
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             
             try {
@@ -156,9 +162,34 @@ class EvaluateCourtViewModel(
                         )
                         println("✅ DEBUG: Đã thêm reply thành công với ID: $replyId")
                         
-                        // Reload reviews để cập nhật UI
-                        _uiState.value.reviews.find { it.reviewId == reviewId }?.fieldId?.let { 
-                            loadReviews(it) 
+                        // Cập nhật UI ngay lập tức bằng cách thêm reply vào state hiện tại
+                        val currentReviews = _uiState.value.reviews.toMutableList()
+                        val reviewIndex = currentReviews.indexOfFirst { it.reviewId == reviewId }
+                        
+                        println("🔍 DEBUG: Optimistic update - reviewIndex: $reviewIndex, currentReplies: ${currentReviews[reviewIndex].replies.size}")
+                        
+                        if (reviewIndex != -1) {
+                            val newReply = reply.copy(
+                                replyId = replyId,
+                                createdAt = com.google.firebase.Timestamp.now(),
+                                updatedAt = com.google.firebase.Timestamp.now()
+                            )
+                            
+                            val updatedReview = currentReviews[reviewIndex].copy(
+                                replies = currentReviews[reviewIndex].replies + newReply
+                            )
+                            currentReviews[reviewIndex] = updatedReview
+                            
+                            println("🔍 DEBUG: Optimistic update - newReplies: ${updatedReview.replies.size}")
+                            println("🔍 DEBUG: New reply: ${newReply.comment}")
+                            
+                            _uiState.value = _uiState.value.copy(reviews = currentReviews)
+                        }
+                        
+                        // Reload reviews để đồng bộ với Firebase (background) - delay một chút để optimistic update có thời gian hiển thị
+                        _uiState.value.reviews.find { it.reviewId == reviewId }?.fieldId?.let { fieldId ->
+                            kotlinx.coroutines.delay(1000) // Delay 1 giây để user thấy optimistic update
+                            loadReviews(fieldId)
                         }
                     },
                     onFailure = { exception ->
@@ -281,6 +312,38 @@ class EvaluateCourtViewModel(
                     isLoading = false
                 )
                 println("❌ DEBUG: Lỗi không xác định khi xóa reply: ${e.message}")
+            }
+        }
+    }
+    
+    /**
+     * Cập nhật reply
+     */
+    private fun updateReply(reviewId: String, replyId: String, updates: Map<String, Any>) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            try {
+                val result = repository.updateReply(reviewId, replyId, updates)
+                result.fold(
+                    onSuccess = {
+                        _uiState.value = _uiState.value.copy(
+                            isLoading = false,
+                            success = "Cập nhật phản hồi thành công!"
+                        )
+                        _uiState.value.reviews.find { it.reviewId == reviewId }?.fieldId?.let { loadReviews(it) }
+                    },
+                    onFailure = { exception ->
+                        _uiState.value = _uiState.value.copy(
+                            error = "Lỗi cập nhật phản hồi: ${exception.message}",
+                            isLoading = false
+                        )
+                    }
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    error = "Lỗi không xác định: ${e.message}",
+                    isLoading = false
+                )
             }
         }
     }

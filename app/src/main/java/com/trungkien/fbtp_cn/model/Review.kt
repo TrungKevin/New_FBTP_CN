@@ -40,14 +40,14 @@ data class Review(
     
     // Trạng thái và kiểm duyệt
     val status: String = "ACTIVE",                // "ACTIVE" | "HIDDEN" | "DELETED" | "PENDING_REVIEW"
-    val isVerified: Boolean = false,              // Đã xác minh chưa (nếu là khách VIP)
+    val verified: Boolean = false,                // Đã xác minh chưa (nếu là khách VIP) - Firebase field name
     val moderationNote: String = "",              // Ghi chú kiểm duyệt
     
     // Thông tin bổ sung
     val tags: List<String> = emptyList(),         // Tags liên quan ["CHẤT LƯỢNG", "GIÁ CẢ", "DỊCH VỤ"]
     val helpfulCount: Int = 0,                    // Số người đánh giá hữu ích
     val helpfulBy: List<String> = emptyList(),    // Danh sách userId đánh giá hữu ích
-    val isAnonymous: Boolean = false              // Có ẩn danh không
+    val anonymous: Boolean = false                // Có ẩn danh không - Firebase field name
 )
 
 /**

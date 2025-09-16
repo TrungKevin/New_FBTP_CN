@@ -42,6 +42,7 @@ sealed class EvaluateCourtEvent {
     // CRUD Replies
     data class AddReply(val reviewId: String, val reply: com.trungkien.fbtp_cn.model.Reply) : EvaluateCourtEvent()
     data class DeleteReply(val reviewId: String, val replyId: String) : EvaluateCourtEvent()
+    data class UpdateReply(val reviewId: String, val replyId: String, val updates: Map<String, Any>) : EvaluateCourtEvent()
     
     // Tương tác
     data class LikeReview(val reviewId: String, val userId: String) : EvaluateCourtEvent()

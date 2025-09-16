@@ -30,12 +30,31 @@ class ReviewRepository {
                 .get()
                 .await()
             
-            val reviews = snapshot.documents.mapNotNull { doc ->
+            // Map base reviews
+            val baseReviews = snapshot.documents.mapNotNull { doc ->
                 doc.toObject(Review::class.java)?.copy(reviewId = doc.id)
             }
             
-            // Sort trong memory thay vì trong query
-            val sortedReviews = reviews.sortedByDescending { it.createdAt }
+            // Load replies subcollection for each review to ensure fresh data
+            val reviewsWithReplies = baseReviews.map { review ->
+                try {
+                    val repliesSnap = firestore.collection(REVIEWS_COLLECTION)
+                        .document(review.reviewId)
+                        .collection(REPLIES_COLLECTION)
+                        .orderBy("createdAt", Query.Direction.ASCENDING)
+                        .get()
+                        .await()
+                    val replies = repliesSnap.documents.mapNotNull { repDoc ->
+                        repDoc.toObject(Reply::class.java)?.copy(replyId = repDoc.id)
+                    }
+                    review.copy(replies = replies)
+                } catch (e: Exception) {
+                    review
+                }
+            }
+            
+            // Sort trong memory
+            val sortedReviews = reviewsWithReplies.sortedByDescending { it.createdAt }
             
             Result.success(sortedReviews)
         } catch (e: Exception) {
@@ -117,12 +136,15 @@ class ReviewRepository {
      */
     suspend fun addReply(reviewId: String, reply: Reply): Result<String> {
         return try {
+            println("🔥 DEBUG: Repository.addReply - reviewId: $reviewId, reply: ${reply.comment}")
+            
             val replyWithTimestamp = reply.copy(
                 replyId = "", // Để Firebase tự tạo
                 createdAt = Timestamp.now(),
                 updatedAt = Timestamp.now()
             )
             
+            println("🔥 DEBUG: Adding reply to subcollection...")
             // Thêm reply vào subcollection
             val replyRef = firestore.collection(REVIEWS_COLLECTION)
                 .document(reviewId)
@@ -130,17 +152,24 @@ class ReviewRepository {
                 .add(replyWithTimestamp)
                 .await()
             
+            println("🔥 DEBUG: Reply added to subcollection with ID: ${replyRef.id}")
+            
             // Cập nhật review để thêm reply mới
             val reviewRef = firestore.collection(REVIEWS_COLLECTION).document(reviewId)
             val review = reviewRef.get().await().toObject(Review::class.java)
             
+            println("🔥 DEBUG: Review found: ${review != null}, current replies: ${review?.replies?.size ?: 0}")
+            
             if (review != null) {
                 val updatedReplies = review.replies + replyWithTimestamp.copy(replyId = replyRef.id)
+                println("🔥 DEBUG: Updating embedded array with ${updatedReplies.size} replies")
                 reviewRef.update("replies", updatedReplies).await()
+                println("🔥 DEBUG: Embedded array updated successfully")
             }
             
             Result.success(replyRef.id)
         } catch (e: Exception) {
+            println("❌ DEBUG: Repository.addReply error: ${e.message}")
             Result.failure(e)
         }
     }
@@ -213,6 +242,41 @@ class ReviewRepository {
             if (review != null) {
                 val updatedReplies = review.replies.filter { it.replyId != replyId }
                 reviewRef.update("replies", updatedReplies).await()
+            }
+            
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * Cập nhật reply
+     */
+    suspend fun updateReply(reviewId: String, replyId: String, updates: Map<String, Any>): Result<Unit> {
+        return try {
+            // Update subcollection document
+            val replyRef = firestore.collection(REVIEWS_COLLECTION)
+                .document(reviewId)
+                .collection(REPLIES_COLLECTION)
+                .document(replyId)
+            val merged = updates + mapOf("updatedAt" to Timestamp.now())
+            replyRef.update(merged).await()
+            
+            // Also update embedded replies array in parent review
+            val reviewRef = firestore.collection(REVIEWS_COLLECTION).document(reviewId)
+            val review = reviewRef.get().await().toObject(Review::class.java)
+            if (review != null) {
+                val newReplies = review.replies.map { r ->
+                    if (r.replyId == replyId) {
+                        r.copy(
+                            comment = (updates["comment"] as? String) ?: r.comment,
+                            images = (updates["images"] as? List<String>) ?: r.images,
+                            updatedAt = Timestamp.now()
+                        )
+                    } else r
+                }
+                reviewRef.update("replies", newReplies).await()
             }
             
             Result.success(Unit)

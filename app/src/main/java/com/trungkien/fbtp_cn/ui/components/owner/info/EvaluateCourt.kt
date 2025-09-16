@@ -3,12 +3,15 @@ package com.trungkien.fbtp_cn.ui.components.owner.info
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.trungkien.fbtp_cn.model.*
@@ -33,6 +36,7 @@ fun EvaluateCourt(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val focusManager = LocalFocusManager.current
     
     // LaunchedEffect để load data khi component được tạo
     LaunchedEffect(fieldId, currentUser, isOwner) {
@@ -50,7 +54,11 @@ fun EvaluateCourt(
     }
     
     Column(
-        modifier = modifier.fillMaxSize()
+        modifier = modifier
+            .fillMaxSize()
+            .pointerInput(Unit) { 
+                detectTapGestures(onTap = { focusManager.clearFocus() }) 
+            }
     ) {
         // Header
         EvaluateCourtHeader(
@@ -112,20 +120,27 @@ fun EvaluateCourt(
                                 }
                             },
                             onReply = { text ->
-                                currentUser?.let { user ->
-                                    viewModel.handleEvent(
-                                        EvaluateCourtEvent.AddReply(
-                                            reviewId = review.reviewId,
-                                            reply = com.trungkien.fbtp_cn.model.Reply(
-                                                userId = user.userId,
-                                                userName = user.name,
-                                                userAvatar = user.avatarUrl,
-                                                userRole = if (isOwner) com.trungkien.fbtp_cn.model.UserRole.OWNER.name else com.trungkien.fbtp_cn.model.UserRole.RENTER.name,
-                                                comment = text,
-                                                isOwner = isOwner
+                                println("🎯 DEBUG: UI onReply called - text: '$text', reviewId: ${review.reviewId}")
+                                println("🎯 DEBUG: currentUser is null: ${currentUser == null}")
+                                if (currentUser == null) {
+                                    println("❌ DEBUG: currentUser is null, cannot create reply")
+                                } else {
+                                    currentUser?.let { user ->
+                                        println("🎯 DEBUG: Current user: ${user.name}, isOwner: $isOwner")
+                                        viewModel.handleEvent(
+                                            EvaluateCourtEvent.AddReply(
+                                                reviewId = review.reviewId,
+                                                reply = com.trungkien.fbtp_cn.model.Reply(
+                                                    userId = user.userId,
+                                                    userName = user.name,
+                                                    userAvatar = user.avatarUrl,
+                                                    userRole = if (isOwner) com.trungkien.fbtp_cn.model.UserRole.OWNER.name else com.trungkien.fbtp_cn.model.UserRole.RENTER.name,
+                                                    comment = text,
+                                                    isOwner = isOwner
+                                                )
                                             )
                                         )
-                                    )
+                                    }
                                 }
                             },
                             onReport = {
@@ -140,6 +155,15 @@ fun EvaluateCourt(
                             onDeleteReply = { replyId ->
                                 viewModel.handleEvent(
                                     EvaluateCourtEvent.DeleteReply(review.reviewId, replyId)
+                                )
+                            },
+                            onUpdateReply = { replyId, newText ->
+                                viewModel.handleEvent(
+                                    EvaluateCourtEvent.UpdateReply(
+                                        reviewId = review.reviewId,
+                                        replyId = replyId,
+                                        updates = mapOf("comment" to newText)
+                                    )
                                 )
                             },
                             modifier = Modifier.fillMaxWidth()

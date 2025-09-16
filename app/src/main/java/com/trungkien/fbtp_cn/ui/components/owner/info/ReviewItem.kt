@@ -1,6 +1,7 @@
 package com.trungkien.fbtp_cn.ui.components.owner.info
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -12,8 +13,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,12 +54,14 @@ fun ReviewItem(
     onReport: () -> Unit,
     onDelete: () -> Unit,
     onDeleteReply: (String) -> Unit,
+    onUpdateReply: (String, String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showReplies by remember { mutableStateOf(false) }
     var showMoreOptions by remember { mutableStateOf(false) }
     var showReplyBox by remember { mutableStateOf(false) }
     var replyText by remember { mutableStateOf("") }
+    val focusManager = LocalFocusManager.current
     
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -70,6 +75,9 @@ fun ReviewItem(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
+                .pointerInput(Unit) { 
+                    detectTapGestures(onTap = { focusManager.clearFocus() }) 
+                }
         ) {
             // Header - Thông tin người đánh giá
             ReviewHeader(
@@ -88,42 +96,6 @@ fun ReviewItem(
             Spacer(modifier = Modifier.height(16.dp))
             
             // Actions - Like, Reply, Report
-            // Replies section
-            if (review.replies.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(12.dp))
-                ReplyList(
-                    replies = review.replies,
-                    currentUser = currentUser,
-                    isOwner = isOwner,
-                    onDeleteReply = onDeleteReply
-                )
-            }
-
-            if (showReplyBox) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = replyText,
-                        onValueChange = { replyText = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = { Text("Viết phản hồi...") }
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            val text = replyText.trim()
-                            if (text.isNotEmpty()) {
-                                onReply(text)
-                                replyText = ""
-                                showReplyBox = false
-                            }
-                        }
-                    ) { Text("Gửi") }
-                }
-            }
-
             ReviewActions(
                 review = review,
                 currentUser = currentUser,
@@ -133,6 +105,42 @@ fun ReviewItem(
                 },
                 onReport = onReport
             )
+
+            // Reply input box (hiển thị khi click nút Reply)
+            if (showReplyBox) {
+                Spacer(modifier = Modifier.height(12.dp))
+                ReplyInputBox(
+                    replyText = replyText,
+                    onReplyTextChange = { replyText = it },
+                    onSendReply = {
+                        val text = replyText.trim()
+                        if (text.isNotEmpty()) {
+                            onReply(text)
+                            replyText = ""
+                            showReplyBox = false
+                        }
+                    },
+                    onCancel = { 
+                        showReplyBox = false
+                        replyText = ""
+                    }
+                )
+            }
+
+            // Replies section - hiển thị dưới actions và reply box
+            println("🔍 DEBUG: ReviewItem - reviewId: ${review.reviewId}, replies count: ${review.replies.size}")
+            if (review.replies.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                ReplyList(
+                    replies = review.replies,
+                    currentUser = currentUser,
+                    isOwner = isOwner,
+                    onDeleteReply = onDeleteReply,
+                    onUpdateReply = onUpdateReply
+                )
+            } else {
+                println("🔍 DEBUG: ReviewItem - No replies to display for review: ${review.reviewId}")
+            }
         }
     }
     
@@ -224,7 +232,7 @@ private fun ReviewHeader(
             modifier = Modifier.weight(1f)
         ) {
             Text(
-                text = if (review.isAnonymous) "Người dùng ẩn danh" else review.renterName,
+                text = if (review.anonymous) "Người dùng ẩn danh" else review.renterName,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
@@ -340,6 +348,66 @@ private fun ReviewContent(
 }
 
 /**
+ * COMPONENT INPUT BOX CHO REPLY
+ */
+@Composable
+private fun ReplyInputBox(
+    replyText: String,
+    onReplyTextChange: (String) -> Unit,
+    onSendReply: () -> Unit,
+    onCancel: () -> Unit
+) {
+    val focusManager = LocalFocusManager.current
+    
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .pointerInput(Unit) { 
+                detectTapGestures(onTap = { focusManager.clearFocus() }) 
+            },
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+        ) {
+            // Text input
+            OutlinedTextField(
+                value = replyText,
+                onValueChange = onReplyTextChange,
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Viết phản hồi...") },
+                maxLines = 3,
+                shape = RoundedCornerShape(8.dp)
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Action buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = onCancel) {
+                    Text("Hủy")
+                }
+                
+                Spacer(modifier = Modifier.width(8.dp))
+                
+                Button(
+                    onClick = onSendReply,
+                    enabled = replyText.trim().isNotEmpty()
+                ) {
+                    Text("Gửi")
+                }
+            }
+        }
+    }
+}
+
+/**
  * COMPONENT ACTIONS CỦA REVIEW
  */
 @Composable
@@ -422,8 +490,14 @@ private fun ReplyList(
     replies: List<Reply>,
     currentUser: User?,
     isOwner: Boolean,
-    onDeleteReply: (String) -> Unit
+    onDeleteReply: (String) -> Unit,
+    onUpdateReply: (String, String) -> Unit
 ) {
+    println("🔍 DEBUG: ReplyList - Rendering ${replies.size} replies")
+    replies.forEach { reply ->
+        println("🔍 DEBUG: ReplyList - Reply: ${reply.comment} by ${reply.userName}")
+    }
+    
     Column(
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -432,7 +506,8 @@ private fun ReplyList(
                 reply = reply,
                 currentUser = currentUser,
                 isOwner = isOwner,
-                onDelete = { onDeleteReply(reply.replyId) }
+                onDelete = { onDeleteReply(reply.replyId) },
+                onUpdate = { newText -> onUpdateReply(reply.replyId, newText) }
             )
             
             if (reply != replies.last()) {
@@ -450,131 +525,128 @@ private fun ReplyItem(
     reply: Reply,
     currentUser: User?,
     isOwner: Boolean,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onUpdate: (String) -> Unit
 ) {
-    Surface(
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        // Avatar nhỏ cho reply
+        val context = LocalContext.current
+        val userRepository = remember { UserRepository() }
+        val repAvatar by produceState(initialValue = reply.userAvatar, key1 = reply.userId, key2 = reply.userAvatar) {
+            var v = reply.userAvatar
+            if (v.isBlank() && reply.userId.isNotBlank()) {
+                userRepository.getUserById(
+                    reply.userId,
+                    onSuccess = { user -> value = user.avatarUrl ?: "" },
+                    onError = { _ -> }
+                )
+            } else {
+                value = v
+            }
+        }
+        
+        if (repAvatar.isNotBlank()) {
+            val bm = try {
+                val base = if (repAvatar.startsWith("data:image")) repAvatar.substringAfter(",") else repAvatar
+                val bytes = Base64.decode(base, Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            } catch (_: Exception) { null }
+            if (bm != null) {
+                Image(
+                    bitmap = bm.asImageBitmap(),
+                    contentDescription = null,
+                    modifier = Modifier.size(32.dp).clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                AsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data(if (repAvatar.startsWith("http") || repAvatar.startsWith("data:image")) repAvatar else "data:image/jpeg;base64,$repAvatar")
+                        .allowHardware(false)
+                        .build(),
+                    contentDescription = null,
+                    modifier = Modifier.size(32.dp).clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            }
+        } else {
+            Image(
+                painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                contentDescription = null,
+                modifier = Modifier.size(32.dp).clip(CircleShape)
+            )
+        }
+        
+        // Nội dung reply
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp)
+            modifier = Modifier.weight(1f)
         ) {
-            // Header
+            // Header với tên và badge
             Row(
-                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Avatar nhỏ thực
-                val context = LocalContext.current
-                val userRepository = remember { UserRepository() }
-                val repAvatar by produceState(initialValue = reply.userAvatar, key1 = reply.userId, key2 = reply.userAvatar) {
-                    var v = reply.userAvatar
-                    if (v.isBlank() && reply.userId.isNotBlank()) {
-                        userRepository.getUserById(
-                            reply.userId,
-                            onSuccess = { user -> value = user.avatarUrl ?: "" },
-                            onError = { _ -> }
-                        )
-                    } else {
-                        value = v
-                    }
-                }
-                if (repAvatar.isNotBlank()) {
-                    val bm = try {
-                        val base = if (repAvatar.startsWith("data:image")) repAvatar.substringAfter(",") else repAvatar
-                        val bytes = Base64.decode(base, Base64.DEFAULT)
-                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                    } catch (_: Exception) { null }
-                    if (bm != null) {
-                        Image(
-                            bitmap = bm.asImageBitmap(),
-                            contentDescription = null,
-                            modifier = Modifier.size(32.dp).clip(CircleShape),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        AsyncImage(
-                            model = ImageRequest.Builder(context)
-                                .data(if (repAvatar.startsWith("http") || repAvatar.startsWith("data:image")) repAvatar else "data:image/jpeg;base64,$repAvatar")
-                                .allowHardware(false)
-                                .build(),
-                            contentDescription = null,
-                            modifier = Modifier.size(32.dp).clip(CircleShape),
-                            contentScale = ContentScale.Crop
-                        )
-                    }
-                } else {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_launcher_foreground),
-                        contentDescription = null,
-                        modifier = Modifier.size(32.dp).clip(CircleShape)
-                    )
-                }
+                Text(
+                    text = reply.userName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
                 
-                Spacer(modifier = Modifier.width(8.dp))
-                
-                // Thông tin user
-                Column(
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
+                if (reply.isOwner) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.primary
                     ) {
                         Text(
-                            text = reply.userName,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        
-                        if (reply.isOwner) {
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.primary
-                            ) {
-                                Text(
-                                    text = "Chủ sân",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
-                    }
-                    
-                    // Thời gian
-                    reply.createdAt?.let { timestamp ->
-                        val date = Date(timestamp.seconds * 1000)
-                        val formatter = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
-                        Text(
-                            text = formatter.format(date),
+                            text = "Chủ sân",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
                 }
                 
-                // Delete button (chỉ owner hoặc người tạo)
+                // Dropdown actions
+                var menu by remember { mutableStateOf(false) }
                 if (currentUser != null && (isOwner || currentUser.userId == reply.userId)) {
-                    IconButton(
-                        onClick = onDelete,
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Xóa phản hồi",
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(16.dp)
-                        )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box {
+                        IconButton(onClick = { menu = true }, modifier = Modifier.size(20.dp)) {
+                            Icon(imageVector = Icons.Default.MoreVert, contentDescription = null, modifier = Modifier.size(16.dp))
+                        }
+                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Chỉnh sửa") },
+                                onClick = { menu = false; /* TODO: Implement edit */ },
+                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Xóa") },
+                                onClick = { menu = false; onDelete() },
+                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) }
+                            )
+                        }
                     }
                 }
             }
             
-            Spacer(modifier = Modifier.height(8.dp))
+            // Thời gian
+            reply.createdAt?.let { timestamp ->
+                val date = Date(timestamp.seconds * 1000)
+                val formatter = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+                Text(
+                    text = formatter.format(date),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(4.dp))
             
             // Nội dung phản hồi
             Text(
@@ -583,10 +655,9 @@ private fun ReplyItem(
                 color = MaterialTheme.colorScheme.onSurface
             )
             
-            // Like count
+            // Like count nếu có
             if (reply.likes > 0) {
-                Spacer(modifier = Modifier.height(8.dp))
-                
+                Spacer(modifier = Modifier.height(4.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -594,7 +665,7 @@ private fun ReplyItem(
                         imageVector = Icons.Default.Favorite,
                         contentDescription = "Thích",
                         tint = Color(0xFFE91E63),
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(14.dp)
                     )
                     
                     Spacer(modifier = Modifier.width(4.dp))

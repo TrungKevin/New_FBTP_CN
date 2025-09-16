@@ -1,5 +1,6 @@
 package com.trungkien.fbtp_cn.ui.components.owner.info
 
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -12,6 +13,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.trungkien.fbtp_cn.model.Review
@@ -39,6 +42,7 @@ fun AddReviewDialog(
     var selectedTags by remember { mutableStateOf(mutableSetOf<String>()) }
     var isAnonymous by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
     
     // Available tags
     val availableTags = listOf(
@@ -69,6 +73,9 @@ fun AddReviewDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
+                    .pointerInput(Unit) { 
+                        detectTapGestures(onTap = { focusManager.clearFocus() }) 
+                    }
             ) {
                 // Rating section
                 RatingSection(
@@ -123,7 +130,7 @@ fun AddReviewDialog(
                             rating = rating,
                             comment = comment.trim(),
                             tags = selectedTags.toList(),
-                            isAnonymous = isAnonymous
+                            anonymous = isAnonymous
                         )
                         
                         onAddReview(newReview)

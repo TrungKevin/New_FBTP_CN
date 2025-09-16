@@ -542,9 +542,9 @@ object MockData {
             tags = listOf("CHẤT LƯỢNG", "DỊCH VỤ"),
             helpfulCount = 8,
             helpfulBy = listOf("user_002", "user_003", "user_004"),
-            isAnonymous = false,
+            anonymous = false,
             status = "ACTIVE",
-            isVerified = false
+            verified = false
         ),
         Review(
             reviewId = "review_002",
@@ -576,9 +576,9 @@ object MockData {
             tags = listOf("CHẤT LƯỢNG", "GIÁ CẢ"),
             helpfulCount = 4,
             helpfulBy = listOf("user_002", "user_003"),
-            isAnonymous = false,
+            anonymous = false,
             status = "ACTIVE",
-            isVerified = false
+            verified = false
         )
     )
     
