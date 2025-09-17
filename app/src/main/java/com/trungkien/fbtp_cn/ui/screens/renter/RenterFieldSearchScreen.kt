@@ -17,6 +17,9 @@ import com.trungkien.fbtp_cn.viewmodel.FieldViewModel
 import com.trungkien.fbtp_cn.viewmodel.FieldEvent
 import com.trungkien.fbtp_cn.repository.UserRepository
 import com.trungkien.fbtp_cn.model.User
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 
 @Composable
 fun RenterFieldSearchScreen(
@@ -24,7 +27,9 @@ fun RenterFieldSearchScreen(
     onBookClick: (String) -> Unit = {}
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    var committedQuery by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf<String?>(null) }
+    val focusManager = LocalFocusManager.current
 
     val fieldViewModel: FieldViewModel = viewModel()
     val uiState = fieldViewModel.uiState.collectAsState().value
@@ -133,11 +138,11 @@ fun RenterFieldSearchScreen(
         }
     }
 
-    val results = remember(uiState.allFields, selectedType, searchQuery, uiState.pricingRules, ownerInfoMap, fieldPricingMap) {
+    val results = remember(uiState.allFields, selectedType, committedQuery, uiState.pricingRules, ownerInfoMap, fieldPricingMap) {
         uiState.allFields
             .filter { f ->
                 val matchType = selectedType == null || f.sports.any { it.equals(selectedType, true) }
-                val matchQuery = searchQuery.isBlank() || f.name.contains(searchQuery, true) || f.address.contains(searchQuery, true)
+                val matchQuery = committedQuery.isBlank() || f.name.contains(committedQuery, true)
                 matchType && matchQuery
             }
             .map { f ->
@@ -186,11 +191,15 @@ fun RenterFieldSearchScreen(
         modifier = modifier
             .fillMaxSize()
             .background(Color.White)
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { focusManager.clearFocus() })
+            }
     ) {
         RenterSearchHeader(
             searchQuery = searchQuery,
             onSearchQueryChange = { searchQuery = it },
-            onFilterClick = { },
+            onSearchClick = { committedQuery = searchQuery },
+            onTypeSelected = { type -> selectedType = if (type == "all") null else type },
             onLocationClick = { },
             modifier = Modifier.fillMaxWidth()
         )

@@ -18,15 +18,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trungkien.fbtp_cn.R
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
 
 @Composable
 fun RenterSearchHeader(
     searchQuery: String = "",
     onSearchQueryChange: (String) -> Unit = {},
-    onFilterClick: () -> Unit = {},
+    onSearchClick: () -> Unit = {},
+    onTypeSelected: (String) -> Unit = {},
     onLocationClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val focusManager = LocalFocusManager.current
+    var isTypeMenuExpanded by remember { mutableStateOf(false) }
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -52,7 +59,12 @@ fun RenterSearchHeader(
                     imageVector = Icons.Default.Search,
                     contentDescription = "Search",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clickable { 
+                            onSearchClick()
+                            focusManager.clearFocus()
+                        }
                 )
                 
                 TextField(
@@ -60,7 +72,7 @@ fun RenterSearchHeader(
                     onValueChange = onSearchQueryChange,
                     placeholder = {
                         Text(
-                            text = "Tìm kiếm sân thể thao...",
+                            text = "Nhập tên sân...",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -72,28 +84,58 @@ fun RenterSearchHeader(
                         focusedIndicatorColor = Color.Transparent,
                         unfocusedIndicatorColor = Color.Transparent
                     ),
-                    textStyle = MaterialTheme.typography.bodyMedium
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            onSearchClick()
+                            focusManager.clearFocus()
+                        }
+                    )
                 )
                 
-                // Filter button
-                Card(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clickable { onFilterClick() },
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
+                // Menu button for selecting 4 field types
+                Box {
+                    Card(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clickable { isTypeMenuExpanded = true },
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.tune),
-                            contentDescription = "Filter",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Menu,
+                                contentDescription = "Chọn loại sân",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    DropdownMenu(
+                        expanded = isTypeMenuExpanded,
+                        onDismissRequest = { isTypeMenuExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Bóng đá") },
+                            onClick = { isTypeMenuExpanded = false; onTypeSelected("football"); focusManager.clearFocus() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Tennis") },
+                            onClick = { isTypeMenuExpanded = false; onTypeSelected("tennis"); focusManager.clearFocus() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Cầu lông") },
+                            onClick = { isTypeMenuExpanded = false; onTypeSelected("badminton"); focusManager.clearFocus() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Pickleball") },
+                            onClick = { isTypeMenuExpanded = false; onTypeSelected("pickleball"); focusManager.clearFocus() }
                         )
                     }
                 }
