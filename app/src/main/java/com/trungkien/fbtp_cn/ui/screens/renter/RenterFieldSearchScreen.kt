@@ -20,6 +20,10 @@ import com.trungkien.fbtp_cn.model.User
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
+import com.trungkien.fbtp_cn.repository.ReviewRepository
+import com.trungkien.fbtp_cn.model.ReviewSummary
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun RenterFieldSearchScreen(
@@ -138,7 +142,27 @@ fun RenterFieldSearchScreen(
         }
     }
 
-    val results = remember(uiState.allFields, selectedType, committedQuery, uiState.pricingRules, ownerInfoMap, fieldPricingMap) {
+    // Load review summaries (average rating + total reviews) for all fields
+    var reviewSummaryMap by remember { mutableStateOf<Map<String, ReviewSummary>>(emptyMap()) }
+    val reviewRepository = remember { ReviewRepository() }
+    LaunchedEffect(uiState.allFields) {
+        if (uiState.allFields.isNotEmpty()) {
+            val summaries = mutableMapOf<String, ReviewSummary>()
+            uiState.allFields.forEach { field ->
+                try {
+                    val result = withContext(Dispatchers.IO) { reviewRepository.getReviewSummary(field.fieldId) }
+                    result.getOrNull()?.let { summary ->
+                        summaries[field.fieldId] = summary
+                    }
+                } catch (_: Exception) { }
+            }
+            reviewSummaryMap = summaries
+        } else {
+            reviewSummaryMap = emptyMap()
+        }
+    }
+
+    val results = remember(uiState.allFields, selectedType, committedQuery, uiState.pricingRules, ownerInfoMap, fieldPricingMap, reviewSummaryMap) {
         uiState.allFields
             .filter { f ->
                 val matchType = selectedType == null || f.sports.any { it.equals(selectedType, true) }
@@ -149,6 +173,9 @@ fun RenterFieldSearchScreen(
                 val owner = ownerInfoMap[f.ownerId]
                 val fieldPrice = fieldPricingMap[f.fieldId] ?: 0L
                 val priceText = if (fieldPrice > 0) "${String.format("%,d", fieldPrice)} VND/giờ" else "Liên hệ"
+                val summary = reviewSummaryMap[f.fieldId]
+                val avgRating = summary?.averageRating ?: f.averageRating
+                val totalReviews = summary?.totalReviews ?: f.totalReviews
                 
                 // Debug logs
                 println("🔄 DEBUG: Field ${f.name}")
@@ -169,7 +196,7 @@ fun RenterFieldSearchScreen(
                     type = f.sports.firstOrNull() ?: "",
                     price = priceText,
                     location = f.address,
-                    rating = f.averageRating,
+                    rating = avgRating,
                     distance = "", // TODO: tính theo geo nếu cần
                     isAvailable = f.isActive,
                     imageUrl = f.images.mainImage.ifEmpty { null },
@@ -180,7 +207,7 @@ fun RenterFieldSearchScreen(
                     address = f.address,
                     openHours = "${f.openHours.start} - ${f.openHours.end}",
                     amenities = f.amenities,
-                    totalReviews = f.totalReviews,
+                    totalReviews = totalReviews,
                     contactPhone = f.contactPhone,
                     description = f.description
                 )

@@ -28,6 +28,11 @@ import com.trungkien.fbtp_cn.viewmodel.FieldViewModel
 import com.trungkien.fbtp_cn.viewmodel.FieldUiState
 import com.trungkien.fbtp_cn.viewmodel.FieldEvent
 import com.trungkien.fbtp_cn.viewmodel.AuthViewModel
+import com.trungkien.fbtp_cn.repository.ReviewRepository
+import com.trungkien.fbtp_cn.model.ReviewSummary
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @SuppressLint("ContextCastToActivity")
 @OptIn(ExperimentalMaterial3Api::class) // Cho phép dùng API experimental của Material3
@@ -66,6 +71,23 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
     val fields = if (testMode) getMockFields() else uiState.fields
     val isLoading = if (testMode) false else uiState.isLoading
     val error = if (testMode) null else uiState.error
+    // Tải ReviewSummary theo từng sân để luôn cập nhật điểm trung bình thực
+    var reviewSummaryMap by remember { mutableStateOf<Map<String, ReviewSummary>>(emptyMap()) }
+    val reviewRepository = remember { ReviewRepository() }
+    LaunchedEffect(fields) {
+        if (fields.isNotEmpty()) {
+            val summaries = mutableMapOf<String, ReviewSummary>()
+            fields.forEach { field ->
+                try {
+                    val result = withContext(Dispatchers.IO) { reviewRepository.getReviewSummary(field.fieldId) }
+                    result.getOrNull()?.let { summary -> summaries[field.fieldId] = summary }
+                } catch (_: Exception) { }
+            }
+            reviewSummaryMap = summaries
+        } else {
+            reviewSummaryMap = emptyMap()
+        }
+    }
     
     // Debug để kiểm tra ViewModel được sử dụng
     LaunchedEffect(Unit) {
@@ -126,25 +148,7 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold
                 )
-                if (!isLoading && error == null) {
-                    Column {
-                        Text(
-                            text = "${fields.size} sân",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        // Thống kê nhanh về các sân
-                        if (fields.isNotEmpty()) {
-                            val activeFields = fields.count { it.isActive }
-                            val totalSports = fields.flatMap { it.sports }.distinct().size
-                            Text(
-                                text = "$activeFields đang hoạt động • $totalSports loại sân",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
+
             }
             IconButton(onClick = { /* Tìm kiếm */ }) {
                 Icon(Icons.Default.Search, contentDescription = "Tìm kiếm")
@@ -284,12 +288,6 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "🔥 Dữ liệu từ Firebase",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
                                     text = "Tìm thấy ${fields.size} sân",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.primary
@@ -299,9 +297,17 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
                         
                         // Thông tin cart bổ sung
                         Spacer(modifier = Modifier.height(8.dp))
-                        val activeFields = fields.count { it.isActive }
-                        val totalSports = fields.flatMap { it.sports }.distinct()
-                        val avgRating = fields.map { it.averageRating }.average()
+                        // Chỉ tính trên các sân thuộc account hiện tại
+                        val statsFields = fields.filter { it.ownerId == currentUser?.userId }
+                        val activeFields = statsFields.count { it.isActive }
+                        val totalSports = statsFields.flatMap { it.sports }.distinct()
+                        // Tổng sao = tổng tất cả điểm sao của mọi review trên các sân của account
+                        val totalStars = statsFields.sumOf { field ->
+                            val summary = reviewSummaryMap[field.fieldId]
+                            val avg = (summary?.averageRating ?: field.averageRating).toDouble()
+                            val count = (summary?.totalReviews ?: field.totalReviews).toDouble()
+                            avg * count
+                        }
                         
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -313,7 +319,7 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = "⭐ ${String.format("%.1f", avgRating)}/5.0",
+                                text = "⭐ Tổng ${String.format("%.0f", totalStars)} sao",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -333,8 +339,13 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
                     contentPadding = PaddingValues(vertical = 8.dp)
                 ) {
                     items(fields) { field ->
+                        val summary = reviewSummaryMap[field.fieldId]
+                        val fieldWithLiveRating = field.copy(
+                            averageRating = summary?.averageRating ?: field.averageRating,
+                            totalReviews = summary?.totalReviews ?: field.totalReviews
+                        )
                         FieldCard(
-                            field = field,
+                            field = fieldWithLiveRating,
                             onClick = { clickedField -> onFieldClick(clickedField.fieldId) },
                             onViewDetailsClick = { onFieldClick(field.fieldId) },
                             ownerAvatarUrl = currentUser?.avatarUrl

@@ -356,24 +356,7 @@ fun OwnerFieldDetailScreen(
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(top = 4.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Star,
-                                contentDescription = null,
-                                tint = Color(0xFFFFB800),
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = "${String.format("%.1f", field.averageRating)}/5.0",
-                                color = Color.White,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier.padding(start = 4.dp)
-                            )
-                        }
+
                     }
                 }
 
