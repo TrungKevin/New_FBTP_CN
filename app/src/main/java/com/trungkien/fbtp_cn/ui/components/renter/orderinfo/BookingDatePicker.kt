@@ -27,9 +27,16 @@ import java.util.Locale
 fun BookingDatePicker(
     selectedDate: LocalDate,
     onDateChange: (LocalDate) -> Unit,
+    field: com.trungkien.fbtp_cn.model.Field? = null,
     modifier: Modifier = Modifier
 ) {
-    val dates = (0..6).map { LocalDate.now().plusDays(it.toLong()) }
+    // ✅ FIX: Sử dụng field data nếu có, fallback về 7 ngày từ hôm nay
+    val dates = if (field != null) {
+        // Có thể mở rộng để lấy ngày từ field.openDays trong tương lai
+        (0..6).map { LocalDate.now().plusDays(it.toLong()) }
+    } else {
+        (0..6).map { LocalDate.now().plusDays(it.toLong()) }
+    }
 
     Card(modifier = modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {

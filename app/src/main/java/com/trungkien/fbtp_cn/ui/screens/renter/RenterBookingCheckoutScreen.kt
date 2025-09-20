@@ -13,9 +13,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trungkien.fbtp_cn.ui.components.renter.orderinfo.*
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
+import com.trungkien.fbtp_cn.viewmodel.FieldViewModel
+import com.trungkien.fbtp_cn.viewmodel.FieldEvent
+import com.trungkien.fbtp_cn.model.Field
+import com.trungkien.fbtp_cn.model.PricingRule
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @RequiresApi(Build.VERSION_CODES.O)
@@ -27,6 +33,10 @@ fun RenterBookingCheckoutScreen(
     onConfirmBooking: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // ✅ FIX: Sử dụng FieldViewModel để lấy dữ liệu thật
+    val fieldViewModel: FieldViewModel = viewModel()
+    val uiState by fieldViewModel.uiState.collectAsState()
+    
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var selectedSlots by remember { mutableStateOf(setOf<String>()) }
     var notes by remember { mutableStateOf("") }
@@ -35,20 +45,48 @@ fun RenterBookingCheckoutScreen(
     var servicesQuantity by remember { mutableStateOf(mapOf<String, Int>()) }
     var showServicePicker by remember { mutableStateOf(false) }
 
-    // Mock services
-    val allServices = listOf(
-        RenterServiceItem("1", "Thuê vợt", 20000),
-        RenterServiceItem("2", "Nước uống", 15000),
-        RenterServiceItem("3", "Khăn lạnh", 5000)
-    )
+    // ✅ FIX: Lấy field services thật từ Firebase
+    val allServices = uiState.fieldServices.map { service ->
+        RenterServiceItem(
+            id = service.serviceId ?: service.fieldServiceId,
+            name = service.name,
+            price = service.price.toInt()
+        )
+    }
 
     val servicesTotal = servicesQuantity.entries.sumOf { entry ->
         val price = allServices.firstOrNull { it.id == entry.key }?.price ?: 0
         price * entry.value
     }
     val hours = selectedSlots.size
-    val fieldTotal = basePricePerHour * hours
+    
+    // ✅ FIX: Tính giá chính xác theo từng slot đã chọn
+    val fieldTotal = if (hours > 0 && uiState.pricingRules.isNotEmpty()) {
+        val totalPrice = selectedSlots.sumOf { slot ->
+            val price = calculatePriceForTimeSlot(
+                timeSlot = slot,
+                selectedDate = selectedDate,
+                pricingRules = uiState.pricingRules
+            )
+            price ?: basePricePerHour.toLong()
+        }
+        totalPrice.toInt()
+    } else {
+        basePricePerHour * hours
+    }
     val grandTotal = fieldTotal + servicesTotal
+    
+    // ✅ FIX: Load field data và slots khi component được tạo
+    LaunchedEffect(fieldId) {
+        fieldViewModel.handleEvent(FieldEvent.LoadFieldById(fieldId))
+        fieldViewModel.handleEvent(FieldEvent.LoadPricingRules(fieldId))
+        fieldViewModel.handleEvent(FieldEvent.LoadFieldServices(fieldId))
+    }
+    
+    // ✅ FIX: Load slots khi thay đổi ngày
+    LaunchedEffect(selectedDate, fieldId) {
+        fieldViewModel.handleEvent(FieldEvent.LoadSlotsByFieldIdAndDate(fieldId, selectedDate.toString()))
+    }
 
     if (showServicePicker) {
         BookingServicesPickerSheet(
@@ -97,10 +135,43 @@ fun RenterBookingCheckoutScreen(
                 .padding(bottom = 100.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            BookingDatePicker(selectedDate = selectedDate, onDateChange = { selectedDate = it })
-            BookingTimeSlotGrid(selectedDate = selectedDate, selected = selectedSlots, onToggle = { slot ->
-                selectedSlots = selectedSlots.toMutableSet().apply { if (contains(slot)) remove(slot) else add(slot) }.toSet()
-            })
+            // ✅ FIX: Hiển thị loading nếu chưa có field data
+            if (uiState.isLoading && uiState.currentField == null) {
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            } else {
+                // ✅ FIX: Sử dụng field data thật cho BookingDatePicker
+                uiState.currentField?.let { field ->
+                    BookingDatePicker(
+                        selectedDate = selectedDate, 
+                        onDateChange = { selectedDate = it },
+                        field = field
+                    )
+                    
+                    // ✅ FIX: Sử dụng field data thật cho BookingTimeSlotGrid
+                    BookingTimeSlotGrid(
+                        selectedDate = selectedDate, 
+                        selected = selectedSlots, 
+                        onToggle = { slot ->
+                            selectedSlots = selectedSlots.toMutableSet().apply { 
+                                if (contains(slot)) remove(slot) else add(slot) 
+                            }.toSet()
+                        },
+                        field = field,
+                        fieldViewModel = fieldViewModel
+                    )
+                } ?: run {
+                    // Fallback nếu không có field data
+                    BookingDatePicker(selectedDate = selectedDate, onDateChange = { selectedDate = it })
+                    BookingTimeSlotGrid(selectedDate = selectedDate, selected = selectedSlots, onToggle = { slot ->
+                        selectedSlots = selectedSlots.toMutableSet().apply { if (contains(slot)) remove(slot) else add(slot) }.toSet()
+                    })
+                }
+            }
 
             BookingServicesPicker(
                 servicesTotal = servicesTotal,
@@ -119,6 +190,46 @@ fun RenterBookingCheckoutScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
+}
+
+// ✅ FIX: Hàm tính giá dựa trên PricingRules giống TimeSlots
+private fun calculatePriceForTimeSlot(
+    timeSlot: String,
+    selectedDate: LocalDate,
+    pricingRules: List<PricingRule>
+): Long? {
+    if (pricingRules.isEmpty()) return null
+    
+    // Xác định loại ngày (WEEKDAY/WEEKEND) - Sử dụng Calendar
+    val calendar = java.util.Calendar.getInstance()
+    calendar.set(selectedDate.year, selectedDate.monthValue - 1, selectedDate.dayOfMonth)
+    val dayOfWeek = calendar.get(java.util.Calendar.DAY_OF_WEEK) // 1=Sunday, 2=Monday, ..., 7=Saturday
+    val dayType = when (dayOfWeek) {
+        java.util.Calendar.SUNDAY, java.util.Calendar.SATURDAY -> "WEEKEND" // Chủ nhật, Thứ 7
+        else -> "WEEKDAY" // Thứ 2-6
+    }
+    
+    // Xác định khung giờ dựa trên timeSlot
+    val hour = timeSlot.split(":")[0].toInt()
+    val timeSlotType = when {
+        hour in 5..11 -> "5h - 12h"
+        hour in 12..17 -> "12h - 18h"
+        hour in 18..23 -> "18h - 24h"
+        else -> "5h - 12h" // Fallback
+    }
+    
+    // Tìm pricing rule phù hợp
+    val matchingRule = pricingRules.find { rule ->
+        rule.dayType == dayType && 
+        rule.description.contains(timeSlotType)
+    }
+    
+    println("💰 DEBUG: RenterBookingCheckoutScreen - Price calculation for $timeSlot on ${selectedDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))}:")
+    println("  - dayType: $dayType")
+    println("  - timeSlotType: $timeSlotType")
+    println("  - matchingRule: ${matchingRule?.price ?: "Not found"}")
+    
+    return matchingRule?.price
 }
 
 @RequiresApi(Build.VERSION_CODES.O)
