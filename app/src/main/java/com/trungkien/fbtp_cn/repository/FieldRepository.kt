@@ -575,24 +575,7 @@ class FieldRepository {
                 println("✅ DEBUG: ${servicesSnapshot.size()} field services deleted")
             }
             
-            // 5. Xóa field document CUỐI CÙNG
-            try {
-                println("🔄 DEBUG: Starting field document deletion...")
-                val deleteTask = firestore.collection(FIELDS_COLLECTION)
-                    .document(fieldId)
-                    .delete()
-                
-                println("🔄 DEBUG: Delete task created, awaiting completion...")
-                deleteTask.await()
-                println("✅ DEBUG: Field info deleted successfully")
-            } catch (e: Exception) {
-                println("❌ ERROR: Failed to delete field document: ${e.message}")
-                println("❌ ERROR: Exception type: ${e.javaClass.simpleName}")
-                println("❌ ERROR: Stack trace: ${e.stackTraceToString()}")
-                throw e
-            }
-            
-            // 6. Xóa reviews (đánh giá sân)
+            // 5. Xóa reviews (đánh giá sân) TRƯỚC KHI xóa field document
             val reviewsSnapshot = firestore.collection(REVIEWS_COLLECTION)
                 .whereEqualTo("fieldId", fieldId)
                 .get()
@@ -607,7 +590,7 @@ class FieldRepository {
                 println("✅ DEBUG: ${reviewsSnapshot.size()} reviews deleted")
             }
             
-            // 6. Xóa slots (khe giờ) của sân
+            // 6. Xóa slots (khe giờ) của sân TRƯỚC KHI xóa field document
             val slotsSnapshot = firestore.collection(SLOTS_COLLECTION)
                 .whereEqualTo("fieldId", fieldId)
                 .get()
@@ -620,6 +603,23 @@ class FieldRepository {
                 }
                 slotsBatch.commit().await()
                 println("✅ DEBUG: ${slotsSnapshot.size()} slots deleted")
+            }
+            
+            // 7. Xóa field document CUỐI CÙNG
+            try {
+                println("🔄 DEBUG: Starting field document deletion...")
+                val deleteTask = firestore.collection(FIELDS_COLLECTION)
+                    .document(fieldId)
+                    .delete()
+                
+                println("🔄 DEBUG: Delete task created, awaiting completion...")
+                deleteTask.await()
+                println("✅ DEBUG: Field info deleted successfully")
+            } catch (e: Exception) {
+                println("❌ ERROR: Failed to delete field document: ${e.message}")
+                println("❌ ERROR: Exception type: ${e.javaClass.simpleName}")
+                println("❌ ERROR: Stack trace: ${e.stackTraceToString()}")
+                throw e
             }
             
             // 7. Giữ lại bookings (lịch sử đặt sân) để tham khảo
