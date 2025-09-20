@@ -14,21 +14,76 @@ import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 @Composable
 fun BookingServicesPicker(
     servicesTotal: Int,
+    selectedServices: Map<String, Int> = emptyMap(),
+    allServices: List<RenterServiceItem> = emptyList(),
     onAddServicesClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(modifier = modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)) {
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Column {
+            // Header chỉ có tiêu đề và nút thêm
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(text = "Dịch vụ thêm", style = MaterialTheme.typography.titleMedium)
-                Text(text = "Tổng dịch vụ: ${String.format("%,d", servicesTotal)}₫", color = MaterialTheme.colorScheme.primary)
+                IconButton(onClick = onAddServicesClick) {
+                    Icon(Icons.Default.Add, contentDescription = "Thêm dịch vụ")
+                }
             }
-            IconButton(onClick = onAddServicesClick) {
-                Icon(Icons.Default.Add, contentDescription = "Thêm dịch vụ")
+            
+            // ✅ FIX: Hiển thị chi tiết các dịch vụ đã chọn
+            if (selectedServices.isNotEmpty()) {
+                selectedServices.forEach { (serviceId, quantity) ->
+                    if (quantity > 0) {
+                        val service = allServices.find { it.id == serviceId }
+                        service?.let { serviceItem ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "${serviceItem.name} x $quantity",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "${String.format("%,d", serviceItem.price * quantity)}₫",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = MaterialTheme.typography.bodyMedium.fontWeight,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // ✅ FIX: Tổng dịch vụ ở phía dưới cùng
+            if (selectedServices.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Tổng dịch vụ:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = MaterialTheme.typography.bodyMedium.fontWeight,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "${String.format("%,d", servicesTotal)}₫",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = MaterialTheme.typography.bodyMedium.fontWeight,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
     }
@@ -38,7 +93,21 @@ fun BookingServicesPicker(
 @Composable
 private fun BookingServicesPickerPreview() {
     FBTP_CNTheme {
-        BookingServicesPicker(servicesTotal = 35000, onAddServicesClick = {})
+        val mockServices = listOf(
+            RenterServiceItem("1", "Thuê vợt", 20000),
+            RenterServiceItem("2", "Nước uống", 15000),
+            RenterServiceItem("3", "Khăn lạnh", 5000)
+        )
+        val mockSelectedServices = mapOf(
+            "1" to 2,  // Thuê vợt x 2
+            "2" to 1   // Nước uống x 1
+        )
+        BookingServicesPicker(
+            servicesTotal = 55000, // 2*20000 + 1*15000 = 55000
+            selectedServices = mockSelectedServices,
+            allServices = mockServices,
+            onAddServicesClick = {}
+        )
     }
 }
 

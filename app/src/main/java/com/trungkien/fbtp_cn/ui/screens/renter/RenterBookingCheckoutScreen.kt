@@ -175,6 +175,8 @@ fun RenterBookingCheckoutScreen(
 
             BookingServicesPicker(
                 servicesTotal = servicesTotal,
+                selectedServices = servicesQuantity,
+                allServices = allServices,
                 onAddServicesClick = { showServicePicker = true }
             )
 
@@ -193,6 +195,7 @@ fun RenterBookingCheckoutScreen(
 }
 
 // ✅ FIX: Hàm tính giá dựa trên PricingRules giống TimeSlots
+@RequiresApi(Build.VERSION_CODES.O)
 private fun calculatePriceForTimeSlot(
     timeSlot: String,
     selectedDate: LocalDate,
