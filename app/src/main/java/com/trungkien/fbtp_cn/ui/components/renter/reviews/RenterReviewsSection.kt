@@ -49,6 +49,14 @@ fun RenterReviewsSection(
         evaluateVm.handleEvent(EvaluateCourtEvent.LoadReviews(fieldId))
         evaluateVm.handleEvent(EvaluateCourtEvent.LoadReviewSummary(fieldId))
     }
+    
+    // LaunchedEffect để refresh reviews khi user thay đổi avatar
+    LaunchedEffect(currentUser?.avatarUrl) {
+        if (currentUser != null) {
+            println("🔄 DEBUG: User avatar changed, refreshing reviews for field: $fieldId")
+            evaluateVm.handleEvent(EvaluateCourtEvent.LoadReviews(fieldId))
+        }
+    }
 
     val focusManager = LocalFocusManager.current
 

@@ -178,19 +178,21 @@ private fun ReviewHeader(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Avatar thực: ưu tiên renterAvatar, nếu trống thì lấy từ UserRepository theo renterId
+        // Avatar thực: luôn lấy avatar mới nhất từ UserRepository
         val context = LocalContext.current
         val userRepository = remember { UserRepository() }
-        val avatarData by produceState(initialValue = review.renterAvatar, key1 = review.renterId, key2 = review.renterAvatar) {
-            var v = review.renterAvatar
-            if (v.isBlank() && review.renterId.isNotBlank()) {
+        val avatarData by produceState(initialValue = "", key1 = review.renterId) {
+            if (review.renterId.isNotBlank()) {
                 userRepository.getUserById(
                     review.renterId,
                     onSuccess = { user -> value = user.avatarUrl ?: "" },
-                    onError = { _ -> }
+                    onError = { _ -> 
+                        // Fallback về avatar từ review nếu không lấy được từ UserRepository
+                        value = review.renterAvatar
+                    }
                 )
             } else {
-                value = v
+                value = review.renterAvatar
             }
         }
         if (avatarData.isNotBlank()) {
@@ -535,19 +537,21 @@ private fun ReplyItem(
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Avatar nhỏ cho reply
+        // Avatar nhỏ cho reply: luôn lấy avatar mới nhất từ UserRepository
         val context = LocalContext.current
         val userRepository = remember { UserRepository() }
-        val repAvatar by produceState(initialValue = reply.userAvatar, key1 = reply.userId, key2 = reply.userAvatar) {
-            var v = reply.userAvatar
-            if (v.isBlank() && reply.userId.isNotBlank()) {
+        val repAvatar by produceState(initialValue = "", key1 = reply.userId) {
+            if (reply.userId.isNotBlank()) {
                 userRepository.getUserById(
                     reply.userId,
                     onSuccess = { user -> value = user.avatarUrl ?: "" },
-                    onError = { _ -> }
+                    onError = { _ -> 
+                        // Fallback về avatar từ reply nếu không lấy được từ UserRepository
+                        value = reply.userAvatar
+                    }
                 )
             } else {
-                value = v
+                value = reply.userAvatar
             }
         }
         

@@ -59,18 +59,22 @@ fun RenterReviewCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Avatar tròn: ưu tiên avatar từ review; fallback lấy theo renterId từ UserRepository
-            val avatarData by produceState(initialValue = review.renterAvatar) {
-                var valueStr = review.renterAvatar
-                if (valueStr.isBlank() && review.renterId.isNotBlank()) {
+            // Avatar tròn: luôn lấy avatar mới nhất từ UserRepository
+            val avatarData by produceState(initialValue = "", key1 = review.renterId) {
+                if (review.renterId.isNotBlank()) {
                     com.trungkien.fbtp_cn.repository.UserRepository().getUserById(
                         review.renterId,
                         onSuccess = { user ->
                             val raw = user.avatarUrl ?: ""
                             value = raw
                         },
-                        onError = { _ -> }
+                        onError = { _ -> 
+                            // Fallback về avatar từ review nếu không lấy được từ UserRepository
+                            value = review.renterAvatar
+                        }
                     )
+                } else {
+                    value = review.renterAvatar
                 }
             }
             if (avatarData.isNotBlank()) {
@@ -181,9 +185,26 @@ fun RenterReviewCard(
                         verticalAlignment = Alignment.Top,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Avatar for reply
+                        // Avatar for reply: luôn lấy avatar mới nhất từ UserRepository
                         val context = LocalContext.current
-                        val repAvatar = rep.userAvatar
+                        val repAvatar by produceState(initialValue = "", key1 = rep.userId) {
+                            if (rep.userId.isNotBlank()) {
+                                com.trungkien.fbtp_cn.repository.UserRepository().getUserById(
+                                    rep.userId,
+                                    onSuccess = { user ->
+                                        val raw = user.avatarUrl ?: ""
+                                        value = raw
+                                    },
+                                    onError = { _ -> 
+                                        // Fallback về avatar từ reply nếu không lấy được từ UserRepository
+                                        value = rep.userAvatar
+                                    }
+                                )
+                            } else {
+                                value = rep.userAvatar
+                            }
+                        }
+                        
                         if (repAvatar.isNotBlank()) {
                             val decoded = try {
                                 val base = if (repAvatar.startsWith("data:image")) repAvatar.substringAfter(",") else repAvatar

@@ -53,6 +53,14 @@ fun EvaluateCourt(
         println("👤 DEBUG: Current user: ${currentUser?.name}, isOwner: $isOwner")
     }
     
+    // LaunchedEffect để refresh reviews khi user thay đổi avatar
+    LaunchedEffect(currentUser?.avatarUrl) {
+        if (currentUser != null) {
+            println("🔄 DEBUG: User avatar changed, refreshing reviews for field: $fieldId")
+            viewModel.handleEvent(EvaluateCourtEvent.LoadReviews(fieldId))
+        }
+    }
+    
     Column(
         modifier = modifier
             .fillMaxSize()
