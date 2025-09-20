@@ -262,7 +262,16 @@ fun OwnerMainScreen(
                         showBottomNavBar = true
                         // Refresh profile to ensure latest avatar is loaded
                         authViewModel.fetchProfile()
-                        navController.navigateUp()
+                        // ✅ FIX: Sử dụng popBackStack thay vì navigateUp để tránh lỗi back stack
+                        try {
+                            navController.popBackStack()
+                        } catch (e: Exception) {
+                            println("❌ ERROR: Navigation error: ${e.message}")
+                            // Fallback: navigate to profile
+                            navController.navigate("owner_profile") {
+                                popUpTo("owner_home") { inclusive = true }
+                            }
+                        }
                     }
                 )
             }
@@ -277,7 +286,16 @@ fun OwnerMainScreen(
                         currentScreen = OwnerNavScreen.Field
                         showTopAppBar = true
                         showBottomNavBar = true
-                        navController.navigateUp()
+                        // ✅ FIX: Sử dụng popBackStack thay vì navigateUp để tránh lỗi back stack
+                        try {
+                            navController.popBackStack()
+                        } catch (e: Exception) {
+                            println("❌ ERROR: Navigation error: ${e.message}")
+                            // Fallback: navigate to field list
+                            navController.navigate("owner_field_list") {
+                                popUpTo("owner_home") { inclusive = true }
+                            }
+                        }
                     },
                     fieldViewModel = fieldViewModel // TRUYỀN VIEWMODEL ĐỂ CHIA SẺ DỮ LIỆU
                 )
@@ -301,7 +319,16 @@ fun OwnerMainScreen(
                     onBackClick = {
                         showTopAppBar = true
                         showBottomNavBar = true
-                        navController.navigateUp()
+                        // ✅ FIX: Sử dụng popBackStack thay vì navigateUp để tránh lỗi back stack
+                        try {
+                            navController.popBackStack()
+                        } catch (e: Exception) {
+                            println("❌ ERROR: Navigation error: ${e.message}")
+                            // Fallback: navigate to field list
+                            navController.navigate("owner_field_list") {
+                                popUpTo("owner_home") { inclusive = true }
+                            }
+                        }
                     },
                     onFieldAdded = { fieldId ->
                         // Sau khi thêm sân thành công, chuyển về màn hình quản lý sân

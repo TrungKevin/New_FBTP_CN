@@ -5,12 +5,16 @@ import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusManager
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -126,13 +130,23 @@ fun RenterBookingCheckoutScreen(
             }
         }
     ) { innerPadding ->
+        // ✅ FIX: FocusManager để ẩn bàn phím khi click ra ngoài
+        val focusManager: FocusManager = LocalFocusManager.current
+        
         Column(
             modifier = modifier
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
-                .padding(bottom = 100.dp),
+                .padding(bottom = 100.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    // ✅ FIX: Click ra ngoài để ẩn bàn phím
+                    focusManager.clearFocus()
+                },
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // ✅ FIX: Hiển thị loading nếu chưa có field data
