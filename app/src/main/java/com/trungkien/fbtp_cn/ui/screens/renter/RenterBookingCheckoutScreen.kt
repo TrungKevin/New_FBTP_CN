@@ -27,10 +27,15 @@ import com.trungkien.fbtp_cn.ui.components.renter.orderinfo.*
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 import com.trungkien.fbtp_cn.viewmodel.FieldViewModel
 import com.trungkien.fbtp_cn.viewmodel.FieldEvent
+import com.trungkien.fbtp_cn.viewmodel.BookingViewModel
+import com.trungkien.fbtp_cn.viewmodel.BookingEvent
+import com.trungkien.fbtp_cn.viewmodel.AuthViewModel
 import com.trungkien.fbtp_cn.model.Field
 import com.trungkien.fbtp_cn.model.PricingRule
+import com.trungkien.fbtp_cn.model.ServiceLine
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import com.trungkien.fbtp_cn.ui.components.common.LoadingDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @RequiresApi(Build.VERSION_CODES.O)
@@ -45,6 +50,10 @@ fun RenterBookingCheckoutScreen(
     // ✅ FIX: Sử dụng FieldViewModel để lấy dữ liệu thật
     val fieldViewModel: FieldViewModel = viewModel()
     val uiState by fieldViewModel.uiState.collectAsState()
+    val bookingViewModel: BookingViewModel = viewModel()
+    val authViewModel: AuthViewModel = viewModel()
+    val bookingUi by bookingViewModel.uiState.collectAsState()
+    val currentUser = authViewModel.currentUser.collectAsState().value
     
     var selectedDate by remember { 
         val today = LocalDate.now()
@@ -167,6 +176,13 @@ fun RenterBookingCheckoutScreen(
         )
     }
 
+    // Khi tạo booking thành công -> điều hướng ra danh sách đặt lịch
+    LaunchedEffect(bookingUi.lastCreatedId) {
+        if (bookingUi.lastCreatedId != null) {
+            onConfirmBooking()
+        }
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -189,7 +205,45 @@ fun RenterBookingCheckoutScreen(
                 ) {
                     Text(text = "Tổng: ${String.format("%,d", grandTotal)}₫", style = MaterialTheme.typography.titleMedium)
                     Button(
-                        onClick = onConfirmBooking, 
+                        onClick = {
+                            if (effectiveSlots.isNotEmpty()) {
+                                val renterId = currentUser?.userId
+                                val ownerId = uiState.currentField?.ownerId.orEmpty()
+                                val serviceLines: List<ServiceLine> = servicesQuantity.entries.mapNotNull { (id, qty) ->
+                                    val svc = allServices.firstOrNull { it.id == id }
+                                    svc?.let {
+                                        ServiceLine(
+                                            serviceId = it.id,
+                                            name = it.name,
+                                            billingType = "UNIT",
+                                            price = it.price.toLong(),
+                                            quantity = qty,
+                                            lineTotal = (it.price * qty).toLong()
+                                        )
+                                    }
+                                }
+                                if (!renterId.isNullOrEmpty() && ownerId.isNotEmpty()) {
+                                    bookingViewModel.handle(
+                                        BookingEvent.Create(
+                                            renterId = renterId,
+                                            ownerId = ownerId,
+                                            fieldId = fieldId,
+                                            date = selectedDate.toString(),
+                                            consecutiveSlots = effectiveSlots.sorted(),
+                                            bookingType = if (lockedSlots.isNotEmpty()) "DUO" else "SOLO",
+                                            hasOpponent = lockedSlots.isNotEmpty(),
+                                            opponentId = null,
+                                            opponentName = null,
+                                            opponentAvatar = null,
+                                            basePrice = fieldTotal.toLong(),
+                                            serviceLines = serviceLines,
+                                            notes = notes.ifBlank { null }
+                                        )
+                                    )
+                                    // Loading UI sẽ hiển thị qua bookingUi.isLoading composable ở phía trên
+                                }
+                            }
+                        }, 
                         enabled = effectiveSlots.isNotEmpty(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (effectiveSlots.isNotEmpty()) 
@@ -204,6 +258,10 @@ fun RenterBookingCheckoutScreen(
             }
         }
     ) { innerPadding ->
+        // Hiển thị loading khi đang tạo booking
+        if (bookingUi.isLoading) {
+            LoadingDialog(message = "Đang tạo đặt lịch...")
+        }
         // ✅ FIX: FocusManager để ẩn bàn phím khi click ra ngoài
         val focusManager: FocusManager = LocalFocusManager.current
         
@@ -293,7 +351,10 @@ fun RenterBookingCheckoutScreen(
                             }
                         },
                         waitingOpponentSlots = waitingOpponentSlots,
-                        lockedSlots = lockedSlots
+                        lockedSlots = lockedSlots,
+                        bookedStartTimes = fieldViewModel.uiState.collectAsState().value.bookedStartTimes,
+                        waitingOpponentTimes = fieldViewModel.uiState.collectAsState().value.waitingOpponentTimes,
+                        lockedOpponentTimes = fieldViewModel.uiState.collectAsState().value.lockedOpponentTimes
                     )
                 } ?: run {
                     // Fallback nếu không có field data

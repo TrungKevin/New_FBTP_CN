@@ -4,23 +4,23 @@ import androidx.annotation.Keep
 
 @Keep
 data class Booking(
-    val bookingId: String,
-    val renterId: String,
-    val ownerId: String,
-    val fieldId: String,
-    val date: String, // "2024-01-15"
-    val startAt: String, // "18:00"
-    val endAt: String, // "19:00"
-    val slotsCount: Int,
-    val minutes: Int,
+    val bookingId: String = "",
+    val renterId: String = "",
+    val ownerId: String = "",
+    val fieldId: String = "",
+    val date: String = "", // "2024-01-15"
+    val startAt: String = "", // "18:00"
+    val endAt: String = "", // "19:00"
+    val slotsCount: Int = 0,
+    val minutes: Int = 0,
     val matchId: String? = null,
     val matchSide: String? = null, // "A" | "B"
     val opponentMode: String? = null, // "WAITING_OPPONENT" | "LOCKED_FULL"
-    val basePrice: Long,
+    val basePrice: Long = 0,
     val serviceLines: List<ServiceLine> = emptyList(),
-    val servicePrice: Long,
-    val totalPrice: Long,
-    val status: String, // "PENDING" | "PAID" | "CANCELLED" | "DONE"
+    val servicePrice: Long = 0,
+    val totalPrice: Long = 0,
+    val status: String = "PENDING", // "PENDING" | "PAID" | "CANCELLED" | "DONE"
     val notes: String? = null,
     val paymentStatus: String? = "PENDING", // "PENDING" | "PAID" | "REFUNDED"
     val paymentMethod: String? = null, // "CASH" | "BANK_TRANSFER" | "MOMO" | "VNPAY"
@@ -37,12 +37,12 @@ data class Booking(
 
 @Keep
 data class ServiceLine(
-    val serviceId: String,
-    val name: String,
-    val billingType: String,
-    val price: Long,
-    val quantity: Int,
-    val lineTotal: Long
+    val serviceId: String = "",
+    val name: String = "",
+    val billingType: String = "UNIT",
+    val price: Long = 0,
+    val quantity: Int = 0,
+    val lineTotal: Long = 0
 )
 
 

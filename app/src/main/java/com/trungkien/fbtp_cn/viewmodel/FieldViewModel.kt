@@ -27,7 +27,10 @@ data class FieldUiState(
     val currentField: Field? = null,
     val pricingRules: List<PricingRule> = emptyList(),
     val fieldServices: List<FieldService> = emptyList(),
-    val slots: List<Slot> = emptyList()
+    val slots: List<Slot> = emptyList(),
+    val bookedStartTimes: Set<String> = emptySet(),
+    val waitingOpponentTimes: Set<String> = emptySet(),
+    val lockedOpponentTimes: Set<String> = emptySet()
 )
 
 sealed class FieldEvent {
@@ -48,6 +51,7 @@ sealed class FieldEvent {
     data class LoadPricingRulesByFieldId(val fieldId: String) : FieldEvent()
     data class LoadFieldServicesByFieldId(val fieldId: String) : FieldEvent()
     data class LoadSlotsByFieldIdAndDate(val fieldId: String, val date: String) : FieldEvent()
+    data class LoadBookedStartTimes(val fieldId: String, val date: String) : FieldEvent()
     data class AddPricingRule(val pricingRule: PricingRule) : FieldEvent()
     data class AddFieldService(val fieldService: FieldService) : FieldEvent()
     data class UpdateFieldPricingAndServices(
@@ -85,6 +89,7 @@ class FieldViewModel(
             is FieldEvent.LoadPricingRulesByFieldId -> loadPricingRulesByFieldId(event.fieldId)
             is FieldEvent.LoadFieldServicesByFieldId -> loadFieldServicesByFieldId(event.fieldId)
             is FieldEvent.LoadSlotsByFieldIdAndDate -> loadSlotsByFieldIdAndDate(event.fieldId, event.date)
+            is FieldEvent.LoadBookedStartTimes -> loadBookedStartTimes(event.fieldId, event.date)
             is FieldEvent.AddPricingRule -> addPricingRule(event.pricingRule)
             is FieldEvent.AddFieldService -> addFieldService(event.fieldService)
             is FieldEvent.UpdateFieldPricingAndServices -> updateFieldPricingAndServices(
@@ -433,6 +438,9 @@ class FieldViewModel(
                             println("  [$index] slotId: '${slot.slotId}', startAt: '${slot.startAt}', isBooked: ${slot.isBooked}")
                         }
                         _uiState.value = _uiState.value.copy(slots = slots)
+                        // Load thêm danh sách startAt đã được đặt từ bookings để khóa màu
+                        loadBookedStartTimes(fieldId, date)
+                        loadOpponentTimes(fieldId, date)
                     },
                     onFailure = { exception ->
                         println("❌ ERROR: LoadSlotsByFieldIdAndDate thất bại cho fieldId: $fieldId, date: $date")
@@ -447,6 +455,37 @@ class FieldViewModel(
                 e.printStackTrace()
                 println("Error loading slots by field ID and date: ${e.message}")
             }
+        }
+    }
+
+    private fun loadBookedStartTimes(fieldId: String, date: String) {
+        viewModelScope.launch {
+            try {
+                val bookingRepo = com.trungkien.fbtp_cn.repository.BookingRepository()
+                val res = bookingRepo.getBookedStartTimes(fieldId, date)
+                res.fold(
+                    onSuccess = { times ->
+                        _uiState.value = _uiState.value.copy(bookedStartTimes = times)
+                    },
+                    onFailure = { }
+                )
+            } catch (_: Exception) { }
+        }
+    }
+
+    private fun loadOpponentTimes(fieldId: String, date: String) {
+        viewModelScope.launch {
+            try {
+                val repo = com.trungkien.fbtp_cn.repository.BookingRepository()
+                val waiting = repo.getWaitingOpponentBookings(fieldId, date)
+                val locked = repo.getLockedBookings(fieldId, date)
+                val waitingTimes = waiting.getOrNull()?.flatMap { it.consecutiveSlots }?.toSet() ?: emptySet()
+                val lockedTimes = locked.getOrNull()?.flatMap { it.consecutiveSlots }?.toSet() ?: emptySet()
+                _uiState.value = _uiState.value.copy(
+                    waitingOpponentTimes = waitingTimes,
+                    lockedOpponentTimes = lockedTimes
+                )
+            } catch (_: Exception) { }
         }
     }
     

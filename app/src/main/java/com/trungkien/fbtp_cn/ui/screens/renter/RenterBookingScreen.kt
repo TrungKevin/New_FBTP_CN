@@ -24,7 +24,9 @@ import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 @Composable
 fun RenterBookingScreen(
     modifier: Modifier = Modifier,
-    bookings: List<Booking> = MockData.mockBookings
+    bookings: List<Booking> = MockData.mockBookings,
+    bookingViewModel: com.trungkien.fbtp_cn.viewmodel.BookingViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    authViewModel: com.trungkien.fbtp_cn.viewmodel.AuthViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
     var selectedBookingId by remember { mutableStateOf<String?>(null) }
 
@@ -50,10 +52,16 @@ fun RenterBookingScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            val allBookings = bookings
+            val myUid = authViewModel.currentUser.collectAsState().value?.userId
+            val bookingUi = bookingViewModel.uiState.collectAsState().value
+            LaunchedEffect(myUid) {
+                myUid?.let { bookingViewModel.handle(com.trungkien.fbtp_cn.viewmodel.BookingEvent.LoadMine(it)) }
+            }
+            val allBookings = bookingUi.myBookings.ifEmpty { bookings }
             val filtered = selectedDate?.let { d -> allBookings.filter { it.date == d } } ?: allBookings
-            val upcoming = filtered.filter { it.status.equals("Confirmed", true) || it.status.equals("Upcoming", true) }
-            val completed = filtered.filter { it.status.equals("Completed", true) }
+            // ✅ Hiển thị PENDING/PAID trong mục sắp diễn ra; DONE/CANCELLED trong mục đã hoàn thành
+            val upcoming = filtered.filter { it.status.equals("PENDING", true) || it.status.equals("PAID", true) }
+            val completed = filtered.filter { it.status.equals("DONE", true) || it.status.equals("CANCELLED", true) }
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),

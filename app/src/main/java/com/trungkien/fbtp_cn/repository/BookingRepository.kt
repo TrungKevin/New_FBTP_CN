@@ -1,6 +1,7 @@
 package com.trungkien.fbtp_cn.repository
 
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import com.trungkien.fbtp_cn.model.Booking
 import com.trungkien.fbtp_cn.model.ServiceLine
 import kotlinx.coroutines.tasks.await
@@ -74,6 +75,24 @@ class BookingRepository {
                 .document(bookingId)
                 .set(booking)
                 .await()
+            // Cập nhật trạng thái các slots tương ứng (đánh dấu isBooked)
+            try {
+                val batch = firestore.batch()
+                consecutiveSlots.forEach { s ->
+                    val q = firestore.collection("slots")
+                        .whereEqualTo("fieldId", fieldId)
+                        .whereEqualTo("date", date)
+                        .whereEqualTo("startAt", s)
+                        .get().await()
+                    q.documents.forEach { doc ->
+                        batch.update(doc.reference, mapOf(
+                            "isBooked" to true,
+                            "bookingId" to bookingId
+                        ))
+                    }
+                }
+                batch.commit().await()
+            } catch (_: Exception) { }
             
             println("✅ DEBUG: Booking created successfully: $bookingId")
             println("  - Type: $bookingType")
@@ -85,6 +104,45 @@ class BookingRepository {
             println("❌ ERROR: Failed to create booking: ${e.message}")
             Result.failure(e)
         }
+    }
+    
+    /**
+     * Lấy bookings theo renterId (mới nhất trước)
+     */
+    suspend fun getBookingsByRenter(renterId: String): Result<List<Booking>> {
+        return try {
+            val snapshot = firestore.collection(BOOKINGS_COLLECTION)
+                .whereEqualTo("renterId", renterId)
+                .get()
+                .await()
+            val list = snapshot.toObjects(Booking::class.java)
+                .sortedByDescending { it.createdAt }
+            Result.success(list)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * ✅ NEW: Lắng nghe thay đổi bookings theo renterId (realtime)
+     */
+    fun listenBookingsByRenter(
+        renterId: String,
+        onChange: (List<Booking>) -> Unit,
+        onError: (Exception) -> Unit
+    ): ListenerRegistration {
+        return firestore.collection(BOOKINGS_COLLECTION)
+            .whereEqualTo("renterId", renterId)
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    onError(e)
+                    return@addSnapshotListener
+                }
+                val list = snapshot?.toObjects(Booking::class.java)
+                    ?.sortedByDescending { it.createdAt }
+                    ?: emptyList()
+                onChange(list)
+            }
     }
     
     /**
@@ -104,6 +162,25 @@ class BookingRepository {
             Result.success(bookings)
         } catch (e: Exception) {
             println("❌ ERROR: Failed to get bookings: ${e.message}")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * ✅ NEW: Lấy danh sách startAt đã được đặt (để khóa màu trong grid)
+     */
+    suspend fun getBookedStartTimes(fieldId: String, date: String): Result<Set<String>> {
+        return try {
+            val snapshot = firestore.collection(BOOKINGS_COLLECTION)
+                .whereEqualTo("fieldId", fieldId)
+                .whereEqualTo("date", date)
+                .get()
+                .await()
+            val times = snapshot.toObjects(Booking::class.java)
+                .flatMap { it.consecutiveSlots }
+                .toSet()
+            Result.success(times)
+        } catch (e: Exception) {
             Result.failure(e)
         }
     }

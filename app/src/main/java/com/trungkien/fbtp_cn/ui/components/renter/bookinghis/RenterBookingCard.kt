@@ -8,8 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -23,9 +22,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trungkien.fbtp_cn.R
-import com.trungkien.fbtp_cn.data.MockData
 import com.trungkien.fbtp_cn.model.Booking
+import com.trungkien.fbtp_cn.model.Field
+import com.trungkien.fbtp_cn.repository.FieldRepository
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
+import coil.compose.AsyncImage
 
 @Composable
 fun RenterBookingCard(
@@ -33,7 +34,12 @@ fun RenterBookingCard(
     onDetailClick: (Booking) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val field = remember(booking.fieldId) { MockData.getFieldById(booking.fieldId) }
+    // ✅ Load field thật từ Firestore
+    var field by remember(booking.fieldId) { mutableStateOf<Field?>(null) }
+    LaunchedEffect(booking.fieldId) {
+        val repo = FieldRepository()
+        repo.getFieldById(booking.fieldId).onSuccess { f -> field = f }
+    }
 
     Card(
         modifier = modifier
@@ -112,12 +118,16 @@ fun RenterBookingCard(
                         shadowElevation = 8.dp,
                         modifier = Modifier.size(72.dp)
                     ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.stadium),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(16.dp)
-                        )
+                        if (field?.images?.mainImage?.isNotEmpty() == true) {
+                            AsyncImage(model = field!!.images.mainImage, contentDescription = null)
+                        } else {
+                            Icon(
+                                painter = painterResource(id = R.drawable.stadium),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
                     }
                 }
 
@@ -143,7 +153,7 @@ fun RenterBookingCard(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Sân ${booking.fieldId}",
+                            text = field?.name ?: booking.fieldId,
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
@@ -153,7 +163,7 @@ fun RenterBookingCard(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Tennis",
+                            text = field?.sports?.firstOrNull() ?: "",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Medium

@@ -30,6 +30,8 @@ fun RenterMainScreen(
     
     // FieldViewModel để load pricing rules
     val fieldViewModel: FieldViewModel = viewModel()
+    // BookingViewModel để reset trạng thái điều hướng sau khi đặt
+    val bookingViewModel: com.trungkien.fbtp_cn.viewmodel.BookingViewModel = viewModel()
     
     // Load pricing rules when we have a fieldId
     LaunchedEffect(activeOrderDetailFieldId) {
@@ -93,12 +95,17 @@ fun RenterMainScreen(
                             onBookClick = { fieldId -> activeOrderDetailFieldId = fieldId }
                         )
                     } else {
-                        var goCheckout by remember { mutableStateOf(false) }
+                        var goCheckout by remember(activeOrderDetailFieldId) { mutableStateOf(false) }
                         if (!goCheckout) {
                             RenterOrderDetailScreen(
                                 fieldId = activeOrderDetailFieldId!!,
                                 onBackClick = { activeOrderDetailFieldId = null },
-                                onBookNow = { goCheckout = true }
+                                onBookNow = {
+                                    // ✅ Reset cờ lastCreatedId để lần mở checkout mới không tự navigate
+                                    bookingViewModel.handle(com.trungkien.fbtp_cn.viewmodel.BookingEvent.ResetLastCreatedId)
+                                    // ✅ RESET navigation flags before opening checkout
+                                    goCheckout = true
+                                }
                             )
                         } else {
                             // Get actual price from pricing rules
@@ -107,8 +114,17 @@ fun RenterMainScreen(
                             RenterBookingCheckoutScreen(
                                 fieldId = activeOrderDetailFieldId!!,
                                 basePricePerHour = fieldPrice,
-                                onBackClick = { goCheckout = false },
-                                onConfirmBooking = { /* TODO: finalize booking */ }
+                                onBackClick = {
+                                    bookingViewModel.handle(com.trungkien.fbtp_cn.viewmodel.BookingEvent.ResetLastCreatedId)
+                                    goCheckout = false
+                                },
+                                onConfirmBooking = {
+                                    // Sau khi VM tạo booking thành công, chuyển sang tab Booking
+                                    selectedScreen = RenterNavScreen.Booking
+                                    activeOrderDetailFieldId = null
+                                    goCheckout = false
+                                    bookingViewModel.handle(com.trungkien.fbtp_cn.viewmodel.BookingEvent.ResetLastCreatedId)
+                                }
                             )
                         }
                     }

@@ -38,7 +38,10 @@ fun BookingTimeSlotGrid(
     // ✅ NEW: Thêm các tham số cho logic đối thủ
     onConsecutiveSelection: (List<String>) -> Unit = {}, // Callback khi chọn khung giờ liên tiếp
     waitingOpponentSlots: Set<String> = emptySet(), // Các khung giờ đang tìm đối thủ (màu vàng)
-    lockedSlots: Set<String> = emptySet() // Các khung giờ đã có đối thủ (màu đỏ)
+    lockedSlots: Set<String> = emptySet(), // Các khung giờ đã có đối thủ (màu đỏ)
+    bookedStartTimes: Set<String> = emptySet(), // ✅ NEW: Các khung giờ đã được đặt từ bookings
+    waitingOpponentTimes: Set<String> = emptySet(), // ✅ NEW: từ bookings (SOLO)
+    lockedOpponentTimes: Set<String> = emptySet() // ✅ NEW: từ bookings (DUO)
 ) {
     // ✅ FIX: Sử dụng field data thật nếu có
     val (actualStartHour, actualEndHour, isOpen24h) = if (field != null) {
@@ -92,14 +95,14 @@ fun BookingTimeSlotGrid(
                     val isAvailable = true
                     val isSelected = selected.contains(slot)
                     
-                    // ✅ FIX: Kiểm tra slot đã được đặt từ Firebase cho ngày cụ thể
-                    val isBooked = firebaseSlots.any { firebaseSlot ->
+                    // ✅ FIX: Kiểm tra slot đã được đặt (từ "slots" hoặc từ "bookings")
+                    val isBooked = bookedStartTimes.contains(slot) || firebaseSlots.any { firebaseSlot ->
                         firebaseSlot.startAt == slot && firebaseSlot.isBooked
                     }
                     
                     // ✅ FIX: Kiểm tra slot đang tìm đối thủ hoặc đã có đối thủ cho ngày cụ thể
-                    val isWaitingOpponentForThisDate = waitingOpponentSlots.contains(slot)
-                    val isLockedForThisDate = lockedSlots.contains(slot)
+                    val isWaitingOpponentForThisDate = waitingOpponentSlots.contains(slot) || waitingOpponentTimes.contains(slot)
+                    val isLockedForThisDate = lockedSlots.contains(slot) || lockedOpponentTimes.contains(slot)
                     
                     // ✅ FIX: Tính giá chính xác theo ngày và khung giờ giống TimeSlots
                     val price = calculatePriceForTimeSlot(
@@ -110,15 +113,13 @@ fun BookingTimeSlotGrid(
                     val priceText = if (price != null && price > 0) "${String.format("%,d", price)}₫" else ""
 
                     val bg = when {
-                        isBooked -> Color.Red.copy(alpha = 0.3f)
                         isLockedForThisDate -> Color.Red.copy(alpha = 0.2f)
                         isWaitingOpponentForThisDate -> Color(0xFFFFD700).copy(alpha = 0.3f)
                         isSelected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                         else -> MaterialTheme.colorScheme.surface
                     }
                     val fg = when {
-                        isBooked -> Color.Red
-                        isLockedForThisDate -> Color.Red.copy(alpha = 0.8f)
+                        isLockedForThisDate || isBooked -> Color.Red
                         isWaitingOpponentForThisDate -> Color(0xFFB8860B)
                         isSelected -> MaterialTheme.colorScheme.primary
                         else -> MaterialTheme.colorScheme.onSurface
