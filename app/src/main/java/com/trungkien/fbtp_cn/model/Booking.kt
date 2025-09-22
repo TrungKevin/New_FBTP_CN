@@ -25,7 +25,14 @@ data class Booking(
     val paymentStatus: String? = "PENDING", // "PENDING" | "PAID" | "REFUNDED"
     val paymentMethod: String? = null, // "CASH" | "BANK_TRANSFER" | "MOMO" | "VNPAY"
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    // ✅ NEW: Thêm các trường cho logic đối thủ
+    val hasOpponent: Boolean = false, // true nếu đã có đối thủ
+    val opponentId: String? = null, // ID của đối thủ
+    val opponentName: String? = null, // Tên đối thủ
+    val opponentAvatar: String? = null, // Avatar đối thủ
+    val bookingType: String = "SOLO", // "SOLO" | "DUO" - SOLO: tìm đối thủ, DUO: đã có đối thủ
+    val consecutiveSlots: List<String> = emptyList() // Danh sách các khung giờ liên tiếp
 )
 
 @Keep

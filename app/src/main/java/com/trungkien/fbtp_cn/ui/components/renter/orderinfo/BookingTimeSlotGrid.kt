@@ -5,6 +5,7 @@ import androidx.annotation.RequiresApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -33,7 +34,11 @@ fun BookingTimeSlotGrid(
     fieldViewModel: com.trungkien.fbtp_cn.viewmodel.FieldViewModel? = null,
     startHour: Int = 6,
     endHour: Int = 22,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // ✅ NEW: Thêm các tham số cho logic đối thủ
+    onConsecutiveSelection: (List<String>) -> Unit = {}, // Callback khi chọn khung giờ liên tiếp
+    waitingOpponentSlots: Set<String> = emptySet(), // Các khung giờ đang tìm đối thủ (màu vàng)
+    lockedSlots: Set<String> = emptySet() // Các khung giờ đã có đối thủ (màu đỏ)
 ) {
     // ✅ FIX: Sử dụng field data thật nếu có
     val (actualStartHour, actualEndHour, isOpen24h) = if (field != null) {
@@ -83,13 +88,18 @@ fun BookingTimeSlotGrid(
             ) {
                 items(slots) { slot ->
                     val hour = slot.substring(0,2).toInt()
-                    val isAvailable = hour in actualStartHour until actualEndHour
+                    // Slot đã được generate theo giờ mở cửa, coi như khả dụng để chọn
+                    val isAvailable = true
                     val isSelected = selected.contains(slot)
                     
-                    // ✅ FIX: Kiểm tra slot đã được đặt từ Firebase
+                    // ✅ FIX: Kiểm tra slot đã được đặt từ Firebase cho ngày cụ thể
                     val isBooked = firebaseSlots.any { firebaseSlot ->
                         firebaseSlot.startAt == slot && firebaseSlot.isBooked
                     }
+                    
+                    // ✅ FIX: Kiểm tra slot đang tìm đối thủ hoặc đã có đối thủ cho ngày cụ thể
+                    val isWaitingOpponentForThisDate = waitingOpponentSlots.contains(slot)
+                    val isLockedForThisDate = lockedSlots.contains(slot)
                     
                     // ✅ FIX: Tính giá chính xác theo ngày và khung giờ giống TimeSlots
                     val price = calculatePriceForTimeSlot(
@@ -101,13 +111,15 @@ fun BookingTimeSlotGrid(
 
                     val bg = when {
                         isBooked -> Color.Red.copy(alpha = 0.3f)
-                        !isAvailable -> Color.Gray.copy(alpha = 0.3f)
+                        isLockedForThisDate -> Color.Red.copy(alpha = 0.2f)
+                        isWaitingOpponentForThisDate -> Color(0xFFFFD700).copy(alpha = 0.3f)
                         isSelected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                         else -> MaterialTheme.colorScheme.surface
                     }
                     val fg = when {
                         isBooked -> Color.Red
-                        !isAvailable -> Color.Gray
+                        isLockedForThisDate -> Color.Red.copy(alpha = 0.8f)
+                        isWaitingOpponentForThisDate -> Color(0xFFB8860B)
                         isSelected -> MaterialTheme.colorScheme.primary
                         else -> MaterialTheme.colorScheme.onSurface
                     }
@@ -122,7 +134,33 @@ fun BookingTimeSlotGrid(
                                 if (isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else BorderStroke(0.dp, Color.Transparent),
                                 shape = RoundedCornerShape(6.dp)
                             )
-                            .let { if (isAvailable && !isBooked) it.then(Modifier) else it }
+                            .let { 
+                                if (!isBooked && !isLockedForThisDate) {
+                                    it.then(
+                                        Modifier.clickable {
+                                            // ✅ FIX: Đơn giản hóa - chỉ gọi onToggle
+                                            onToggle(slot)
+                                            
+                                            // ✅ NEW: Kiểm tra selection liên tiếp sau khi onToggle
+                                            val currentSelected = if (isSelected) {
+                                                selected - slot
+                                            } else {
+                                                selected + slot
+                                            }
+                                            
+                                            // Gọi callback nếu có selection liên tiếp
+                                            if (currentSelected.size > 1) {
+                                                val consecutiveSlots = getConsecutiveSlots(currentSelected, slots)
+                                                if (consecutiveSlots.isNotEmpty()) {
+                                                    onConsecutiveSelection(consecutiveSlots)
+                                                }
+                                            }
+                                        }
+                                    )
+                                } else {
+                                    it
+                                }
+                            }
                             .padding(horizontal = 6.dp, vertical = 3.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -184,6 +222,67 @@ private fun calculatePriceForTimeSlot(
     println("  - matchingRule: ${matchingRule?.price ?: "Not found"}")
     
     return matchingRule?.price
+}
+
+// ✅ NEW: Hàm kiểm tra có thể chọn liên tiếp không
+private fun canSelectConsecutive(
+    newSlot: String,
+    currentSelected: Set<String>,
+    allSlots: List<String>
+): Boolean {
+    if (currentSelected.isEmpty()) return true // Slot đầu tiên luôn có thể chọn
+    
+    val sortedSelected = currentSelected.sorted()
+    val newSlotIndex = allSlots.indexOf(newSlot)
+    
+    // Kiểm tra xem slot mới có liền kề với slot đã chọn không
+    return sortedSelected.any { selectedSlot ->
+        val selectedIndex = allSlots.indexOf(selectedSlot)
+        kotlin.math.abs(newSlotIndex - selectedIndex) == 1
+    }
+}
+
+// ✅ NEW: Hàm lấy danh sách các slot liên tiếp
+private fun getConsecutiveSlots(
+    selected: Set<String>,
+    allSlots: List<String>
+): List<String> {
+    if (selected.size <= 1) return selected.toList()
+    
+    val sortedSelected = selected.sorted()
+    val consecutiveGroups = mutableListOf<List<String>>()
+    var currentGroup = mutableListOf<String>()
+    
+    for (i in sortedSelected.indices) {
+        val currentSlot = sortedSelected[i]
+        val currentIndex = allSlots.indexOf(currentSlot)
+        
+        if (currentGroup.isEmpty()) {
+            currentGroup.add(currentSlot)
+        } else {
+            val lastSlot = currentGroup.last()
+            val lastIndex = allSlots.indexOf(lastSlot)
+            
+            if (currentIndex - lastIndex == 1) {
+                // Liên tiếp
+                currentGroup.add(currentSlot)
+            } else {
+                // Không liên tiếp, lưu group hiện tại và bắt đầu group mới
+                if (currentGroup.size > 1) {
+                    consecutiveGroups.add(currentGroup.toList())
+                }
+                currentGroup = mutableListOf(currentSlot)
+            }
+        }
+    }
+    
+    // Thêm group cuối cùng
+    if (currentGroup.size > 1) {
+        consecutiveGroups.add(currentGroup.toList())
+    }
+    
+    // Trả về group lớn nhất
+    return consecutiveGroups.maxByOrNull { it.size } ?: emptyList()
 }
 
 @RequiresApi(Build.VERSION_CODES.O)

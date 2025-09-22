@@ -1,0 +1,120 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+    
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+    
+    function isFieldOwner(fieldId) {
+      return signedIn() && 
+        get(/databases/$(db)/documents/fields/$(fieldId)).data.ownerId == request.auth.uid;
+    }
+
+    // USERS: Cho phép đọc thông tin cơ bản, chỉ cho phép sửa thông tin của chính mình
+    match /users/{uid} {
+      allow create: if isSelf(uid);
+      allow read: if true; // ✅ Cho phép đọc thông tin user cơ bản cho hiển thị
+      allow update, delete: if isSelf(uid); // Chỉ cho phép sửa/xóa thông tin của chính mình
+    }
+
+    // FIELDS: ai cũng đọc; chỉ owner của field được CRUD
+    match /fields/{fieldId} {
+      allow read: if true;
+      // CREATE: Kiểm tra ownerId trong data mới
+      allow create: if signedIn() && 
+        request.resource.data.ownerId == request.auth.uid;
+      // UPDATE: Kiểm tra ownerId trong data mới  
+      allow update: if signedIn() && 
+        request.resource.data.ownerId == request.auth.uid;
+      // DELETE: Kiểm tra ownerId trong document hiện tại
+      allow delete: if signedIn() && 
+        resource.data.ownerId == request.auth.uid;
+    }
+
+    // PRICING_RULES - Xử lý riêng CREATE và UPDATE/DELETE
+    match /pricing_rules/{ruleId} {
+      allow read: if true;
+      
+      // CREATE: Kiểm tra fieldId trong data mới
+      allow create: if signedIn() && 
+        request.resource.data.fieldId != null &&
+        isFieldOwner(request.resource.data.fieldId);
+      
+      // UPDATE/DELETE: Kiểm tra fieldId trong document hiện tại
+      allow update, delete: if signedIn() && 
+        resource.data.fieldId != null &&
+        isFieldOwner(resource.data.fieldId);
+    }
+
+    // FIELD_SERVICES - Xử lý riêng CREATE và UPDATE/DELETE  
+    match /field_services/{fsId} {
+      allow read: if true;
+      
+      // CREATE: Kiểm tra fieldId trong data mới
+      allow create: if signedIn() && 
+        request.resource.data.fieldId != null &&
+        isFieldOwner(request.resource.data.fieldId);
+      
+      // UPDATE/DELETE: Kiểm tra fieldId trong document hiện tại
+      allow update, delete: if signedIn() && 
+        resource.data.fieldId != null &&
+        isFieldOwner(resource.data.fieldId);
+    }
+
+    // BOOKINGS - Quản lý đặt sân
+    match /bookings/{bookingId} {
+      allow read: if true;  // Ai cũng đọc được bookings
+      
+      // CREATE: Chỉ user đã đăng nhập mới tạo được booking
+      allow create: if signedIn() && 
+        request.resource.data.renterId == request.auth.uid;
+      
+      // UPDATE/DELETE: Chỉ người đặt hoặc owner của sân mới sửa/xóa được
+      allow update, delete: if signedIn() && 
+        (resource.data.renterId == request.auth.uid || 
+         isFieldOwner(resource.data.fieldId));
+    }
+
+    // SLOTS - Quản lý khe giờ
+    match /slots/{slotId} {
+      allow read: if true;  // Ai cũng đọc được slots
+      
+      // CREATE/UPDATE/DELETE: Chỉ owner của sân mới quản lý được slots
+      allow create, update, delete: if signedIn() && 
+        resource.data.fieldId != null &&
+        isFieldOwner(resource.data.fieldId);
+    }
+
+    // REVIEWS - Quản lý đánh giá sân
+    match /reviews/{reviewId} {
+      allow read: if true;  // Ai cũng đọc được reviews
+      
+      // CREATE: Chỉ user đã đăng nhập mới tạo được review
+      allow create: if signedIn() && 
+        request.resource.data.renterId == request.auth.uid;
+      
+      // UPDATE/DELETE: Chỉ người tạo review hoặc owner của sân mới sửa/xóa được
+      allow update, delete: if signedIn() && 
+        (resource.data.renterId == request.auth.uid || 
+         isFieldOwner(resource.data.fieldId));
+    }
+
+    // REPLIES - Quản lý phản hồi trong reviews
+    match /reviews/{reviewId}/replies/{replyId} {
+      allow read: if true;  // Ai cũng đọc được replies
+      
+      // CREATE: Chỉ user đã đăng nhập mới tạo được reply
+      allow create: if signedIn() && 
+        request.resource.data.userId == request.auth.uid;
+      
+      // UPDATE/DELETE: Chỉ người tạo reply hoặc owner của sân mới sửa/xóa được
+      allow update, delete: if signedIn() && 
+        (resource.data.userId == request.auth.uid || 
+         isFieldOwner(get(/databases/$(db)/documents/reviews/$(reviewId)).data.fieldId));
+    }
+  }
+}

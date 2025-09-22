@@ -18,6 +18,11 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.trungkien.fbtp_cn.ui.components.renter.orderinfo.*
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 import com.trungkien.fbtp_cn.viewmodel.FieldViewModel
@@ -41,13 +46,46 @@ fun RenterBookingCheckoutScreen(
     val fieldViewModel: FieldViewModel = viewModel()
     val uiState by fieldViewModel.uiState.collectAsState()
     
-    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
-    var selectedSlots by remember { mutableStateOf(setOf<String>()) }
+    var selectedDate by remember { 
+        val today = LocalDate.now()
+        println("🔄 DEBUG: Initializing selectedDate to: ${today.toString()}")
+        mutableStateOf(today) 
+    }
+    // ✅ FIX: Quản lý trạng thái khung giờ riêng biệt cho từng ngày
+    var selectedSlotsByDate by remember { mutableStateOf(mapOf<String, Set<String>>()) }
     var notes by remember { mutableStateOf("") }
+    
+    // ✅ FIX: Lấy selectedSlots cho ngày hiện tại
+    val selectedSlots = selectedSlotsByDate[selectedDate.toString()] ?: emptySet()
+    
+    // ✅ DEBUG: Log để kiểm tra selectedSlots
+    LaunchedEffect(selectedSlots) {
+        println("🔄 DEBUG: selectedSlots changed: $selectedSlots")
+        println("🔄 DEBUG: selectedSlotsByDate: $selectedSlotsByDate")
+    }
 
     // Service quantities map (serviceId -> qty)
     var servicesQuantity by remember { mutableStateOf(mapOf<String, Int>()) }
     var showServicePicker by remember { mutableStateOf(false) }
+    
+    // ✅ NEW: State cho logic đối thủ - cũng quản lý theo từng ngày
+    var showOpponentDialog by remember { mutableStateOf(false) }
+    var showFindOpponentDialog by remember { mutableStateOf(false) }
+    var consecutiveSlots by remember { mutableStateOf(listOf<String>()) }
+    var waitingOpponentSlotsByDate by remember { mutableStateOf(mapOf<String, Set<String>>()) }
+    var lockedSlotsByDate by remember { mutableStateOf(mapOf<String, Set<String>>()) }
+    
+    // ✅ NEW: Timer để delay hiện dialog đối thủ
+    var opponentDialogTimer by remember { mutableStateOf<Job?>(null) }
+    
+    // ✅ FIX: Lấy trạng thái đối thủ cho ngày hiện tại
+    val waitingOpponentSlots = waitingOpponentSlotsByDate[selectedDate.toString()] ?: emptySet()
+    val lockedSlots = lockedSlotsByDate[selectedDate.toString()] ?: emptySet()
+    
+    // ✅ NEW: Tập slot thực sự dùng để tính toán (bao gồm slot đang chọn + chờ đối thủ + đã có đối thủ)
+    val effectiveSlots: Set<String> = remember(selectedSlots, waitingOpponentSlots, lockedSlots) {
+        (selectedSlots + waitingOpponentSlots + lockedSlots).toSet()
+    }
 
     // ✅ FIX: Lấy field services thật từ Firebase
     val allServices = uiState.fieldServices.map { service ->
@@ -62,34 +100,59 @@ fun RenterBookingCheckoutScreen(
         val price = allServices.firstOrNull { it.id == entry.key }?.price ?: 0
         price * entry.value
     }
-    val hours = selectedSlots.size
-    
     // ✅ FIX: Tính giá chính xác theo từng slot đã chọn
-    val fieldTotal = if (hours > 0 && uiState.pricingRules.isNotEmpty()) {
-        val totalPrice = selectedSlots.sumOf { slot ->
-            val price = calculatePriceForTimeSlot(
-                timeSlot = slot,
-                selectedDate = selectedDate,
-                pricingRules = uiState.pricingRules
-            )
+    val fieldTotal = if (effectiveSlots.isNotEmpty()) {
+        val totalPrice = effectiveSlots.sorted().sumOf { slot ->
+            val price = if (uiState.pricingRules.isNotEmpty()) {
+                calculatePriceForTimeSlot(
+                    timeSlot = slot,
+                    selectedDate = selectedDate,
+                    pricingRules = uiState.pricingRules
+                )
+            } else {
+                // ✅ FIX: Sử dụng giá mặc định khi chưa có pricing rules
+                basePricePerHour.toLong()
+            }
             price ?: basePricePerHour.toLong()
         }
         totalPrice.toInt()
     } else {
-        basePricePerHour * hours
+        0 // Không có slot nào được chọn
     }
+    
+    // ✅ FIX: Tính số giờ dựa trên số phút (mỗi slot = 30 phút)
+    val totalMinutes = effectiveSlots.size * 30
+    val hours = if (totalMinutes > 0) totalMinutes / 60.0 else 0.0
+    
+    // ✅ DEBUG: Log để kiểm tra tính toán
+    LaunchedEffect(selectedSlots, hours, fieldTotal) {
+        println("🔄 DEBUG: Calculation update:")
+        println("  - selectedSlots: $selectedSlots (size: ${selectedSlots.size})")
+        println("  - totalMinutes: $totalMinutes")
+        println("  - hours: $hours")
+        println("  - fieldTotal: $fieldTotal")
+    }
+    
+    // ✅ NEW: Tính giá trung bình mỗi giờ để hiển thị
+    val averagePricePerHour = if (hours > 0) (fieldTotal / hours).toInt() else basePricePerHour
+    
     val grandTotal = fieldTotal + servicesTotal
     
-    // ✅ FIX: Load field data và slots khi component được tạo
+    // ✅ FIX: Load field data khi component được tạo
     LaunchedEffect(fieldId) {
         fieldViewModel.handleEvent(FieldEvent.LoadFieldById(fieldId))
         fieldViewModel.handleEvent(FieldEvent.LoadPricingRules(fieldId))
         fieldViewModel.handleEvent(FieldEvent.LoadFieldServices(fieldId))
     }
     
-    // ✅ FIX: Load slots khi thay đổi ngày
+    // ✅ NEW: Load slots CHỈ khi có ngày cụ thể được chọn
     LaunchedEffect(selectedDate, fieldId) {
-        fieldViewModel.handleEvent(FieldEvent.LoadSlotsByFieldIdAndDate(fieldId, selectedDate.toString()))
+        if (fieldId.isNotEmpty()) {
+            println("🔄 DEBUG: LaunchedEffect triggered - Loading slots for field: $fieldId, date: ${selectedDate.toString()}")
+            fieldViewModel.handleEvent(FieldEvent.LoadSlotsByFieldIdAndDate(fieldId, selectedDate.toString()))
+        } else {
+            println("⚠️ DEBUG: LaunchedEffect triggered but fieldId is empty: '$fieldId'")
+        }
     }
 
     if (showServicePicker) {
@@ -125,7 +188,18 @@ fun RenterBookingCheckoutScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(text = "Tổng: ${String.format("%,d", grandTotal)}₫", style = MaterialTheme.typography.titleMedium)
-                    Button(onClick = onConfirmBooking, enabled = hours > 0) { Text("Xác nhận đặt") }
+                    Button(
+                        onClick = onConfirmBooking, 
+                        enabled = effectiveSlots.isNotEmpty(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (effectiveSlots.isNotEmpty()) 
+                                MaterialTheme.colorScheme.primary 
+                            else 
+                                MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) { 
+                        Text("Xác nhận đặt") 
+                    }
                 }
             }
         }
@@ -162,7 +236,19 @@ fun RenterBookingCheckoutScreen(
                 uiState.currentField?.let { field ->
                     BookingDatePicker(
                         selectedDate = selectedDate, 
-                        onDateChange = { selectedDate = it },
+                        onDateChange = { newDate ->
+                            println("🔄 DEBUG: Date changed from ${selectedDate.toString()} to ${newDate.toString()}")
+                            selectedDate = newDate
+                            // ✅ FIX: Debug log để xem trạng thái khung giờ của ngày mới
+                            val newDateKey = newDate.toString()
+                            val slotsForNewDate = selectedSlotsByDate[newDateKey] ?: emptySet()
+                            val waitingSlotsForNewDate = waitingOpponentSlotsByDate[newDateKey] ?: emptySet()
+                            val lockedSlotsForNewDate = lockedSlotsByDate[newDateKey] ?: emptySet()
+                            println("🔄 DEBUG: Date changed to $newDateKey")
+                            println("  - Selected slots: $slotsForNewDate")
+                            println("  - Waiting opponent slots: $waitingSlotsForNewDate")
+                            println("  - Locked slots: $lockedSlotsForNewDate")
+                        },
                         field = field
                     )
                     
@@ -171,18 +257,74 @@ fun RenterBookingCheckoutScreen(
                         selectedDate = selectedDate, 
                         selected = selectedSlots, 
                         onToggle = { slot ->
-                            selectedSlots = selectedSlots.toMutableSet().apply { 
-                                if (contains(slot)) remove(slot) else add(slot) 
-                            }.toSet()
+                            // ✅ FIX: Chỉ cập nhật trạng thái khung giờ cho ngày hiện tại
+                            val currentDateKey = selectedDate.toString()
+                            val currentSlots = selectedSlotsByDate[currentDateKey] ?: emptySet()
+                            val newSlots = if (currentSlots.contains(slot)) {
+                                currentSlots - slot
+                            } else {
+                                currentSlots + slot
+                            }
+                            selectedSlotsByDate = selectedSlotsByDate + (currentDateKey to newSlots)
+                            println("🔄 DEBUG: Toggle slot: $slot")
+                            println("🔄 DEBUG: Current slots before: $currentSlots")
+                            println("🔄 DEBUG: New slots after: $newSlots")
+                            println("🔄 DEBUG: Updated slots for $currentDateKey: $newSlots")
+                            println("🔄 DEBUG: All slots by date: $selectedSlotsByDate")
                         },
                         field = field,
-                        fieldViewModel = fieldViewModel
+                        fieldViewModel = fieldViewModel,
+                        // ✅ NEW: Thêm logic đối thủ với delay 3 giây
+                        onConsecutiveSelection = { slots ->
+                            consecutiveSlots = slots
+                            if (slots.size > 1) {
+                                // ✅ FIX: Hủy timer cũ nếu có
+                                opponentDialogTimer?.cancel()
+                                
+                                // ✅ FIX: Tạo timer mới với delay 3 giây
+                                opponentDialogTimer = CoroutineScope(Dispatchers.Main).launch {
+                                    delay(3000) // 3 giây
+                                    showOpponentDialog = true
+                                }
+                            } else {
+                                // ✅ FIX: Hủy timer nếu không có khung giờ liên tiếp
+                                opponentDialogTimer?.cancel()
+                                showOpponentDialog = false
+                            }
+                        },
+                        waitingOpponentSlots = waitingOpponentSlots,
+                        lockedSlots = lockedSlots
                     )
                 } ?: run {
                     // Fallback nếu không có field data
-                    BookingDatePicker(selectedDate = selectedDate, onDateChange = { selectedDate = it })
+                    BookingDatePicker(
+                        selectedDate = selectedDate, 
+                        onDateChange = { newDate ->
+                            println("🔄 DEBUG: Date changed from ${selectedDate.toString()} to ${newDate.toString()}")
+                            selectedDate = newDate
+                            // ✅ FIX: Debug log để xem trạng thái khung giờ của ngày mới
+                            val newDateKey = newDate.toString()
+                            val slotsForNewDate = selectedSlotsByDate[newDateKey] ?: emptySet()
+                            val waitingSlotsForNewDate = waitingOpponentSlotsByDate[newDateKey] ?: emptySet()
+                            val lockedSlotsForNewDate = lockedSlotsByDate[newDateKey] ?: emptySet()
+                            println("🔄 DEBUG: Date changed to $newDateKey")
+                            println("  - Selected slots: $slotsForNewDate")
+                            println("  - Waiting opponent slots: $waitingSlotsForNewDate")
+                            println("  - Locked slots: $lockedSlotsForNewDate")
+                        }
+                    )
                     BookingTimeSlotGrid(selectedDate = selectedDate, selected = selectedSlots, onToggle = { slot ->
-                        selectedSlots = selectedSlots.toMutableSet().apply { if (contains(slot)) remove(slot) else add(slot) }.toSet()
+                        // ✅ FIX: Chỉ cập nhật trạng thái khung giờ cho ngày hiện tại
+                        val currentDateKey = selectedDate.toString()
+                        val currentSlots = selectedSlotsByDate[currentDateKey] ?: emptySet()
+                        val newSlots = if (currentSlots.contains(slot)) {
+                            currentSlots - slot
+                        } else {
+                            currentSlots + slot
+                        }
+                        selectedSlotsByDate = selectedSlotsByDate + (currentDateKey to newSlots)
+                        println("🔄 DEBUG: Updated slots for $currentDateKey: $newSlots")
+                        println("🔄 DEBUG: All slots by date: $selectedSlotsByDate")
                     })
                 }
             }
@@ -199,13 +341,59 @@ fun RenterBookingCheckoutScreen(
             BookingSummaryCard(
                 hours = hours,
                 pricePerHour = basePricePerHour,
-                servicesTotal = servicesTotal
+                servicesTotal = servicesTotal,
+                // ✅ NEW: Truyền thêm thông tin chi tiết
+                fieldTotal = fieldTotal,
+                averagePricePerHour = averagePricePerHour
             )
 
             // Extra spacer so the last card is not hidden behind bottom bar
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
+    
+    // ✅ NEW: Dialog hỏi có đối thủ hay không
+    OpponentSelectionDialog(
+        isVisible = showOpponentDialog,
+        onDismiss = { showOpponentDialog = false },
+        onHasOpponent = {
+            // ✅ FIX: Đã có đối thủ - chỉ cập nhật trạng thái cho ngày hiện tại
+            val currentDateKey = selectedDate.toString()
+            val currentLockedSlots = lockedSlotsByDate[currentDateKey] ?: emptySet()
+            val newLockedSlots = currentLockedSlots + consecutiveSlots.toSet()
+            lockedSlotsByDate = lockedSlotsByDate + (currentDateKey to newLockedSlots)
+            
+            val currentSlots = selectedSlotsByDate[currentDateKey] ?: emptySet()
+            val newSlots = currentSlots - consecutiveSlots.toSet()
+            selectedSlotsByDate = selectedSlotsByDate + (currentDateKey to newSlots)
+            consecutiveSlots = emptyList()
+            println("✅ DEBUG: User has opponent - slots locked for $currentDateKey: $consecutiveSlots")
+        },
+        onNoOpponent = {
+            // Chưa có đối thủ - hiển thị dialog tìm đối thủ
+            showFindOpponentDialog = true
+        }
+    )
+    
+    // ✅ NEW: Dialog xác nhận tìm đối thủ
+    FindOpponentDialog(
+        isVisible = showFindOpponentDialog,
+        selectedSlots = consecutiveSlots,
+        onDismiss = { showFindOpponentDialog = false },
+        onConfirm = {
+            // ✅ FIX: Xác nhận tìm đối thủ - chỉ cập nhật trạng thái cho ngày hiện tại
+            val currentDateKey = selectedDate.toString()
+            val currentWaitingSlots = waitingOpponentSlotsByDate[currentDateKey] ?: emptySet()
+            val newWaitingSlots = currentWaitingSlots + consecutiveSlots.toSet()
+            waitingOpponentSlotsByDate = waitingOpponentSlotsByDate + (currentDateKey to newWaitingSlots)
+            
+            val currentSlots = selectedSlotsByDate[currentDateKey] ?: emptySet()
+            val newSlots = currentSlots - consecutiveSlots.toSet()
+            selectedSlotsByDate = selectedSlotsByDate + (currentDateKey to newSlots)
+            consecutiveSlots = emptyList()
+            println("✅ DEBUG: User confirmed finding opponent - slots waiting for $currentDateKey: $consecutiveSlots")
+        }
+    )
 }
 
 // ✅ FIX: Hàm tính giá dựa trên PricingRules giống TimeSlots
