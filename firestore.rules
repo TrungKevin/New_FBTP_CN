@@ -23,7 +23,7 @@ service cloud.firestore {
 
     // FIELDS: ai cũng đọc; chỉ owner của field được CRUD
     match /fields/{fieldId} {
-      allow read: if true;
+      allow read: if true; // ✅ RenterBookingCard có thể đọc được
       // CREATE: Kiểm tra ownerId trong data mới
       allow create: if signedIn() && 
         request.resource.data.ownerId == request.auth.uid;
@@ -37,7 +37,7 @@ service cloud.firestore {
 
     // PRICING_RULES - Xử lý riêng CREATE và UPDATE/DELETE
     match /pricing_rules/{ruleId} {
-      allow read: if true;
+      allow read: if true; // ✅ RenterBookingCard có thể đọc được
       
       // CREATE: Kiểm tra fieldId trong data mới
       allow create: if signedIn() && 
@@ -52,7 +52,7 @@ service cloud.firestore {
 
     // FIELD_SERVICES - Xử lý riêng CREATE và UPDATE/DELETE  
     match /field_services/{fsId} {
-      allow read: if true;
+      allow read: if true; // ✅ RenterBookingCard có thể đọc được
       
       // CREATE: Kiểm tra fieldId trong data mới
       allow create: if signedIn() && 
@@ -67,7 +67,7 @@ service cloud.firestore {
 
     // BOOKINGS - Quản lý đặt sân
     match /bookings/{bookingId} {
-      allow read: if true;  // Ai cũng đọc được bookings
+      allow read: if true;  // ✅ RenterBookingScreen có thể đọc được
       
       // CREATE: Chỉ user đã đăng nhập mới tạo được booking
       allow create: if signedIn() && 
@@ -81,7 +81,7 @@ service cloud.firestore {
 
     // SLOTS - Quản lý khe giờ
     match /slots/{slotId} {
-      allow read: if true;  // Ai cũng đọc được slots
+      allow read: if true;  // ✅ Ai cũng đọc được slots
       
       // CREATE/UPDATE/DELETE: Chỉ owner của sân mới quản lý được slots
       allow create, update, delete: if signedIn() && 
@@ -91,7 +91,7 @@ service cloud.firestore {
 
     // REVIEWS - Quản lý đánh giá sân
     match /reviews/{reviewId} {
-      allow read: if true;  // Ai cũng đọc được reviews
+      allow read: if true;  // ✅ Ai cũng đọc được reviews
       
       // CREATE: Chỉ user đã đăng nhập mới tạo được review
       allow create: if signedIn() && 
@@ -105,7 +105,7 @@ service cloud.firestore {
 
     // REPLIES - Quản lý phản hồi trong reviews
     match /reviews/{reviewId}/replies/{replyId} {
-      allow read: if true;  // Ai cũng đọc được replies
+      allow read: if true;  // ✅ Ai cũng đọc được replies
       
       // CREATE: Chỉ user đã đăng nhập mới tạo được reply
       allow create: if signedIn() && 

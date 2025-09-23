@@ -14,6 +14,33 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 import com.trungkien.fbtp_cn.ui.theme.GreenPrimary
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+@Composable
+private fun formatDateForDisplay(dateString: String?): String {
+    if (dateString == null) return "Tất cả từ hôm nay"
+    
+    return try {
+        val date = LocalDate.parse(dateString, DateTimeFormatter.ISO_LOCAL_DATE)
+        val today = LocalDate.now()
+        val yesterday = today.minusDays(1)
+        val tomorrow = today.plusDays(1)
+        
+        when {
+            date == today -> "Hôm nay"
+            date == yesterday -> "Hôm qua"
+            date == tomorrow -> "Ngày mai"
+            else -> {
+                val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+                date.format(formatter)
+            }
+        }
+    } catch (e: DateTimeParseException) {
+        dateString
+    }
+}
 
 @Composable
 fun RenterBookingHeader(
@@ -43,23 +70,46 @@ fun RenterBookingHeader(
                 onClick = onCalendarClick,
                 label = {
                     Text(
-                        text = selectedDateLabel ?: "Chọn ngày",
+                        text = formatDateForDisplay(selectedDateLabel),
                         style = MaterialTheme.typography.bodyMedium
                     )
                 },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.DateRange,
-                        contentDescription = "Lịch đã đặt",
+                        contentDescription = "Lọc theo ngày",
                         tint = GreenPrimary
                     )
                 },
                 shape = RoundedCornerShape(12.dp),
                 colors = AssistChipDefaults.assistChipColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    labelColor = MaterialTheme.colorScheme.onSurface
+                    containerColor = if (selectedDateLabel != null) {
+                        GreenPrimary.copy(alpha = 0.1f)
+                    } else {
+                        MaterialTheme.colorScheme.surface
+                    },
+                    labelColor = if (selectedDateLabel != null) {
+                        GreenPrimary
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    }
                 )
             )
+            
+            // Hiển thị thông tin về việc lọc
+            if (selectedDateLabel != null) {
+                Text(
+                    text = "Đang lọc theo ngày",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            } else {
+                Text(
+                    text = "Hiển thị từ hôm nay",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            }
         }
     }
 }
@@ -74,5 +124,6 @@ private fun RenterBookingHeaderPreview() {
         )
     }
 }
+
 
 

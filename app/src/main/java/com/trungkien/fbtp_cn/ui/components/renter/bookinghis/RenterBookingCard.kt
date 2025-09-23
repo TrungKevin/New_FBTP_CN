@@ -27,6 +27,9 @@ import com.trungkien.fbtp_cn.model.Field
 import com.trungkien.fbtp_cn.repository.FieldRepository
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 import coil.compose.AsyncImage
+import androidx.compose.ui.graphics.asImageBitmap
+import android.graphics.BitmapFactory
+import android.util.Base64
 
 @Composable
 fun RenterBookingCard(
@@ -34,11 +37,22 @@ fun RenterBookingCard(
     onDetailClick: (Booking) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // ✅ Load field thật từ Firestore
+    // ✅ Load field thật từ Firestore với error handling
     var field by remember(booking.fieldId) { mutableStateOf<Field?>(null) }
+    var isLoadingField by remember { mutableStateOf(true) }
+    
     LaunchedEffect(booking.fieldId) {
+        isLoadingField = true
         val repo = FieldRepository()
-        repo.getFieldById(booking.fieldId).onSuccess { f -> field = f }
+        repo.getFieldById(booking.fieldId)
+            .onSuccess { f -> 
+                field = f
+                isLoadingField = false
+            }
+            .onFailure { 
+                isLoadingField = false
+                // Log error hoặc xử lý lỗi nếu cần
+            }
     }
 
     Card(
@@ -78,7 +92,7 @@ fun RenterBookingCard(
                 contentAlignment = Alignment.TopStart
             ) {
                 // Floating rating chip with glassmorphism effect
-                field?.let { f ->
+                if (!isLoadingField && field != null) {
                     Surface(
                         modifier = Modifier
                             .padding(16.dp)
@@ -95,13 +109,19 @@ fun RenterBookingCard(
                         ) {
                             Icon(
                                 painter = painterResource(id = R.drawable.star),
-                                contentDescription = null,
+                                contentDescription = "Đánh giá",
                                 tint = Color(0xFFFFA000),
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = String.format("%.1f", f.averageRating ?: 4.5f),
+                                text = field?.let { f ->
+                                    if (f.averageRating > 0) {
+                                        String.format("%.1f", f.averageRating)
+                                    } else {
+                                        "0.0"
+                                    }
+                                } ?: "0.0",
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -110,20 +130,86 @@ fun RenterBookingCard(
                     }
                 }
 
-                // Enhanced center icon with ripple effect
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Surface(
-                        shape = CircleShape,
-                        color = Color.White.copy(alpha = 0.95f),
-                        shadowElevation = 8.dp,
-                        modifier = Modifier.size(72.dp)
-                    ) {
-                        if (field?.images?.mainImage?.isNotEmpty() == true) {
-                            AsyncImage(model = field!!.images.mainImage, contentDescription = null)
-                        } else {
+                // Enhanced center image: show field mainImage as banner if available
+                if (isLoadingField) {
+                    // Loading state
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(32.dp),
+                            color = Color.White,
+                            strokeWidth = 3.dp
+                        )
+                    }
+                } else if (field?.images?.mainImage?.isNotEmpty() == true) {
+                    // Show field image using base64 decode like RenterSearchResultCard
+                    val currentField = field
+                    val rawImage = currentField!!.images.mainImage
+                    val decodedImage = remember(rawImage) {
+                        try {
+                            println("🖼️ DEBUG: RenterBookingCard - Decoding image for field: ${currentField.name}")
+                            println("🖼️ DEBUG: Raw image length: ${rawImage.length}")
+                            println("🖼️ DEBUG: Raw image starts with data:image: ${rawImage.startsWith("data:image", ignoreCase = true)}")
+                            
+                            val base64String = if (rawImage.startsWith("data:image", ignoreCase = true)) {
+                                rawImage.substringAfter(",")
+                            } else {
+                                rawImage
+                            }
+                            println("🖼️ DEBUG: Base64 string length: ${base64String.length}")
+                            
+                            val imageBytes = Base64.decode(base64String, Base64.DEFAULT)
+                            println("🖼️ DEBUG: Decoded bytes length: ${imageBytes.size}")
+                            
+                            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                            println("🖼️ DEBUG: Bitmap created: ${bitmap != null}")
+                            if (bitmap != null) {
+                                println("🖼️ DEBUG: Bitmap size: ${bitmap.width}x${bitmap.height}")
+                            }
+                            bitmap
+                        } catch (e: Exception) {
+                            println("❌ DEBUG: Error decoding image: ${e.message}")
+                            e.printStackTrace()
+                            null
+                        }
+                    }
+                    
+                    if (decodedImage != null) {
+                        androidx.compose.foundation.Image(
+                            bitmap = decodedImage.asImageBitmap(),
+                            contentDescription = "Hình ảnh sân ${currentField.name}",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        )
+                    } else {
+                        // Fallback icon
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Surface(
+                                shape = CircleShape,
+                                color = Color.White.copy(alpha = 0.95f),
+                                shadowElevation = 8.dp,
+                                modifier = Modifier.size(72.dp)
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.stadium),
+                                    contentDescription = "Sân thể thao",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(16.dp)
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    // Fallback icon
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color.White.copy(alpha = 0.95f),
+                            shadowElevation = 8.dp,
+                            modifier = Modifier.size(72.dp)
+                        ) {
                             Icon(
                                 painter = painterResource(id = R.drawable.stadium),
-                                contentDescription = null,
+                                contentDescription = "Sân thể thao",
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(16.dp)
                             )
@@ -205,15 +291,15 @@ fun RenterBookingCard(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         EnhancedInfoPill(
-                            icon = R.drawable.map,
+                            icon = R.drawable.location,
                             text = address,
                             modifier = Modifier.weight(1f),
                             iconTint = Color(0xFF2196F3)
                         )
                         EnhancedInfoPill(
-                            icon = R.drawable.event,
+                            icon = R.drawable.calendar,
                             text = "${booking.date}",
-                            modifier = Modifier.weight(0.8f),
+                            modifier = Modifier.weight(1f),
                             iconTint = Color(0xFF9C27B0)
                         )
                     }
@@ -223,13 +309,13 @@ fun RenterBookingCard(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         EnhancedInfoPill(
-                            icon = R.drawable.event,
+                            icon = R.drawable.schedule,
                             text = "${booking.startAt} - ${booking.endAt}",
                             modifier = Modifier.weight(1f),
                             iconTint = Color(0xFFFF9800)
                         )
                         EnhancedInfoPill(
-                            icon = R.drawable.bartchar,
+                            icon = R.drawable.money,
                             text = "${booking.totalPrice}₫",
                             modifier = Modifier.weight(1f),
                             iconTint = Color(0xFF4CAF50),
@@ -317,6 +403,7 @@ private fun EnhancedInfoPill(
         color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.6f),
         shape = RoundedCornerShape(16.dp),
         modifier = modifier
+            .height(44.dp)
             .shadow(
                 elevation = 2.dp,
                 shape = RoundedCornerShape(16.dp),
@@ -326,7 +413,9 @@ private fun EnhancedInfoPill(
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
             Surface(
                 shape = CircleShape,

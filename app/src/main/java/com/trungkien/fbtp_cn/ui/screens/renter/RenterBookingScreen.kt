@@ -10,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.trungkien.fbtp_cn.data.MockData
@@ -18,6 +19,8 @@ import com.trungkien.fbtp_cn.ui.components.renter.bookinghis.RenterBookingCard
 import com.trungkien.fbtp_cn.ui.components.renter.bookinghis.RenterBookingDetailSheet
 import com.trungkien.fbtp_cn.ui.components.renter.bookinghis.RenterBookingHeader
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 @RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
@@ -29,13 +32,14 @@ fun RenterBookingScreen(
     authViewModel: com.trungkien.fbtp_cn.viewmodel.AuthViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
     var selectedBookingId by remember { mutableStateOf<String?>(null) }
+    var selectedDate by remember { mutableStateOf<String?>(null) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Scaffold(
         modifier = modifier,
         containerColor = Color.White
     ) { inner ->
-        var selectedDate by remember { mutableStateOf<String?>(null) }
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -45,9 +49,7 @@ fun RenterBookingScreen(
             RenterBookingHeader(
                 selectedDateLabel = selectedDate,
                 onCalendarClick = {
-                    // TODO: Open date picker
-                    // For preview/demo: toggle between two dates
-                    selectedDate = if (selectedDate == null) "2024-01-15" else null
+                    showDatePicker = true
                 },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -57,8 +59,19 @@ fun RenterBookingScreen(
             LaunchedEffect(myUid) {
                 myUid?.let { bookingViewModel.handle(com.trungkien.fbtp_cn.viewmodel.BookingEvent.LoadMine(it)) }
             }
+            
+            // ✅ Cải thiện logic lọc: Ẩn booking đã qua ngày hiện tại khi không có filter ngày
+            val today = java.time.LocalDate.now().toString() // Format: "2024-01-15"
             val allBookings = bookingUi.myBookings.ifEmpty { bookings }
-            val filtered = selectedDate?.let { d -> allBookings.filter { it.date == d } } ?: allBookings
+            
+            val filtered = if (selectedDate != null) {
+                // Khi có filter ngày cụ thể, hiển thị tất cả booking của ngày đó
+                allBookings.filter { it.date == selectedDate }
+            } else {
+                // Khi không có filter, chỉ hiển thị booking từ hôm nay trở đi
+                allBookings.filter { it.date >= today }
+            }
+            
             // ✅ Hiển thị PENDING/PAID trong mục sắp diễn ra; DONE/CANCELLED trong mục đã hoàn thành
             val upcoming = filtered.filter { it.status.equals("PENDING", true) || it.status.equals("PAID", true) }
             val completed = filtered.filter { it.status.equals("DONE", true) || it.status.equals("CANCELLED", true) }
@@ -123,15 +136,78 @@ fun RenterBookingScreen(
                                 .padding(24.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = "Chưa có lịch đặt nào",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = if (selectedDate != null) {
+                                        "Không có lịch đặt nào vào ngày $selectedDate"
+                                    } else {
+                                        "Chưa có lịch đặt nào từ hôm nay"
+                                    },
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                if (selectedDate == null) {
+                                    Text(
+                                        text = "Sử dụng bộ lọc ngày để xem lịch đặt cũ",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
+        }
+    }
+    
+    // DatePickerDialog
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = selectedDate?.let { dateString ->
+                try {
+                    LocalDate.parse(dateString, DateTimeFormatter.ISO_LOCAL_DATE)
+                        .atStartOfDay(java.time.ZoneId.systemDefault())
+                        .toInstant()
+                        .toEpochMilli()
+                } catch (e: Exception) {
+                    System.currentTimeMillis()
+                }
+            } ?: System.currentTimeMillis()
+        )
+        
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            val selectedLocalDate = java.time.Instant.ofEpochMilli(millis)
+                                .atZone(java.time.ZoneId.systemDefault())
+                                .toLocalDate()
+                            selectedDate = selectedLocalDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                        }
+                        showDatePicker = false
+                    }
+                ) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { 
+                        showDatePicker = false
+                        selectedDate = null // Reset filter
+                    }
+                ) {
+                    Text("Hủy")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
         }
     }
 }
