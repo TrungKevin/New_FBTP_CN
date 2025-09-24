@@ -129,15 +129,17 @@ fun RenterBookingCheckoutScreen(
         0 // Không có slot nào được chọn
     }
     
-    // ✅ FIX: Tính số giờ dựa trên số phút (mỗi slot = 30 phút)
-    val totalMinutes = effectiveSlots.size * 30
-    val hours = if (totalMinutes > 0) totalMinutes / 60.0 else 0.0
+    // ✅ FIX: Quy ước số mốc -> số giờ theo yêu cầu:
+    // 2 mốc = 0.5 giờ; 3 mốc = 1.0 giờ; 4 mốc = 1.5 giờ; 5 mốc = 2.0 giờ; ...
+    // Công thức tổng quát: hours = max(0, (count - 1)) * 0.5
+    val slotCount = effectiveSlots.size
+    val hours = ((slotCount - 1).coerceAtLeast(0)) * 0.5
     
     // ✅ DEBUG: Log để kiểm tra tính toán
     LaunchedEffect(selectedSlots, hours, fieldTotal) {
         println("🔄 DEBUG: Calculation update:")
         println("  - selectedSlots: $selectedSlots (size: ${selectedSlots.size})")
-        println("  - totalMinutes: $totalMinutes")
+        println("  - slotCount: $slotCount")
         println("  - hours: $hours")
         println("  - fieldTotal: $fieldTotal")
     }

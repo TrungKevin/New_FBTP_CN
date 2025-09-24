@@ -64,8 +64,8 @@ fun BookingTimeSlotGrid(
         // Tạo slots từ startHour đến endHour, cách nhau 30 phút
         val startHalfHour = actualStartHour * 2
         val endHalfHour = actualEndHour * 2
-        
-        (startHalfHour..endHalfHour).map { halfHour ->
+        // Generate slots as half-open interval [start, end): exclude end boundary time
+        (startHalfHour until endHalfHour).map { halfHour ->
             val hour = halfHour / 2
             val minute = if (halfHour % 2 == 0) 0 else 30
             String.format("%02d:%02d", hour, minute)

@@ -4,7 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -18,6 +18,10 @@ import androidx.compose.ui.unit.sp
 import com.trungkien.fbtp_cn.R
 import com.trungkien.fbtp_cn.model.Booking
 import com.trungkien.fbtp_cn.model.ServiceLine
+import com.trungkien.fbtp_cn.model.Field
+import com.trungkien.fbtp_cn.model.ReviewSummary
+import com.trungkien.fbtp_cn.repository.FieldRepository
+import com.trungkien.fbtp_cn.repository.ReviewRepository
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -26,6 +30,22 @@ fun RenterBookingDetailSheet(
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Load Field info for richer display
+    var field by remember(booking.fieldId) { mutableStateOf<Field?>(null) }
+    var reviewSummary by remember(booking.fieldId) { mutableStateOf<ReviewSummary?>(null) }
+    
+    LaunchedEffect(booking.fieldId) {
+        val fieldRepo = FieldRepository()
+        val reviewRepo = ReviewRepository()
+        
+        // Load field data
+        fieldRepo.getFieldById(booking.fieldId).onSuccess { f -> field = f }
+        
+        // Load review summary
+        reviewRepo.getReviewSummary(booking.fieldId).onSuccess { summary -> 
+            reviewSummary = summary 
+        }
+    }
     ModalBottomSheet(
         onDismissRequest = onClose,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
@@ -71,10 +91,17 @@ fun RenterBookingDetailSheet(
                 title = "🏟️ Thông tin sân",
                 titleColor = Color(0xFF059669)
             ) {
-                InfoRow(R.drawable.stadium, "Tên sân", "Sân ${booking.fieldId}", valueColor = Color(0xFF1F2937))
-                InfoRow(R.drawable.map, "Địa chỉ", "—", valueColor = Color(0xFF6B7280))
-                InfoRow(R.drawable.bartchar, "Giá", "${booking.basePrice}₫/giờ", valueColor = Color(0xFFDC2626))
-                InfoRow(R.drawable.star, "Đánh giá", "⭐4.5 (128 đánh giá)", valueColor = Color(0xFFF59E0B))
+                InfoRow(R.drawable.stadium, "Tên sân", field?.name ?: booking.fieldId, valueColor = Color(0xFF1F2937))
+                InfoRow(R.drawable.map, "Địa chỉ", field?.address ?: "—", valueColor = Color(0xFF6B7280))
+                // ✅ FIX: Hiển thị giá cơ bản với số giờ thực tế từ booking (áp dụng công thức từ checkout screen)
+                val actualDuration = formatDurationFromSlots(booking.slotsCount)
+                InfoRow(R.drawable.money, "Giá cơ bản", formatCurrency(booking.basePrice) + "/$actualDuration", valueColor = Color(0xFFDC2626))
+                // ✅ FIX: Hiển thị đánh giá từ ReviewSummary thay vì từ Field
+                val ratingText = reviewSummary?.let { summary ->
+                    val score = if (summary.averageRating > 0f) String.format("%.1f", summary.averageRating) else "0.0"
+                    "⭐$score (${summary.totalReviews} đánh giá)"
+                } ?: "⭐0.0 (0 đánh giá)"
+                InfoRow(R.drawable.star, "Đánh giá", ratingText, valueColor = Color(0xFFF59E0B))
             }
 
             // Thời gian với card style
@@ -82,8 +109,8 @@ fun RenterBookingDetailSheet(
                 title = "📅 Thời gian",
                 titleColor = Color(0xFF7C3AED)
             ) {
-                InfoRow(R.drawable.event, "Ngày", booking.date, valueColor = Color(0xFF1F2937))
-                InfoRow(R.drawable.event, "Giờ", "${booking.startAt} - ${booking.endAt}", valueColor = Color(0xFF1F2937))
+                InfoRow(R.drawable.calendar, "Ngày", booking.date, valueColor = Color(0xFF1F2937))
+                InfoRow(R.drawable.schedule, "Giờ", "${booking.startAt} - ${booking.endAt}", valueColor = Color(0xFF1F2937))
             }
 
             // Dịch vụ thêm với card style
@@ -109,6 +136,24 @@ fun RenterBookingDetailSheet(
                 }
             }
 
+            // Thông tin thanh toán & tổng tiền
+            SectionCard(
+                title = "💳 Thanh toán",
+                titleColor = Color(0xFF2563EB)
+            ) {
+                // ✅ FIX: Hiển thị số giờ thực tế từ slots (áp dụng công thức từ checkout screen)
+                InfoRow(
+                    R.drawable.schedule,
+                    "Số giờ",
+                    formatDurationFromSlots(booking.slotsCount)
+                )
+                InfoRow(R.drawable.schedule, "Số slot", "${booking.slotsCount}")
+                InfoRow(R.drawable.money, "Tiền dịch vụ", formatCurrency(booking.servicePrice), boldValue = true, valueColor = Color(0xFF059669))
+                // ✅ FIX: Mặc định phương thức thanh toán là "Thanh toán trực tiếp tại sân"
+                InfoRow(R.drawable.bookmark, "Phương thức", booking.paymentMethod ?: "Thanh toán trực tiếp tại sân")
+                InfoRow(R.drawable.event, "Trạng thái", booking.status)
+            }
+
             // Tổng tiền với highlight
             Box(
                 modifier = Modifier
@@ -129,7 +174,7 @@ fun RenterBookingDetailSheet(
                         color = Color(0xFF059669)
                     )
                     Text(
-                        "${booking.totalPrice}₫",
+                        formatCurrency(booking.totalPrice),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF059669),
@@ -245,6 +290,48 @@ private fun InfoRow(
             color = valueColor,
             style = MaterialTheme.typography.bodyMedium
         )
+    }
+}
+
+private fun formatCurrency(amount: Long): String {
+    return try {
+        val nf = java.text.NumberFormat.getInstance(java.util.Locale("vi", "VN"))
+        nf.format(amount) + "₫"
+    } catch (e: Exception) {
+        amount.toString() + "₫"
+    }
+}
+
+// ✅ FIX: Function format số giờ từ slots theo công thức của checkout screen
+private fun formatDurationFromSlots(slotsCount: Int): String {
+    if (slotsCount <= 0) return "0 phút"
+    
+    // ✅ Công thức từ checkout screen: hours = max(0, (count - 1)) * 0.5
+    val hours = ((slotsCount - 1).coerceAtLeast(0)) * 0.5
+    
+    // Convert hours to total minutes
+    val totalMinutes = (hours * 60).toInt()
+    val hoursPart = totalMinutes / 60
+    val minutesPart = totalMinutes % 60
+    
+    return when {
+        hoursPart == 0 -> "$minutesPart phút"
+        minutesPart == 0 -> "$hoursPart giờ"
+        else -> "$hoursPart giờ $minutesPart phút"
+    }
+}
+
+// ✅ FIX: Function format số giờ giống như trong BookingSummaryCard (giữ lại để tương thích)
+private fun formatDurationFromMinutes(totalMinutes: Int): String {
+    if (totalMinutes <= 0) return "0 phút"
+    
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    
+    return when {
+        hours == 0 -> "$minutes phút"
+        minutes == 0 -> "$hours giờ"
+        else -> "$hours giờ $minutes phút"
     }
 }
 
