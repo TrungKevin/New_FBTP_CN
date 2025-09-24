@@ -25,11 +25,15 @@ import com.trungkien.fbtp_cn.R
 import com.trungkien.fbtp_cn.model.Booking
 import com.trungkien.fbtp_cn.model.Field
 import com.trungkien.fbtp_cn.repository.FieldRepository
+import com.trungkien.fbtp_cn.repository.BookingRepository
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 import coil.compose.AsyncImage
 import androidx.compose.ui.graphics.asImageBitmap
 import android.graphics.BitmapFactory
 import android.util.Base64
+import androidx.compose.foundation.clickable
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 
 @Composable
 fun RenterBookingCard(
@@ -328,7 +332,7 @@ fun RenterBookingCard(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End
                     ) {
-                        EnhancedStatusChip(status = booking.status)
+                        EnhancedStatusChip(bookingId = booking.bookingId, status = booking.status)
                     }
                 }
             }
@@ -337,37 +341,73 @@ fun RenterBookingCard(
 }
 
 @Composable
-private fun EnhancedStatusChip(status: String) {
+private fun EnhancedStatusChip(bookingId: String, status: String) {
     data class StatusStyle(val bg: Color, val fg: Color, val label: String, val iconRes: Int)
     val style = when (status.lowercase()) {
         "confirmed", "upcoming" -> StatusStyle(
             MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
             MaterialTheme.colorScheme.primary,
             "Sắp diễn ra",
-            R.drawable.event
+            R.drawable.upcoming
         )
         "completed" -> StatusStyle(
             MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f),
             MaterialTheme.colorScheme.secondary,
             "Hoàn thành",
-            R.drawable.star
+            R.drawable.done
         )
         else -> StatusStyle(
             MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
             MaterialTheme.colorScheme.error,
-            "Đã hủy",
-            R.drawable.bookmark
+            "Hủy đặt",
+            R.drawable.cance
+        )
+    }
+
+    var showCancelDialog by remember { mutableStateOf(false) }
+    var isProcessing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    if (showCancelDialog) {
+        AlertDialog(
+            onDismissRequest = { showCancelDialog = false },
+            title = { Text("Hủy đặt sân?") },
+            text = { Text(if (isProcessing) "Đang xử lý..." else "Bạn có chắc muốn hủy lịch đặt này? Hành động này không thể hoàn tác.") },
+            confirmButton = {
+                TextButton(enabled = !isProcessing, onClick = {
+                    isProcessing = true
+                    val repo = BookingRepository()
+                    scope.launch {
+                        repo.deleteBooking(bookingId)
+                        isProcessing = false
+                        showCancelDialog = false
+                    }
+                }) {
+                    Text("Xác nhận hủy")
+                }
+            },
+            dismissButton = {
+                TextButton(enabled = !isProcessing, onClick = { showCancelDialog = false }) {
+                    Text("Giữ lại")
+                }
+            }
         )
     }
 
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = style.bg,
-        modifier = Modifier.shadow(
+        modifier = Modifier
+            .shadow(
             elevation = 2.dp,
             shape = RoundedCornerShape(16.dp),
             spotColor = style.fg.copy(alpha = 0.2f)
         )
+            .let { base ->
+                if (status.equals("PENDING", true) || status.equals("PAID", true)) {
+                    base.clickable { showCancelDialog = true }
+                } else base
+            }
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,

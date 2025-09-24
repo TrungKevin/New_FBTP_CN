@@ -285,6 +285,24 @@ class BookingRepository {
             Result.failure(e)
         }
     }
+
+    /**
+     * Xóa booking khỏi Firestore
+     */
+    suspend fun deleteBooking(bookingId: String): Result<Unit> {
+        return try {
+            firestore.collection(BOOKINGS_COLLECTION)
+                .document(bookingId)
+                .delete()
+                .await()
+
+            println("✅ DEBUG: Booking deleted: $bookingId")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            println("❌ ERROR: Failed to delete booking: ${e.message}")
+            Result.failure(e)
+        }
+    }
     
     /**
      * Lấy booking theo ID
