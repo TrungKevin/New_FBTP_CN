@@ -18,16 +18,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.platform.LocalConfiguration
 import com.trungkien.fbtp_cn.model.Field
 import com.trungkien.fbtp_cn.model.OpenHours
 import com.trungkien.fbtp_cn.model.GeoLocation
 import androidx.compose.ui.res.painterResource
 import com.trungkien.fbtp_cn.R
 import com.trungkien.fbtp_cn.model.FieldImages
+import com.trungkien.fbtp_cn.ui.components.renter.fieldsearch.RenterSearchResultCard
+import com.trungkien.fbtp_cn.ui.components.renter.fieldsearch.SearchResultField
 
 @Composable
 fun RenterFeaturedFields(
+    items: List<SearchResultField> = emptyList(),
     onFieldClick: (String) -> Unit = {},
+    onBookClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -79,40 +84,30 @@ fun RenterFeaturedFields(
             contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            item {
-                RenterFieldCard(
-                    fieldName = "Sân Tennis ABC",
-                    fieldType = "Tennis",
-                    price = "120k/giờ",
-                    location = "Quận 1, TP.HCM",
-                    rating = 4.8f,
-                    isAvailable = true,
-                    onClick = { onFieldClick("field1") }
-                )
-            }
-            
-            item {
-                RenterFieldCard(
-                    fieldName = "Sân Cầu lông XYZ",
-                    fieldType = "Badminton",
-                    price = "80k/giờ",
-                    location = "Quận 2, TP.HCM",
-                    rating = 4.6f,
-                    isAvailable = true,
-                    onClick = { onFieldClick("field2") }
-                )
-            }
-            
-            item {
-                RenterFieldCard(
-                    fieldName = "Sân Bóng đá DEF",
-                    fieldType = "Football",
-                    price = "200k/giờ",
-                    location = "Quận 3, TP.HCM",
-                    rating = 4.7f,
-                    isAvailable = false,
-                    onClick = { onFieldClick("field3") }
-                )
+            if (items.isEmpty()) {
+                item {
+                    RenterFieldCard(
+                        fieldName = "Sân mẫu",
+                        fieldType = "Tennis",
+                        price = "—",
+                        location = "—",
+                        rating = 0f,
+                        isAvailable = true,
+                        onClick = { }
+                    )
+                }
+            } else {
+                items(items.size) { idx ->
+                    val sr = items[idx]
+                    val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+                    val cardWidth = screenWidth - 32.dp // match search screen horizontal padding
+                    RenterSearchResultCard(
+                        field = sr,
+                        onFieldClick = { onFieldClick(sr.id) },
+                        onBookClick = { onBookClick(sr.id) },
+                        modifier = Modifier.width(cardWidth)
+                    )
+                }
             }
         }
     }

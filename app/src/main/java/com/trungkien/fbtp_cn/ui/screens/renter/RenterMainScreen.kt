@@ -85,6 +85,11 @@ fun RenterMainScreen(
                         },
                         onMapClick = {
                             selectedScreen = RenterNavScreen.Map
+                        },
+                        onBookClick = { fieldId ->
+                            // Khi bấm ĐẶT LỊCH ở Featured → mở chi tiết sân giống Search
+                            activeOrderDetailFieldId = fieldId
+                            selectedScreen = RenterNavScreen.Search
                         }
                     )
                 }

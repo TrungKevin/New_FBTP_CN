@@ -27,6 +27,8 @@ import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 
 @Composable
 fun RenterRecentBookings(
+    bookings: List<com.trungkien.fbtp_cn.model.Booking> = emptyList(),
+    fieldsById: Map<String, com.trungkien.fbtp_cn.model.Field> = emptyMap(),
     onFieldClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -81,38 +83,36 @@ fun RenterRecentBookings(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Booking 1
-            RenterBookingCard(
-                fieldName = "Sân Tennis ABC",
-                fieldType = "Tennis",
-                date = "Hôm nay",
-                time = "2 giờ",
-                price = "240k",
-                status = "confirmed",
-                onFieldClick = { onFieldClick("field1") }
-            )
-            
-            // Booking 2
-            RenterBookingCard(
-                fieldName = "Sân Cầu lông XYZ",
-                fieldType = "Badminton",
-                date = "Hôm qua",
-                time = "1 giờ",
-                price = "80k",
-                status = "completed",
-                onFieldClick = { onFieldClick("field2") }
-            )
-            
-            // Booking 3
-            RenterBookingCard(
-                fieldName = "Sân Bóng đá DEF",
-                fieldType = "Football",
-                date = "Tuần trước",
-                time = "3 giờ",
-                price = "600k",
-                status = "cancelled",
-                onFieldClick = { onFieldClick("field3") }
-            )
+            if (bookings.isEmpty()) {
+                // Fallback sample
+                RenterBookingCard(
+                    fieldName = "Chưa có lịch đặt",
+                    fieldType = "",
+                    date = "—",
+                    time = "—",
+                    price = "—",
+                    status = "",
+                    onFieldClick = { }
+                )
+            } else {
+                bookings.forEach { b ->
+                    val f = fieldsById[b.fieldId]
+                    RenterBookingCard(
+                        fieldName = f?.name ?: b.fieldId,
+                        fieldType = f?.sports?.firstOrNull() ?: "",
+                        date = b.date,
+                        time = "${b.startAt} - ${b.endAt}",
+                        price = String.format("%,d₫", b.totalPrice),
+                        status = when (b.status.uppercase()) {
+                            "PENDING", "PAID" -> "confirmed"
+                            "DONE" -> "completed"
+                            "CANCELLED" -> "cancelled"
+                            else -> ""
+                        },
+                        onFieldClick = { onFieldClick(b.fieldId) }
+                    )
+                }
+            }
         }
     }
 }

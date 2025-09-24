@@ -22,6 +22,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import com.trungkien.fbtp_cn.R
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trungkien.fbtp_cn.viewmodel.AuthViewModel
+import com.trungkien.fbtp_cn.viewmodel.FieldViewModel
+import com.trungkien.fbtp_cn.viewmodel.BookingViewModel
+import com.trungkien.fbtp_cn.viewmodel.FieldEvent
+import com.trungkien.fbtp_cn.viewmodel.BookingEvent
+import com.trungkien.fbtp_cn.model.Field
+import com.trungkien.fbtp_cn.model.Booking
+import com.trungkien.fbtp_cn.ui.components.renter.fieldsearch.SearchResultField
+import com.trungkien.fbtp_cn.repository.UserRepository
+import com.trungkien.fbtp_cn.repository.ReviewRepository
+import com.trungkien.fbtp_cn.ui.components.common.LoadingDialog
 import androidx.compose.runtime.LaunchedEffect
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -30,12 +40,23 @@ fun RenterHomeScreen(
     modifier: Modifier = Modifier,
     onFieldClick: (String) -> Unit = {},
     onSearchClick: () -> Unit = {},
-    onMapClick: () -> Unit = {}
+    onMapClick: () -> Unit = {},
+    onBookClick: (String) -> Unit = {}
 ) {
     val authViewModel: AuthViewModel = viewModel()
+    val fieldViewModel: FieldViewModel = viewModel()
+    val bookingViewModel: BookingViewModel = viewModel()
     val user = authViewModel.currentUser.collectAsState().value
     LaunchedEffect(Unit) {
         if (user == null) authViewModel.fetchProfile()
+    }
+    val fieldUi = fieldViewModel.uiState.collectAsState().value
+    val bookingUi = bookingViewModel.uiState.collectAsState().value
+    LaunchedEffect(Unit) {
+        fieldViewModel.handleEvent(FieldEvent.LoadAllFields)
+        authViewModel.currentUser.collect { u ->
+            u?.userId?.let { bookingViewModel.handle(BookingEvent.LoadMine(it)) }
+        }
     }
     val scrollState = rememberScrollState()
     
@@ -44,6 +65,9 @@ fun RenterHomeScreen(
             .fillMaxSize()
             .verticalScroll(scrollState)
     ) {
+        if (fieldUi.isLoading || bookingUi.isLoading) {
+            LoadingDialog(message = "Đang tải dữ liệu...")
+        }
         // Header với search bar
         RenterHomeHeader(
             onSearchClick = onSearchClick,
@@ -60,15 +84,81 @@ fun RenterHomeScreen(
         
         Spacer(modifier = Modifier.height(24.dp))
         
-        // Sân nổi bật
+        // Sân nổi bật (lọc theo rating từ 3.0 đến 5.0) và map sang SearchResultField để tái dùng UI/logic
+        val baseFields: List<Field> = fieldUi.allFields.ifEmpty { fieldUi.fields }
+        val ownerRepo = remember { UserRepository() }
+        val reviewRepo = remember { ReviewRepository() }
+        var ownerMap by remember { mutableStateOf<Map<String, com.trungkien.fbtp_cn.model.User>>(emptyMap()) }
+        var reviewMap by remember { mutableStateOf<Map<String, com.trungkien.fbtp_cn.model.ReviewSummary>>(emptyMap()) }
+
+        LaunchedEffect(baseFields) {
+            // Load owner + reviews sơ bộ (best effort)
+            val owners = mutableMapOf<String, com.trungkien.fbtp_cn.model.User>()
+            val reviews = mutableMapOf<String, com.trungkien.fbtp_cn.model.ReviewSummary>()
+            baseFields.forEach { f ->
+                try {
+                    ownerRepo.getUserById(
+                        userId = f.ownerId,
+                        onSuccess = { u -> owners[f.ownerId] = u },
+                        onError = { }
+                    )
+                } catch (_: Exception) {}
+                try {
+                    reviewRepo.getReviewSummary(f.fieldId).getOrNull()?.let { reviews[f.fieldId] = it }
+                } catch (_: Exception) {}
+            }
+            ownerMap = owners
+            reviewMap = reviews
+        }
+
+        val featuredItems: List<SearchResultField> = baseFields
+            .filter { field ->
+                val rating = reviewMap[field.fieldId]?.averageRating ?: field.averageRating
+                rating >= 3f
+            }
+            .sortedByDescending { field -> reviewMap[field.fieldId]?.averageRating ?: field.averageRating }
+            .take(10)
+            .map { f ->
+                val owner = ownerMap[f.ownerId]
+                val rating = reviewMap[f.fieldId]?.averageRating ?: f.averageRating
+                val totalReviews = reviewMap[f.fieldId]?.totalReviews ?: f.totalReviews
+                SearchResultField(
+                    id = f.fieldId,
+                    name = f.name,
+                    type = f.sports.firstOrNull() ?: "",
+                    price = "", // có thể điền theo pricing rules nếu cần
+                    location = f.address,
+                    rating = rating,
+                    distance = "",
+                    isAvailable = f.isActive,
+                    imageUrl = f.images.mainImage.ifEmpty { null },
+                    ownerName = owner?.name ?: "Chủ sân",
+                    ownerAvatarUrl = owner?.avatarUrl,
+                    ownerPhone = owner?.phone ?: "",
+                    fieldImages = f.images,
+                    address = f.address,
+                    openHours = "${f.openHours.start} - ${f.openHours.end}",
+                    amenities = f.amenities,
+                    totalReviews = totalReviews,
+                    contactPhone = f.contactPhone,
+                    description = f.description
+                )
+            }
+
         RenterFeaturedFields(
-            onFieldClick = onFieldClick
+            items = featuredItems,
+            onFieldClick = onFieldClick,
+            onBookClick = onBookClick
         )
         
         Spacer(modifier = Modifier.height(24.dp))
         
-        // Lịch sử đặt sân gần đây
+        // Lịch sử đặt sân gần đây (dùng dữ liệu thật nếu có)
+        val fieldsById = (fieldUi.allFields.ifEmpty { fieldUi.fields }).associateBy { it.fieldId }
+        val recentBookings: List<Booking> = bookingUi.myBookings.sortedByDescending { it.createdAt }.take(5)
         RenterRecentBookings(
+            bookings = recentBookings,
+            fieldsById = fieldsById,
             onFieldClick = onFieldClick
         )
         
