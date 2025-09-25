@@ -24,6 +24,7 @@ import com.trungkien.fbtp_cn.model.Field
 import com.trungkien.fbtp_cn.model.OpenHours
 import com.trungkien.fbtp_cn.model.GeoLocation
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
+import com.trungkien.fbtp_cn.ui.components.owner.home.HomeSearchBar
 import com.trungkien.fbtp_cn.viewmodel.FieldViewModel
 import com.trungkien.fbtp_cn.viewmodel.FieldUiState
 import com.trungkien.fbtp_cn.viewmodel.FieldEvent
@@ -133,6 +134,7 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
         println("DEBUG: Current user updated - userId: ${currentUser?.userId}, name: ${currentUser?.name}")
     }
 
+    var searchQuery by remember { mutableStateOf("") }
     Column(modifier = modifier) {
         // Header với tiêu đề, số lượng sân và nút tìm kiếm
         Row(
@@ -150,10 +152,16 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
                 )
 
             }
-            IconButton(onClick = { /* Tìm kiếm */ }) {
-                Icon(Icons.Default.Search, contentDescription = "Tìm kiếm")
-            }
+
         }
+
+        // Search bar hiển thị bên dưới tiêu đề quản lý sân
+        HomeSearchBar(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            onSearch = { q -> searchQuery = q }
+        )
 
         // Nội dung chính
         if (isLoading) {
@@ -332,13 +340,29 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
                     }
                 }
                 
+                // Lọc theo tên sân gần đúng và loại môn thể thao
+                val filteredFields = remember(fields, searchQuery) {
+                    if (searchQuery.isBlank()) fields else fields.filter { f ->
+                        val q = searchQuery.trim().lowercase()
+                        val nameMatch = f.name.lowercase().contains(q)
+                        val sportMatch = f.sports.any { it.lowercase().contains(q) }
+                        nameMatch || sportMatch
+                    }.sortedBy { f ->
+                        // Sắp xếp xem gần giống nhất trước (độ ưu tiên: tên khớp, sau đó sport)
+                        val q = searchQuery.trim().lowercase()
+                        val nameIndex = f.name.lowercase().indexOf(q).let { if (it == -1) Int.MAX_VALUE else it }
+                        val sportIndex = f.sports.minOfOrNull { it.lowercase().indexOf(q).let { i -> if (i == -1) Int.MAX_VALUE else i } } ?: Int.MAX_VALUE
+                        minOf(nameIndex, sportIndex)
+                    }
+                }
+
                 // Hiển thị danh sách sân bằng LazyColumn
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(vertical = 8.dp)
                 ) {
-                    items(fields) { field ->
+                    items(filteredFields) { field ->
                         val summary = reviewSummaryMap[field.fieldId]
                         val fieldWithLiveRating = field.copy(
                             averageRating = summary?.averageRating ?: field.averageRating,

@@ -12,6 +12,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -20,6 +24,7 @@ fun HomeSearchBar(
     onSearch: (String) -> Unit = {}
 ) {
     var query by remember { mutableStateOf("") }
+    val focusManager = LocalFocusManager.current
 
     Column(modifier = modifier.padding(horizontal = 16.dp)) {
         Text(
@@ -37,6 +42,13 @@ fun HomeSearchBar(
                 onSearch(newValue)
             },
             modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(
+                onDone = {
+                    focusManager.clearFocus()
+                    onSearch(query)
+                }
+            ),
             placeholder = {
                 Text(
                     "Tìm sân theo tên, địa chỉ...",

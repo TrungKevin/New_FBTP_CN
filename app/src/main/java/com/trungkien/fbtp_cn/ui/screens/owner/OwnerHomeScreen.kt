@@ -132,7 +132,6 @@ fun OwnerHomeScreen(
                 avatarUrl = user?.avatarUrl
             )
         }
-        item { HomeSearchBar(onSearch = { /* TODO: filter */ }) }
         item {
             HomeQuickActions(
                 onManageFields = onNavigateToFieldList,
