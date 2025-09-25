@@ -41,7 +41,9 @@ fun RenterHomeScreen(
     onFieldClick: (String) -> Unit = {},
     onSearchClick: () -> Unit = {},
     onMapClick: () -> Unit = {},
-    onBookClick: (String) -> Unit = {}
+    onBookClick: (String) -> Unit = {},
+    onHistoryClick: () -> Unit = {},
+    onProfileClick: () -> Unit = {}
 ) {
     val authViewModel: AuthViewModel = viewModel()
     val fieldViewModel: FieldViewModel = viewModel()
@@ -153,9 +155,21 @@ fun RenterHomeScreen(
         
         Spacer(modifier = Modifier.height(24.dp))
         
-        // Lịch sử đặt sân gần đây (dùng dữ liệu thật nếu có)
+        // Lịch sử đặt sân gần đây (chỉ hiển thị booking của hôm nay và hôm qua)
         val fieldsById = (fieldUi.allFields.ifEmpty { fieldUi.fields }).associateBy { it.fieldId }
-        val recentBookings: List<Booking> = bookingUi.myBookings.sortedByDescending { it.createdAt }.take(5)
+        
+        // Lọc booking theo ngày (hôm nay và hôm qua)
+        val today = java.time.LocalDate.now()
+        val yesterday = today.minusDays(1)
+        val todayStr = today.toString() // Format: yyyy-MM-dd
+        val yesterdayStr = yesterday.toString() // Format: yyyy-MM-dd
+        
+        val recentBookings: List<Booking> = bookingUi.myBookings
+            .filter { booking -> 
+                booking.date == todayStr || booking.date == yesterdayStr
+            }
+            .sortedByDescending { it.createdAt }
+            .take(5)
         RenterRecentBookings(
             bookings = recentBookings,
             fieldsById = fieldsById,
@@ -167,7 +181,9 @@ fun RenterHomeScreen(
         // Quick actions
         RenterQuickActions(
             onSearchClick = onSearchClick,
-            onMapClick = onMapClick
+            onMapClick = onMapClick,
+            onHistoryClick = onHistoryClick,
+            onProfileClick = onProfileClick
         )
         
         Spacer(modifier = Modifier.height(100.dp)) // Space cho bottom navigation
@@ -191,6 +207,12 @@ fun RenterHomeScreenPreview() {
                     // Preview callback
                 },
                 onMapClick = {
+                    // Preview callback
+                },
+                onHistoryClick = {
+                    // Preview callback
+                },
+                onProfileClick = {
                     // Preview callback
                 }
             )

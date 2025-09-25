@@ -24,10 +24,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trungkien.fbtp_cn.R
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
+import com.trungkien.fbtp_cn.ui.components.renter.bookinghis.RenterBookingCard as DetailedBookingCard
+import com.trungkien.fbtp_cn.ui.components.renter.bookinghis.RenterBookingDetailSheet
+import com.trungkien.fbtp_cn.model.Booking
 
 @Composable
 fun RenterRecentBookings(
-    bookings: List<com.trungkien.fbtp_cn.model.Booking> = emptyList(),
+    bookings: List<Booking> = emptyList(),
     fieldsById: Map<String, com.trungkien.fbtp_cn.model.Field> = emptyMap(),
     onFieldClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
@@ -83,34 +86,62 @@ fun RenterRecentBookings(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            var selectedBookingId by remember { mutableStateOf<String?>(null) }
             if (bookings.isEmpty()) {
-                // Fallback sample
-                RenterBookingCard(
-                    fieldName = "Chưa có lịch đặt",
-                    fieldType = "",
-                    date = "—",
-                    time = "—",
-                    price = "—",
-                    status = "",
-                    onFieldClick = { }
-                )
-            } else {
-                bookings.forEach { b ->
-                    val f = fieldsById[b.fieldId]
-                    RenterBookingCard(
-                        fieldName = f?.name ?: b.fieldId,
-                        fieldType = f?.sports?.firstOrNull() ?: "",
-                        date = b.date,
-                        time = "${b.startAt} - ${b.endAt}",
-                        price = String.format("%,d₫", b.totalPrice),
-                        status = when (b.status.uppercase()) {
-                            "PENDING", "PAID" -> "confirmed"
-                            "DONE" -> "completed"
-                            "CANCELLED" -> "cancelled"
-                            else -> ""
-                        },
-                        onFieldClick = { onFieldClick(b.fieldId) }
+                // Hiển thị thông báo khi không có lịch sử đặt sân
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color.White
                     )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.stadium),
+                            contentDescription = "No bookings",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.size(48.dp)
+                        )
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        Text(
+                            text = "Chưa có lịch sử đặt sân",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium
+                        )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        Text(
+                            text = "Các đặt sân gần đây sẽ hiển thị tại đây",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+            } else {
+                bookings.forEach { booking ->
+                    DetailedBookingCard(
+                        booking = booking,
+                        onDetailClick = { b ->
+                            selectedBookingId = if (selectedBookingId == b.bookingId) null else b.bookingId
+                        }
+                    )
+                    if (selectedBookingId == booking.bookingId) {
+                        RenterBookingDetailSheet(
+                            booking = booking,
+                            onClose = { selectedBookingId = null }
+                        )
+                    }
                 }
             }
         }

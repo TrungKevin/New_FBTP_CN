@@ -31,6 +31,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 fun RenterQuickActions(
     onSearchClick: () -> Unit = {},
     onMapClick: () -> Unit = {},
+    onHistoryClick: () -> Unit = {},
+    onProfileClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -91,13 +93,13 @@ fun RenterQuickActions(
             ) {
                 RenterQuickActionCard(
                     action = QuickAction("Lịch sử", Icons.Default.DateRange),
-                    onClick = { /* TODO: Navigate to history */ },
+                    onClick = onHistoryClick,
                     modifier = Modifier.weight(1f)
                 )
 
                 RenterQuickActionCard(
                     action = QuickAction("Hồ sơ", Icons.Default.Person),
-                    onClick = { /* TODO: Navigate to profile */ },
+                    onClick = onProfileClick,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -194,7 +196,9 @@ fun RenterQuickActionsPreview() {
     FBTP_CNTheme {
         RenterQuickActions(
             onSearchClick = {},
-            onMapClick = {}
+            onMapClick = {},
+            onHistoryClick = {},
+            onProfileClick = {}
         )
     }
 }

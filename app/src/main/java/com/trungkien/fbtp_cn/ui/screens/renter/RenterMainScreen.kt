@@ -90,6 +90,12 @@ fun RenterMainScreen(
                             // Khi bấm ĐẶT LỊCH ở Featured → mở chi tiết sân giống Search
                             activeOrderDetailFieldId = fieldId
                             selectedScreen = RenterNavScreen.Search
+                        },
+                        onHistoryClick = {
+                            selectedScreen = RenterNavScreen.Booking
+                        },
+                        onProfileClick = {
+                            selectedScreen = RenterNavScreen.Profile
                         }
                     )
                 }

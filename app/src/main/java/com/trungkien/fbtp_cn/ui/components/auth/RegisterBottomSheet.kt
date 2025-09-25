@@ -36,7 +36,7 @@ import com.trungkien.fbtp_cn.R
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterBottomSheet(
-    onDismiss: () -> Unit,
+    onDismiss: () -> Unit,  
     onRegister: (String, String, String, String, String) -> Unit,
     onSwitchToLogin: () -> Unit,
     isLoading: Boolean = false
