@@ -50,6 +50,8 @@ import com.trungkien.fbtp_cn.viewmodel.FieldViewModel
 import com.trungkien.fbtp_cn.viewmodel.FieldUiState
 import com.trungkien.fbtp_cn.viewmodel.FieldEvent
 import androidx.compose.runtime.LaunchedEffect
+import com.trungkien.fbtp_cn.viewmodel.BookingViewModel
+import com.trungkien.fbtp_cn.viewmodel.BookingEvent
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,17 +67,25 @@ fun OwnerHomeScreen(
     val authViewModel: AuthViewModel = viewModel()
     val localFieldViewModel: FieldViewModel = fieldViewModel ?: viewModel() // SỬ DỤNG VIEWMODEL TỪ PARENT
     val user = authViewModel.currentUser.collectAsState().value
+    val bookingViewModel: BookingViewModel = viewModel()
+    val bookingUi = bookingViewModel.uiState.collectAsState().value
     val uiState by localFieldViewModel.uiState.collectAsState()
     
     LaunchedEffect(Unit) {
         if (user == null) authViewModel.fetchProfile()
+    }
+    // Load bookings for owner to drive today's summary
+    LaunchedEffect(user?.userId) {
+        user?.userId?.let { ownerId ->
+            bookingViewModel.handle(BookingEvent.LoadByOwner(ownerId))
+        }
     }
     
     // 🔥 KHÔNG CẦN LOAD DỮ LIỆU TẠI ĐÂY NỮA - ĐÃ ĐƯỢC XỬ LÝ TẠI OWNERMAINSCREEN
     // Chỉ sử dụng dữ liệu từ parent ViewModel
     
     val fields = uiState.fields // Sử dụng dữ liệu thực từ Firebase
-    val bookings = remember { mockBookings() }
+    val bookings = bookingUi.ownerBookings
     
     // Debug logging để kiểm tra việc load dữ liệu
     LaunchedEffect(fields, uiState.isLoading, uiState.error) {
@@ -89,14 +99,27 @@ fun OwnerHomeScreen(
     }
     
     // Tạo summary động dựa trên dữ liệu thực từ Firebase
-    val summary by remember(fields) { 
+    val summary by remember(fields, bookings) { 
+        val today = java.time.LocalDate.now()
+        fun toLocalDateFromCreated(millis: Long): java.time.LocalDate =
+            java.time.Instant.ofEpochMilli(millis).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+
+        val todayStr = today.toString()
+        val todayBookings = bookings.filter { b ->
+            // Match either stored date string or createdAt's local date to be robust
+            b.date == todayStr || runCatching { toLocalDateFromCreated(b.createdAt) == today }.getOrDefault(false)
+        }
+        val newCount = todayBookings.count { it.status == "PENDING" }
+        val confirmedCount = todayBookings.count { it.status == "PAID" }
+        val canceledCount = todayBookings.count { it.status == "CANCELLED" }
+        val revenue = todayBookings.filter { it.status == "PAID" }.sumOf { it.totalPrice }
         mutableStateOf(
             HomeSummary(
-                newBookings = 2, // TODO: Lấy từ Firebase
-                confirmed = 5,    // TODO: Lấy từ Firebase  
-                canceled = 1,     // TODO: Lấy từ Firebase
-                revenueToday = 1250000, // TODO: Lấy từ Firebase
-                totalFields = fields.size // Số lượng sân thực từ Firebase
+                newBookings = newCount,
+                confirmed = confirmedCount,
+                canceled = canceledCount,
+                revenueToday = revenue,
+                totalFields = fields.size
             )
         )
     }
