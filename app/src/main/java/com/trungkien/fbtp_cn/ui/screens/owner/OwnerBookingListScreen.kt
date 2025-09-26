@@ -44,12 +44,26 @@ import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.rememberDatePickerState
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 
 private enum class BookingStatusFilter(val label: String) {
     All("Tất cả"),
     Pending("Chờ xác nhận"),
     Confirmed("Đã xác nhận"),
     Canceled("Đã hủy")
+}
+
+private enum class RecentRangeFilter(val label: String, val days: Long?) {
+    All("Tất cả", null),
+    Week("1 tuần gần đây", 7),
+    Month("1 tháng gần đây", 30),
+    Month3("3 tháng gần đây", 90),
+    Month6("6 tháng gần đây", 180)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -70,15 +84,33 @@ fun OwnerBookingListScreen(
     val allBookings = ui.ownerBookings
     var selectedFilter by remember { mutableStateOf(BookingStatusFilter.All) }
     var showDatePicker by remember { mutableStateOf(false) }
+    var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
+    var showRangeMenu by remember { mutableStateOf(false) }
+    var selectedRange by remember { mutableStateOf(RecentRangeFilter.All) }
     var selectedBooking by remember { mutableStateOf<Booking?>(null) }
 
-    val filtered = remember(selectedFilter, allBookings) {
-        when (selectedFilter) {
-            BookingStatusFilter.All -> allBookings
-            BookingStatusFilter.Pending -> allBookings.filter { it.status == "PENDING" }
-            BookingStatusFilter.Confirmed -> allBookings.filter { it.status == "PAID" }
-            BookingStatusFilter.Canceled -> allBookings.filter { it.status == "CANCELLED" }
+    val filtered = remember(selectedFilter, selectedDate, selectedRange, allBookings) {
+        var list = allBookings
+        // Range filter
+        selectedRange.days?.let { days ->
+            val cutoff = LocalDate.now().minusDays(days)
+            list = list.filter { b ->
+                try { LocalDate.parse(b.date) >= cutoff } catch (_: Exception) { true }
+            }
         }
+        // Date filter
+        selectedDate?.let { d ->
+            val ds = d.toString()
+            list = list.filter { it.date == ds }
+        }
+        // Status filter
+        list = when (selectedFilter) {
+            BookingStatusFilter.All -> list
+            BookingStatusFilter.Pending -> list.filter { it.status == "PENDING" }
+            BookingStatusFilter.Confirmed -> list.filter { it.status == "PAID" }
+            BookingStatusFilter.Canceled -> list.filter { it.status == "CANCELLED" }
+        }
+        list
     }
 
     // Nếu có booking được chọn, hiển thị màn hình chi tiết
@@ -139,20 +171,34 @@ fun OwnerBookingListScreen(
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
-                IconButton(
-                    onClick = { /* bộ lọc nâng cao */ }
-                ) {
-                    Icon(
-                        Icons.Default.List,
-                        contentDescription = "Bộ lọc",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
+                Box {
+                    IconButton(onClick = { showRangeMenu = true }) {
+                        Icon(
+                            Icons.Default.List,
+                            contentDescription = "Bộ lọc",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showRangeMenu,
+                        onDismissRequest = { showRangeMenu = false }
+                    ) {
+                        RecentRangeFilter.values().forEach { opt ->
+                            DropdownMenuItem(
+                                text = { Text(opt.label) },
+                                onClick = {
+                                    selectedRange = opt
+                                    showRangeMenu = false
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }
 
-        // Header với thống kê
-        BookingStatsHeader(bookings = allBookings)
+        // Header với thống kê (dựa trên danh sách đã lọc)
+        BookingStatsHeader(bookings = filtered)
 
         // Status filter chips
         BookingFilterBar(
@@ -211,6 +257,44 @@ fun OwnerBookingListScreen(
             }
         }
     }
+
+    // Render DatePicker dialog at root
+    OwnerBookingDatePicker(
+        show = showDatePicker,
+        onDismiss = { showDatePicker = false },
+        onSelected = { ld -> selectedDate = ld }
+    )
+}
+
+// Date picker dialog
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun OwnerBookingDatePicker(
+    show: Boolean,
+    onDismiss: () -> Unit,
+    onSelected: (LocalDate?) -> Unit
+) {
+    if (!show) return
+    val state = rememberDatePickerState()
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = {
+                val millis = state.selectedDateMillis
+                val date = millis?.let { Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate() }
+                onSelected(date)
+                onDismiss()
+            }) { Text("Chọn") }
+        },
+        dismissButton = {
+            TextButton(onClick = {
+                onSelected(null)
+                onDismiss()
+            }) { Text("Xóa") }
+        }
+    ) {
+        DatePicker(state = state)
+    }
 }
 
 @Composable
@@ -220,7 +304,7 @@ private fun BookingStatsHeader(
 ) {
     val pendingCount = bookings.count { it.status == "PENDING" }
     val confirmedCount = bookings.count { it.status == "PAID" }
-    val totalRevenue = bookings.filter { it.status == "PAID" }.size * 150000 // Mock revenue
+    val totalRevenue = bookings.filter { it.status == "PAID" }.sumOf { it.totalPrice }
 
     Card(
         modifier = modifier
