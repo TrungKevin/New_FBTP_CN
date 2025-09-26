@@ -31,6 +31,19 @@ import com.trungkien.fbtp_cn.ui.components.owner.booking.BookingEmptyState
 import com.trungkien.fbtp_cn.ui.components.owner.booking.BookingFilterBar
 import com.trungkien.fbtp_cn.ui.components.owner.booking.BookingDetailManage
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.trungkien.fbtp_cn.viewmodel.AuthViewModel
+import com.trungkien.fbtp_cn.viewmodel.BookingViewModel
+import com.trungkien.fbtp_cn.viewmodel.BookingEvent
+import com.trungkien.fbtp_cn.repository.UserRepository
+import com.trungkien.fbtp_cn.repository.FieldRepository
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import android.util.Base64
+import android.graphics.BitmapFactory
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 
 private enum class BookingStatusFilter(val label: String) {
     All("Tất cả"),
@@ -45,7 +58,16 @@ fun OwnerBookingListScreen(
     onBookingClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val allBookings = remember { mockBookings() }
+    val authViewModel: AuthViewModel = viewModel()
+    val bookingViewModel: BookingViewModel = viewModel()
+    val user = authViewModel.currentUser.collectAsState().value
+    val ui = bookingViewModel.uiState.collectAsState().value
+    LaunchedEffect(user) {
+        if (user == null) authViewModel.fetchProfile() else {
+            bookingViewModel.handle(BookingEvent.LoadByOwner(user.userId))
+        }
+    }
+    val allBookings = ui.ownerBookings
     var selectedFilter by remember { mutableStateOf(BookingStatusFilter.All) }
     var showDatePicker by remember { mutableStateOf(false) }
     var selectedBooking by remember { mutableStateOf<Booking?>(null) }
@@ -64,11 +86,15 @@ fun OwnerBookingListScreen(
         BookingDetailManage(
             booking = booking,
             onConfirm = {
-                // TODO: Xử lý xác nhận đặt sân
+                booking.bookingId.let { id ->
+                    bookingViewModel.handle(BookingEvent.UpdateStatus(id, "PAID"))
+                }
                 selectedBooking = null
             },
             onCancel = {
-                // TODO: Xử lý hủy đặt sân
+                booking.bookingId.let { id ->
+                    bookingViewModel.handle(BookingEvent.UpdateStatus(id, "CANCELLED"))
+                }
                 selectedBooking = null
             },
             onSuggestTime = {
@@ -167,10 +193,10 @@ fun OwnerBookingListScreen(
                             onActionClick = { action ->
                                 when (action) {
                                     "approve" -> {
-                                        // TODO: Xử lý xác nhận
+                                        bookingViewModel.handle(BookingEvent.UpdateStatus(booking.bookingId, "PAID"))
                                     }
                                     "reject" -> {
-                                        // TODO: Xử lý từ chối
+                                        bookingViewModel.handle(BookingEvent.UpdateStatus(booking.bookingId, "CANCELLED"))
                                     }
                                 }
                             }
@@ -266,6 +292,36 @@ private fun EnhancedBookingListItem(
     onActionClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    // Load thực tế: tên sân, thông tin renter
+    var fieldName by remember(booking.fieldId) { mutableStateOf<String?>(null) }
+    var renterName by remember(booking.renterId) { mutableStateOf<String?>(null) }
+    var renterPhone by remember(booking.renterId) { mutableStateOf<String?>(null) }
+    val userRepo = remember { UserRepository() }
+    val fieldRepo = remember { FieldRepository() }
+    LaunchedEffect(booking.fieldId) {
+        try {
+            fieldRepo.getFieldById(booking.fieldId).getOrNull()?.let { f ->
+                fieldName = f.name
+            }
+        } catch (_: Exception) {}
+    }
+    LaunchedEffect(booking.renterId) {
+        try {
+            userRepo.getUserById(
+                userId = booking.renterId,
+                onSuccess = { u ->
+                    renterName = u.name
+                    renterPhone = u.phone
+                },
+                onError = { }
+            )
+        } catch (_: Exception) {}
+    }
+
+    fun formatVnCurrency(amount: Long): String {
+        return "${String.format("%,d", amount).replace(',', '.')}đ"
+    }
     val statusColor = when (booking.status) {
         "PAID" -> Color(0xFF4CAF50)
         "PENDING" -> Color(0xFFFF9800)
@@ -302,7 +358,7 @@ private fun EnhancedBookingListItem(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Sân ${booking.fieldId}",
+                        text = "Sân ${fieldName ?: booking.fieldId}",
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold
                         ),
@@ -371,39 +427,80 @@ private fun EnhancedBookingListItem(
                     )
                     .padding(16.dp)
             ) {
-                // Avatar với design đồng bộ
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Person,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
+                // Avatar renter - tham khảo cách render từ RenterReviewCard
+                val avatarData by produceState(initialValue = "", key1 = booking.renterId) {
+                    if (booking.renterId.isNotBlank()) {
+                        UserRepository().getUserById(
+                            booking.renterId,
+                            onSuccess = { u -> value = u.avatarUrl ?: "" },
+                            onError = { _ -> value = "" }
+                        )
+                    } else value = ""
+                }
+
+                val rendered = if (avatarData.isNotBlank()) {
+                    val decoded = try {
+                        val base = if (avatarData.startsWith("data:image")) avatarData.substringAfter(",") else avatarData
+                        val bytes = Base64.decode(base, Base64.DEFAULT)
+                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    } catch (_: Exception) { null }
+                    if (decoded != null) {
+                        androidx.compose.foundation.Image(
+                            bitmap = decoded.asImageBitmap(),
+                            contentDescription = null,
+                            modifier = Modifier.size(40.dp).clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                        true
+                    } else {
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(if (avatarData.startsWith("http") || avatarData.startsWith("data:image")) avatarData else "data:image/jpeg;base64,$avatarData")
+                                .allowHardware(false)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = null,
+                            modifier = Modifier.size(40.dp).clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                        true
+                    }
+                } else false
+
+                if (!rendered) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Person,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Nguyễn Văn A", // Mock customer name
+                        text = renterName ?: booking.renterId,
                         style = MaterialTheme.typography.bodyLarge.copy(
                             fontWeight = FontWeight.SemiBold
                         ),
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "0909 123 456", // Mock phone
+                        text = renterPhone ?: "",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
                 }
 
                 Text(
-                    text = "150.000đ", // Mock price
+                    text = formatVnCurrency(booking.totalPrice),
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold
                     ),

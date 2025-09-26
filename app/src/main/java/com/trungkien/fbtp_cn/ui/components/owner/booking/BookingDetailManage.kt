@@ -24,6 +24,15 @@ import androidx.compose.ui.unit.sp
 import com.trungkien.fbtp_cn.R
 import com.trungkien.fbtp_cn.model.Booking
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
+import com.trungkien.fbtp_cn.repository.UserRepository
+import com.trungkien.fbtp_cn.repository.FieldRepository
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import android.util.Base64
+import android.graphics.BitmapFactory
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,7 +82,7 @@ fun BookingDetailManage(
             Spacer(modifier = Modifier.height(12.dp))
 
             // Thông tin người đặt sân
-            EnhancedCustomerInfoSection()
+            EnhancedCustomerInfoSection(booking = booking)
 
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -102,6 +111,13 @@ private fun EnhancedFieldInfoHeader(
     booking: Booking,
     modifier: Modifier = Modifier
 ) {
+    // Load field name
+    var fieldName by remember(booking.fieldId) { mutableStateOf<String?>(null) }
+    LaunchedEffect(booking.fieldId) {
+        try {
+            FieldRepository().getFieldById(booking.fieldId).getOrNull()?.let { f -> fieldName = f.name }
+        } catch (_: Exception) {}
+    }
     // Status color - giữ nguyên màu cũ
     val statusColor = when (booking.status) {
         "Đã xác nhận" -> Color(0xFF4CAF50)
@@ -144,7 +160,7 @@ private fun EnhancedFieldInfoHeader(
 
             // Tên sân
             Text(
-                text = "Sân ${booking.fieldId}",
+                text = "Sân ${fieldName ?: booking.fieldId}",
                 style = MaterialTheme.typography.headlineSmall.copy(
                     fontWeight = FontWeight.Bold
                 ),
@@ -193,8 +209,29 @@ private fun EnhancedFieldInfoHeader(
 
 @Composable
 private fun EnhancedCustomerInfoSection(
+    booking: Booking,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    var renterName by remember(booking.renterId) { mutableStateOf("") }
+    var renterPhone by remember(booking.renterId) { mutableStateOf("") }
+    var renterEmail by remember(booking.renterId) { mutableStateOf("") }
+    var renterAddress by remember(booking.renterId) { mutableStateOf("") }
+    val avatarData by produceState(initialValue = "", key1 = booking.renterId) {
+        if (booking.renterId.isNotBlank()) {
+            UserRepository().getUserById(
+                booking.renterId,
+                onSuccess = { u ->
+                    renterName = u.name
+                    renterPhone = u.phone
+                    renterEmail = u.email
+                    renterAddress = u.address
+                    value = u.avatarUrl ?: ""
+                },
+                onError = { _ -> value = "" }
+            )
+        } else value = ""
+    }
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -222,26 +259,55 @@ private fun EnhancedCustomerInfoSection(
                 modifier = Modifier.padding(bottom = 20.dp)
             ) {
                 // Avatar
-                Box(
-                    modifier = Modifier
-                        .size(60.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Person,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(28.dp)
-                    )
+                run {
+                    val decoded = try {
+                        if (avatarData.isNotBlank()) {
+                            val base = if (avatarData.startsWith("data:image")) avatarData.substringAfter(",") else avatarData
+                            val bytes = Base64.decode(base, Base64.DEFAULT)
+                            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        } else null
+                    } catch (_: Exception) { null }
+                    if (decoded != null) {
+                        androidx.compose.foundation.Image(
+                            bitmap = decoded.asImageBitmap(),
+                            contentDescription = null,
+                            modifier = Modifier.size(60.dp).clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else if (avatarData.isNotBlank()) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(if (avatarData.startsWith("http") || avatarData.startsWith("data:image")) avatarData else "data:image/jpeg;base64,$avatarData")
+                                .allowHardware(false)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = null,
+                            modifier = Modifier.size(60.dp).clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(60.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.Person,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.width(16.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Nguyễn Văn A",
+                        text = if (renterName.isNotBlank()) renterName else booking.renterId,
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold
                         ),
@@ -250,19 +316,7 @@ private fun EnhancedCustomerInfoSection(
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    Surface(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            text = "Khách hàng VIP",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Medium
-                            ),
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
+
                 }
             }
 
@@ -270,7 +324,7 @@ private fun EnhancedCustomerInfoSection(
             EnhancedInfoRow(
                 icon = Icons.Default.Phone,
                 label = "Số điện thoại",
-                value = "0909 123 456"
+                value = renterPhone
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -278,16 +332,9 @@ private fun EnhancedCustomerInfoSection(
             EnhancedInfoRow(
                 icon = Icons.Default.Email,
                 label = "Email",
-                value = "nguyenvana@gmail.com"
+                value = renterEmail
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            EnhancedInfoRow(
-                icon = Icons.Default.LocationOn,
-                label = "Địa chỉ",
-                value = "123 Đường ABC, Quận 1, TP.HCM"
-            )
         }
     }
 }
@@ -428,7 +475,7 @@ private fun EnhancedBookingInfoSection(
             EnhancedInfoRow(
                 icon = Icons.Default.DateRange,
                 label = "Ngày đặt",
-                value = "Hôm nay - 15/08/2025"
+                value = booking.date
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -441,10 +488,11 @@ private fun EnhancedBookingInfoSection(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            val totalText = "${String.format("%,d", booking.totalPrice).replace(',', '.')} VND"
             EnhancedInfoRow(
                 icon = Icons.Default.Check,
                 label = "Giá tiền",
-                value = "150.000 VND"
+                value = totalText
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -452,7 +500,7 @@ private fun EnhancedBookingInfoSection(
             EnhancedInfoRow(
                 icon = Icons.Default.Face,
                 label = "Ghi chú",
-                value = "Cần chuẩn bị vợt dự phòng"
+                value = booking.notes ?: "—"
             )
         }
     }

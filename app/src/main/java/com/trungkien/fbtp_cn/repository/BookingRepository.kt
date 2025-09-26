@@ -144,6 +144,28 @@ class BookingRepository {
                 onChange(list)
             }
     }
+
+    /**
+     * ✅ NEW: Lắng nghe thay đổi bookings theo ownerId (realtime)
+     */
+    fun listenBookingsByOwner(
+        ownerId: String,
+        onChange: (List<Booking>) -> Unit,
+        onError: (Exception) -> Unit
+    ): ListenerRegistration {
+        return firestore.collection(BOOKINGS_COLLECTION)
+            .whereEqualTo("ownerId", ownerId)
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    onError(e)
+                    return@addSnapshotListener
+                }
+                val list = snapshot?.toObjects(Booking::class.java)
+                    ?.sortedByDescending { it.createdAt }
+                    ?: emptyList()
+                onChange(list)
+            }
+    }
     
     /**
      * Lấy bookings theo fieldId và date
@@ -180,6 +202,24 @@ class BookingRepository {
                 .flatMap { it.consecutiveSlots }
                 .toSet()
             Result.success(times)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * ✅ NEW: Cập nhật trạng thái booking
+     */
+    suspend fun updateBookingStatus(bookingId: String, newStatus: String): Result<Unit> {
+        return try {
+            firestore.collection(BOOKINGS_COLLECTION)
+                .document(bookingId)
+                .update(mapOf(
+                    "status" to newStatus,
+                    "updatedAt" to System.currentTimeMillis()
+                ))
+                .await()
+            Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
