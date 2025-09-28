@@ -214,6 +214,9 @@ fun RenterBookingCheckoutScreen(
             val newSlots = currentSlots + consecutiveSlots
             selectedSlotsByDate = selectedSlotsByDate + (currentDateKey to newSlots)
             
+            // ✅ FIX: Hiển thị viền xanh ngay lập tức, không delay
+            println("🎯 DEBUG: Slots selected immediately with green border: $consecutiveSlots")
+            
             // ✅ NEW: Delay 3 giây trước khi hiển thị OpponentConfirmationDialog
             opponentDialogTimer = CoroutineScope(Dispatchers.Main).launch {
                 println("🎯 DEBUG: Starting 3-second timer for OpponentConfirmationDialog")
@@ -333,6 +336,9 @@ fun RenterBookingCheckoutScreen(
                         println("🎯 DEBUG: Valid slots to auto-select from DB: $consecutiveSlots")
                         val newSlots = currentSlots + consecutiveSlots
                         selectedSlotsByDate = selectedSlotsByDate + (currentDateKey to newSlots)
+                        
+                        // ✅ FIX: Hiển thị viền xanh ngay lập tức, không delay
+                        println("🎯 DEBUG: Slots selected immediately with green border (from DB): $consecutiveSlots")
                         
                         // ✅ NEW: Delay 3 giây trước khi hiển thị OpponentConfirmationDialog
                         CoroutineScope(Dispatchers.Main).launch {
