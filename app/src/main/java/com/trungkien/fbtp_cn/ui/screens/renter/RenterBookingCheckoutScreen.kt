@@ -1047,30 +1047,33 @@ fun RenterBookingCheckoutScreen(
                             notes = notes.ifBlank { null }
                         )
                         
-                        // ✅ NEW: Cập nhật trạng thái các khung giờ từ WAITING_OPPONENT thành FULL
+                        // ✅ FIX: Cập nhật trạng thái chỉ các slots liền nhau có cùng userId đã được chọn
                         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
                             val currentDateKey = selectedDate.toString()
-                            val matchSlots = generateTimeSlots(m.startAt, m.endAt)
+                            
+                            // ✅ FIX: Chỉ lấy các slots đã được chọn (consecutive slots với cùng userId)
+                            val selectedSlots = selectedSlotsByDate[currentDateKey] ?: emptySet()
+                            println("🎯 DEBUG: Selected slots to update status: $selectedSlots")
                             
                             // Chuyển các khung giờ từ waitingOpponentSlots sang lockedSlots
                             val currentWaitingSlots = waitingOpponentSlotsByDate[currentDateKey] ?: emptySet()
                             val currentLockedSlots = lockedSlotsByDate[currentDateKey] ?: emptySet()
                             
-                            val newWaitingSlots = currentWaitingSlots - matchSlots.toSet()
-                            val newLockedSlots = currentLockedSlots + matchSlots.toSet()
+                            // ✅ FIX: Chỉ cập nhật trạng thái cho các slots đã được chọn
+                            val newWaitingSlots = currentWaitingSlots - selectedSlots
+                            val newLockedSlots = currentLockedSlots + selectedSlots
                             
                             waitingOpponentSlotsByDate = waitingOpponentSlotsByDate + (currentDateKey to newWaitingSlots)
                             lockedSlotsByDate = lockedSlotsByDate + (currentDateKey to newLockedSlots)
                             
                             // Xóa các khung giờ khỏi selectedSlots vì đã được đặt
-                            val currentSlots = selectedSlotsByDate[currentDateKey] ?: emptySet()
-                            val newSlots = currentSlots - matchSlots.toSet()
-                            selectedSlotsByDate = selectedSlotsByDate + (currentDateKey to newSlots)
+                            selectedSlotsByDate = selectedSlotsByDate + (currentDateKey to emptySet())
                             
                             // Reload field data để cập nhật UI
                             fieldViewModel.handleEvent(FieldEvent.LoadFieldById(fieldId))
                             
-                            println("✅ DEBUG: Match completed - slots moved from WAITING_OPPONENT to FULL: $matchSlots")
+                            println("✅ DEBUG: Match completed - only consecutive slots with same userId updated: $selectedSlots")
+                            println("✅ DEBUG: Moved from WAITING_OPPONENT to FULL: $selectedSlots")
                         }
                     }
                 }
