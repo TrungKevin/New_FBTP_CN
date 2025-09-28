@@ -23,6 +23,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import com.trungkien.fbtp_cn.ui.components.renter.orderinfo.*
 import com.trungkien.fbtp_cn.ui.components.renter.dialogs.OpponentConfirmationDialog
@@ -39,6 +40,22 @@ import com.trungkien.fbtp_cn.model.ServiceLine
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import com.trungkien.fbtp_cn.ui.components.common.LoadingDialog
+
+// ✅ NEW: Function để kiểm tra 2 slots có liền nhau không
+fun isConsecutiveSlot(slot1: String, slot2: String): Boolean {
+    val time1 = slot1.split(":")
+    val hour1 = time1[0].toInt()
+    val minute1 = time1[1].toInt()
+    
+    val time2 = slot2.split(":")
+    val hour2 = time2[0].toInt()
+    val minute2 = time2[1].toInt()
+    
+    val totalMinutes1 = hour1 * 60 + minute1
+    val totalMinutes2 = hour2 * 60 + minute2
+    
+    return kotlin.math.abs(totalMinutes2 - totalMinutes1) == 30
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @RequiresApi(Build.VERSION_CODES.O)
@@ -123,10 +140,78 @@ fun RenterBookingCheckoutScreen(
                 userRepo.getUserById(firstId, onSuccess = { u -> opponentName = u.name }, onError = { opponentName = "" })
             }
             
-            // Tự động chọn tất cả các khung giờ của match này
+            // ✅ FIX: Chỉ chọn slots liền nhau có cùng userId với slot được click
             val matchSlots = generateTimeSlots(cachedMatch.startAt, cachedMatch.endAt)
-            println("🎯 DEBUG: Auto-selecting match slots: $matchSlots")
-            val newSlots = currentSlots + matchSlots.toSet()
+            println("🎯 DEBUG: Generated match slots: $matchSlots")
+            val clickedSlotOwnerId = cachedMatch.participants.firstOrNull()?.renterId
+            println("🎯 DEBUG: Clicked slot owner ID: $clickedSlotOwnerId")
+            
+            // Kiểm tra từng slot xem có cùng userId và liền nhau không
+            val validSlots = mutableSetOf<String>()
+            
+            // Sử dụng runBlocking để đảm bảo tất cả async operations hoàn thành
+            runBlocking {
+                matchSlots.forEach { slotToCheck ->
+                    // Kiểm tra từ waitingSlotOwner map trước
+                    val slotOwnerId = waitingSlotOwner[slotToCheck]
+                    println("🎯 DEBUG: Checking slot $slotToCheck, owner from map: $slotOwnerId")
+                    
+                    if (slotOwnerId == clickedSlotOwnerId) {
+                        validSlots.add(slotToCheck)
+                        println("🎯 DEBUG: ✅ Slot $slotToCheck has same owner, adding to valid slots")
+                    } else if (slotOwnerId == null) {
+                        // Nếu map không có data, kiểm tra từ database
+                        val bookingResult = bookingRepo.findWaitingBookingBySlot(fieldId, date, slotToCheck)
+                        bookingResult.onSuccess { booking ->
+                            if (booking != null && booking.renterId == clickedSlotOwnerId) {
+                                validSlots.add(slotToCheck)
+                                println("🎯 DEBUG: ✅ Slot $slotToCheck has same owner (from DB), adding to valid slots")
+                            } else {
+                                println("🎯 DEBUG: ❌ Slot $slotToCheck has different owner (from DB), skipping")
+                            }
+                        }
+                    } else {
+                        println("🎯 DEBUG: ❌ Slot $slotToCheck has different owner ($slotOwnerId), skipping")
+                    }
+                }
+            }
+            
+            // ✅ FIX: Chỉ giữ lại các slots liền nhau với slot được click
+            val consecutiveSlots = mutableSetOf<String>()
+            consecutiveSlots.add(slot) // Luôn bao gồm slot được click
+            
+            // Tìm các slots liền nhau về phía trước và sau
+            val sortedSlots = validSlots.sorted()
+            val clickedIndex = sortedSlots.indexOf(slot)
+            
+            if (clickedIndex >= 0) {
+                // Thêm các slots liền nhau về phía trước
+                for (i in clickedIndex - 1 downTo 0) {
+                    val prevSlot = sortedSlots[i]
+                    if (isConsecutiveSlot(prevSlot, sortedSlots[i + 1])) {
+                        consecutiveSlots.add(prevSlot)
+                        println("🎯 DEBUG: Added previous consecutive slot: $prevSlot")
+                    } else {
+                        break
+                    }
+                }
+                
+                // Thêm các slots liền nhau về phía sau
+                for (i in clickedIndex + 1 until sortedSlots.size) {
+                    val nextSlot = sortedSlots[i]
+                    if (isConsecutiveSlot(sortedSlots[i - 1], nextSlot)) {
+                        consecutiveSlots.add(nextSlot)
+                        println("🎯 DEBUG: Added next consecutive slot: $nextSlot")
+                    } else {
+                        break
+                    }
+                }
+            }
+            
+            println("🎯 DEBUG: Consecutive slots with same userId: $consecutiveSlots")
+            
+            println("🎯 DEBUG: Valid slots to auto-select: $consecutiveSlots")
+            val newSlots = currentSlots + consecutiveSlots
             selectedSlotsByDate = selectedSlotsByDate + (currentDateKey to newSlots)
             
             // ✅ NEW: Delay 3 giây trước khi hiển thị OpponentConfirmationDialog
@@ -175,10 +260,78 @@ fun RenterBookingCheckoutScreen(
                             userRepo.getUserById(firstId, onSuccess = { u -> opponentName = u.name }, onError = { opponentName = "" })
                         }
                         
-                        // Tự động chọn tất cả các khung giờ của booking này
+                        // ✅ FIX: Chỉ chọn slots liền nhau có cùng userId với slot được click
                         val matchSlots = generateTimeSlots(booking.startAt, booking.endAt)
-                        println("🎯 DEBUG: Auto-selecting match slots from DB: $matchSlots")
-                        val newSlots = currentSlots + matchSlots.toSet()
+                        println("🎯 DEBUG: Generated match slots from DB: $matchSlots")
+                        val clickedSlotOwnerId = booking.renterId
+                        println("🎯 DEBUG: Clicked slot owner ID from DB: $clickedSlotOwnerId")
+                        
+                        // Kiểm tra từng slot xem có cùng userId và liền nhau không
+                        val validSlots = mutableSetOf<String>()
+                        
+                        // Sử dụng runBlocking để đảm bảo tất cả async operations hoàn thành
+                        runBlocking {
+                            matchSlots.forEach { slotToCheck ->
+                                // Kiểm tra từ waitingSlotOwner map trước
+                                val slotOwnerId = waitingSlotOwner[slotToCheck]
+                                println("🎯 DEBUG: Checking slot $slotToCheck, owner from map: $slotOwnerId")
+                                
+                                if (slotOwnerId == clickedSlotOwnerId) {
+                                    validSlots.add(slotToCheck)
+                                    println("🎯 DEBUG: ✅ Slot $slotToCheck has same owner, adding to valid slots")
+                                } else if (slotOwnerId == null) {
+                                    // Nếu map không có data, kiểm tra từ database
+                                    val bookingResult = bookingRepo.findWaitingBookingBySlot(fieldId, date, slotToCheck)
+                                    bookingResult.onSuccess { booking ->
+                                        if (booking != null && booking.renterId == clickedSlotOwnerId) {
+                                            validSlots.add(slotToCheck)
+                                            println("🎯 DEBUG: ✅ Slot $slotToCheck has same owner (from DB), adding to valid slots")
+                                        } else {
+                                            println("🎯 DEBUG: ❌ Slot $slotToCheck has different owner (from DB), skipping")
+                                        }
+                                    }
+                                } else {
+                                    println("🎯 DEBUG: ❌ Slot $slotToCheck has different owner ($slotOwnerId), skipping")
+                                }
+                            }
+                        }
+                        
+                        // ✅ FIX: Chỉ giữ lại các slots liền nhau với slot được click
+                        val consecutiveSlots = mutableSetOf<String>()
+                        consecutiveSlots.add(slot) // Luôn bao gồm slot được click
+                        
+                        // Tìm các slots liền nhau về phía trước và sau
+                        val sortedSlots = validSlots.sorted()
+                        val clickedIndex = sortedSlots.indexOf(slot)
+                        
+                        if (clickedIndex >= 0) {
+                            // Thêm các slots liền nhau về phía trước
+                            for (i in clickedIndex - 1 downTo 0) {
+                                val prevSlot = sortedSlots[i]
+                                if (isConsecutiveSlot(prevSlot, sortedSlots[i + 1])) {
+                                    consecutiveSlots.add(prevSlot)
+                                    println("🎯 DEBUG: Added previous consecutive slot: $prevSlot")
+                                } else {
+                                    break
+                                }
+                            }
+                            
+                            // Thêm các slots liền nhau về phía sau
+                            for (i in clickedIndex + 1 until sortedSlots.size) {
+                                val nextSlot = sortedSlots[i]
+                                if (isConsecutiveSlot(sortedSlots[i - 1], nextSlot)) {
+                                    consecutiveSlots.add(nextSlot)
+                                    println("🎯 DEBUG: Added next consecutive slot: $nextSlot")
+                                } else {
+                                    break
+                                }
+                            }
+                        }
+                        
+                        println("🎯 DEBUG: Consecutive slots with same userId: $consecutiveSlots")
+                        
+                        println("🎯 DEBUG: Valid slots to auto-select from DB: $consecutiveSlots")
+                        val newSlots = currentSlots + consecutiveSlots
                         selectedSlotsByDate = selectedSlotsByDate + (currentDateKey to newSlots)
                         
                         // ✅ NEW: Delay 3 giây trước khi hiển thị OpponentConfirmationDialog
