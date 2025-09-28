@@ -115,7 +115,7 @@ fun BookingTimeSlotGrid(
                     val bg = when {
                         isLockedForThisDate -> Color.Red.copy(alpha = 0.2f)
                         isWaitingOpponentForThisDate -> Color(0xFFFFD700).copy(alpha = 0.3f)
-                        isSelected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                        isSelected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
                         else -> MaterialTheme.colorScheme.surface
                     }
                     val fg = when {
@@ -132,34 +132,22 @@ fun BookingTimeSlotGrid(
                             .clip(RoundedCornerShape(6.dp))
                             .background(bg)
                             .border(
-                                if (isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else BorderStroke(0.dp, Color.Transparent),
+                                if (isSelected) BorderStroke(2.dp, Color(0xFF2ECC71)) else BorderStroke(0.dp, Color.Transparent),
                                 shape = RoundedCornerShape(6.dp)
                             )
-                            .let { 
-                                if (!isBooked && !isLockedForThisDate) {
-                                    it.then(
-                                        Modifier.clickable {
-                                            // ✅ FIX: Đơn giản hóa - chỉ gọi onToggle
-                                            onToggle(slot)
-                                            
-                                            // ✅ NEW: Kiểm tra selection liên tiếp sau khi onToggle
-                                            val currentSelected = if (isSelected) {
-                                                selected - slot
-                                            } else {
-                                                selected + slot
-                                            }
-                                            
-                                            // Gọi callback nếu có selection liên tiếp
-                                            if (currentSelected.size > 1) {
-                                                val consecutiveSlots = getConsecutiveSlots(currentSelected, slots)
-                                                if (consecutiveSlots.isNotEmpty()) {
-                                                    onConsecutiveSelection(consecutiveSlots)
-                                                }
-                                            }
-                                        }
-                                    )
+                            .clickable {
+                                // Đẩy sự kiện click lên cho parent xử lý (toast/dialog)
+                                onToggle(slot)
+
+                                // Vẫn tính selection liên tiếp để gợi ý đối thủ khi cần
+                                val currentSelected = if (isSelected) {
+                                    selected - slot
                                 } else {
-                                    it
+                                    selected + slot
+                                }
+                                if (currentSelected.size > 1) {
+                                    val consecutive = getConsecutiveSlots(currentSelected, slots)
+                                    if (consecutive.isNotEmpty()) onConsecutiveSelection(consecutive)
                                 }
                             }
                             .padding(horizontal = 6.dp, vertical = 3.dp),

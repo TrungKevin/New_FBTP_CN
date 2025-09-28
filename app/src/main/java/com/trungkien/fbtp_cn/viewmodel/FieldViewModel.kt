@@ -429,6 +429,15 @@ class FieldViewModel(
         viewModelScope.launch {
             println("🔄 DEBUG: FieldViewModel.loadSlotsByFieldIdAndDate($fieldId, $date)")
             try {
+                // ✅ FIX: Clear data cũ trước khi load data mới để tránh trùng lặp
+                _uiState.value = _uiState.value.copy(
+                    slots = emptyList(),
+                    bookedStartTimes = emptySet(),
+                    waitingOpponentTimes = emptySet(),
+                    lockedOpponentTimes = emptySet()
+                )
+                println("🔄 DEBUG: Cleared old data for new date: $date")
+                
                 val result = repository.getSlotsByFieldIdAndDate(fieldId, date)
                 
                 result.fold(
@@ -476,16 +485,24 @@ class FieldViewModel(
     private fun loadOpponentTimes(fieldId: String, date: String) {
         viewModelScope.launch {
             try {
+                println("🔄 DEBUG: FieldViewModel.loadOpponentTimes($fieldId, $date)")
                 val repo = com.trungkien.fbtp_cn.repository.BookingRepository()
                 val waiting = repo.getWaitingOpponentBookings(fieldId, date)
                 val locked = repo.getLockedBookings(fieldId, date)
                 val waitingTimes = waiting.getOrNull()?.flatMap { it.consecutiveSlots }?.toSet() ?: emptySet()
                 val lockedTimes = locked.getOrNull()?.flatMap { it.consecutiveSlots }?.toSet() ?: emptySet()
+                
+                println("✅ DEBUG: LoadOpponentTimes results:")
+                println("  - waitingTimes: $waitingTimes")
+                println("  - lockedTimes: $lockedTimes")
+                
                 _uiState.value = _uiState.value.copy(
                     waitingOpponentTimes = waitingTimes,
                     lockedOpponentTimes = lockedTimes
                 )
-            } catch (_: Exception) { }
+            } catch (e: Exception) { 
+                println("❌ ERROR: loadOpponentTimes failed: ${e.message}")
+            }
         }
     }
     

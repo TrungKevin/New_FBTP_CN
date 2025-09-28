@@ -4,6 +4,8 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.trungkien.fbtp_cn.model.Booking
 import com.trungkien.fbtp_cn.model.ServiceLine
+import com.trungkien.fbtp_cn.model.Match
+import com.trungkien.fbtp_cn.model.MatchParticipant
 import kotlinx.coroutines.tasks.await
 import java.util.*
 
@@ -12,6 +14,7 @@ class BookingRepository {
     
     companion object {
         private const val BOOKINGS_COLLECTION = "bookings"
+        private const val MATCHES_COLLECTION = "matches"
     }
     
     /**
@@ -146,6 +149,226 @@ class BookingRepository {
     }
 
     /**
+     * ✅ NEW: Lắng nghe Match theo fieldId + date để render slot vàng/đỏ realtime
+     */
+    fun listenMatchesByFieldDate(
+        fieldId: String,
+        date: String,
+        onChange: (List<Match>) -> Unit,
+        onError: (Exception) -> Unit
+    ): ListenerRegistration {
+        println("🔍 DEBUG: listenMatchesByFieldDate called:")
+        println("  - fieldId: $fieldId")
+        println("  - date: $date")
+        println("  - MATCHES_COLLECTION: $MATCHES_COLLECTION")
+        
+        return firestore.collection(MATCHES_COLLECTION)
+            .whereEqualTo("fieldId", fieldId)
+            .whereEqualTo("date", date)
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) { 
+                    println("❌ ERROR: listenMatchesByFieldDate error: ${e.message}")
+                    onError(e); 
+                    return@addSnapshotListener 
+                }
+                val list = snapshot?.toObjects(Match::class.java) ?: emptyList()
+                println("✅ DEBUG: listenMatchesByFieldDate result:")
+                println("  - snapshot size: ${snapshot?.size() ?: 0}")
+                println("  - matches found: ${list.size}")
+                list.forEachIndexed { index, match ->
+                    println("  [$index] matchId: ${match.rangeKey}, status: ${match.status}, participants: ${match.participants.size}")
+                }
+                onChange(list)
+            }
+    }
+
+    /**
+     * ✅ NEW: Tạo booking SOLO chờ đối thủ + tạo Match WAITING_OPPONENT
+     */
+    suspend fun createWaitingOpponentBooking(
+        renterId: String,
+        ownerId: String,
+        fieldId: String,
+        date: String,
+        consecutiveSlots: List<String>,
+        basePrice: Long,
+        serviceLines: List<ServiceLine> = emptyList(),
+        notes: String? = null
+    ): Result<String> {
+        return try {
+            val bookingId = UUID.randomUUID().toString()
+            val startAt = consecutiveSlots.first()
+            val endAt = consecutiveSlots.last()
+            val slotsCount = consecutiveSlots.size
+            val minutes = slotsCount * 30
+            val servicePrice = serviceLines.sumOf { it.lineTotal }
+            val totalPrice = basePrice + servicePrice
+            val rangeKey = "$fieldId${date.replace("-", "")}${startAt.replace(":", "")}${endAt.replace(":", "")}"
+
+            val booking = Booking(
+                bookingId = bookingId,
+                renterId = renterId,
+                ownerId = ownerId,
+                fieldId = fieldId,
+                date = date,
+                startAt = startAt,
+                endAt = endAt,
+                slotsCount = slotsCount,
+                minutes = minutes,
+                basePrice = basePrice,
+                serviceLines = serviceLines,
+                servicePrice = servicePrice,
+                totalPrice = totalPrice,
+                status = "PENDING",
+                notes = notes,
+                hasOpponent = false,
+                bookingType = "SOLO",
+                opponentMode = "WAITING_OPPONENT",
+                consecutiveSlots = consecutiveSlots,
+                matchId = rangeKey,
+                matchSide = "A"
+            )
+
+            val match = Match(
+                rangeKey = rangeKey,
+                fieldId = fieldId,
+                date = date,
+                startAt = startAt,
+                endAt = endAt,
+                capacity = 2,
+                occupiedCount = 1,
+                participants = listOf(MatchParticipant(bookingId = bookingId, renterId = renterId, side = "A")),
+                price = basePrice,
+                totalPrice = totalPrice,
+                status = "WAITING_OPPONENT",
+                matchType = "SINGLE",
+                notes = notes
+            )
+
+            val batch = firestore.batch()
+            val bookingDoc = firestore.collection(BOOKINGS_COLLECTION).document(bookingId)
+            val matchDoc = firestore.collection(MATCHES_COLLECTION).document(rangeKey)
+            batch.set(bookingDoc, booking)
+            batch.set(matchDoc, match)
+            batch.commit().await()
+            Result.success(bookingId)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * ✅ NEW: Renter thứ 2 tham gia làm đối thủ -> tạo booking B, cập nhật match FULL và booking A
+     */
+    suspend fun joinOpponent(
+        matchId: String,
+        renterId: String,
+        ownerId: String,
+        basePrice: Long,
+        serviceLines: List<ServiceLine> = emptyList(),
+        notes: String? = null
+    ): Result<String> {
+        return try {
+            val matchRef = firestore.collection(MATCHES_COLLECTION).document(matchId)
+            val matchSnap = matchRef.get().await()
+            val match = matchSnap.toObject(Match::class.java) ?: return Result.failure(IllegalStateException("Match not found"))
+            if (match.status == "FULL") return Result.failure(IllegalStateException("Match already full"))
+
+            val bookingId = UUID.randomUUID().toString()
+            val servicePrice = serviceLines.sumOf { it.lineTotal }
+            val totalPrice = basePrice + servicePrice
+            val bookingB = Booking(
+                bookingId = bookingId,
+                renterId = renterId,
+                ownerId = ownerId,
+                fieldId = match.fieldId,
+                date = match.date,
+                startAt = match.startAt,
+                endAt = match.endAt,
+                slotsCount = ((match.endAt.substring(0,2)+match.endAt.substring(3,5)).toInt() - (match.startAt.substring(0,2)+match.startAt.substring(3,5)).toInt())/50, // placeholder, không dùng
+                minutes = 60,
+                basePrice = basePrice,
+                serviceLines = serviceLines,
+                servicePrice = servicePrice,
+                totalPrice = totalPrice,
+                status = "PENDING",
+                notes = notes,
+                hasOpponent = true,
+                bookingType = "DUO",
+                consecutiveSlots = emptyList(),
+                matchId = matchId,
+                matchSide = "B"
+            )
+
+            // booking A là participant[0]
+            val bookingAId = match.participants.firstOrNull()?.bookingId
+
+            val batch = firestore.batch()
+            val bookingBDoc = firestore.collection(BOOKINGS_COLLECTION).document(bookingId)
+            batch.set(bookingBDoc, bookingB)
+
+            // update match FULL
+            val updatedParticipants = match.participants + MatchParticipant(bookingId = bookingId, renterId = renterId, side = "B")
+            batch.update(matchRef, mapOf(
+                "occupiedCount" to 2,
+                "status" to "FULL",
+                "participants" to updatedParticipants
+            ))
+
+            // update booking A opponent info
+            bookingAId?.let { aId ->
+                val bookingARef = firestore.collection(BOOKINGS_COLLECTION).document(aId)
+                batch.update(bookingARef, mapOf(
+                    "hasOpponent" to true,
+                    "opponentId" to renterId
+                ))
+            }
+
+            batch.commit().await()
+            Result.success(bookingId)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * ✅ NEW: Tìm booking SOLO đang chờ đối thủ theo slot
+     */
+    suspend fun findWaitingBookingBySlot(
+        fieldId: String,
+        date: String,
+        slot: String
+    ): Result<Booking?> {
+        return try {
+            println("🔍 DEBUG: findWaitingBookingBySlot query:")
+            println("  - fieldId: $fieldId")
+            println("  - date: $date")
+            println("  - slot: $slot")
+            
+            val snapshot = firestore.collection(BOOKINGS_COLLECTION)
+                .whereEqualTo("fieldId", fieldId)
+                .whereEqualTo("date", date)
+                .whereEqualTo("bookingType", "SOLO")
+                .whereEqualTo("hasOpponent", false)
+                .whereArrayContains("consecutiveSlots", slot)
+                .get()
+                .await()
+            
+            val bookings = snapshot.toObjects(Booking::class.java)
+            println("🔍 DEBUG: Found ${bookings.size} bookings matching criteria")
+            bookings.forEachIndexed { index, booking ->
+                println("  [$index] bookingId: ${booking.bookingId}, slots: ${booking.consecutiveSlots}")
+            }
+            
+            val booking = bookings.firstOrNull()
+            Result.success(booking)
+        } catch (e: Exception) {
+            println("❌ ERROR: findWaitingBookingBySlot failed: ${e.message}")
+            Result.failure(e)
+        }
+    }
+
+    /**
      * ✅ NEW: Lắng nghe thay đổi bookings theo ownerId (realtime)
      */
     fun listenBookingsByOwner(
@@ -198,9 +421,23 @@ class BookingRepository {
                 .whereEqualTo("date", date)
                 .get()
                 .await()
+
+            // Chỉ coi là "đỏ" (đã đặt hoàn toàn) khi không phải SOLO đang chờ đối thủ
+            // - DUO hoặc hasOpponent = true
+            // - Hoặc các trạng thái đã xác nhận/thanh toán
             val times = snapshot.toObjects(Booking::class.java)
+                .asSequence()
+                .filter { booking ->
+                    val isWaitingSolo = (booking.bookingType == "SOLO" && booking.hasOpponent == false)
+                    val isConfirmed = booking.status.equals("CONFIRMED", ignoreCase = true) ||
+                            booking.status.equals("PAID", ignoreCase = true)
+                    val isDuoOrHasOpponent = (booking.bookingType == "DUO" || booking.hasOpponent == true)
+                    // Đỏ khi không phải SOLO chờ, hoặc đã confirmed/paid
+                    (!isWaitingSolo) || isConfirmed || isDuoOrHasOpponent
+                }
                 .flatMap { it.consecutiveSlots }
                 .toSet()
+
             Result.success(times)
         } catch (e: Exception) {
             Result.failure(e)
@@ -230,6 +467,10 @@ class BookingRepository {
      */
     suspend fun getWaitingOpponentBookings(fieldId: String, date: String): Result<List<Booking>> {
         return try {
+            println("🔍 DEBUG: getWaitingOpponentBookings query:")
+            println("  - fieldId: $fieldId")
+            println("  - date: $date")
+            
             val snapshot = firestore.collection(BOOKINGS_COLLECTION)
                 .whereEqualTo("fieldId", fieldId)
                 .whereEqualTo("date", date)
@@ -240,6 +481,9 @@ class BookingRepository {
             
             val bookings = snapshot.toObjects(Booking::class.java)
             println("✅ DEBUG: Found ${bookings.size} waiting opponent bookings")
+            bookings.forEachIndexed { index, booking ->
+                println("  [$index] bookingId: ${booking.bookingId}, slots: ${booking.consecutiveSlots}")
+            }
             
             Result.success(bookings)
         } catch (e: Exception) {

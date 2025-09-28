@@ -23,7 +23,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.trungkien.fbtp_cn.ui.components.renter.orderinfo.*
+import com.trungkien.fbtp_cn.ui.components.renter.dialogs.OpponentConfirmationDialog
+import com.trungkien.fbtp_cn.ui.components.renter.dialogs.OpponentDialogUtils
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 import com.trungkien.fbtp_cn.viewmodel.FieldViewModel
 import com.trungkien.fbtp_cn.viewmodel.FieldEvent
@@ -54,6 +57,9 @@ fun RenterBookingCheckoutScreen(
     val authViewModel: AuthViewModel = viewModel()
     val bookingUi by bookingViewModel.uiState.collectAsState()
     val currentUser = authViewModel.currentUser.collectAsState().value
+    val bookingRepo = remember { com.trungkien.fbtp_cn.repository.BookingRepository() }
+    val userRepo = remember { com.trungkien.fbtp_cn.repository.UserRepository() }
+    val context = androidx.compose.ui.platform.LocalContext.current
     
     var selectedDate by remember { 
         val today = LocalDate.now()
@@ -83,6 +89,13 @@ fun RenterBookingCheckoutScreen(
     var consecutiveSlots by remember { mutableStateOf(listOf<String>()) }
     var waitingOpponentSlotsByDate by remember { mutableStateOf(mapOf<String, Set<String>>()) }
     var lockedSlotsByDate by remember { mutableStateOf(mapOf<String, Set<String>>()) }
+    // Map slot -> match & owner for WAITING_OPPONENT
+    var waitingSlotToMatch by remember { mutableStateOf<Map<String, com.trungkien.fbtp_cn.model.Match>>(emptyMap()) }
+    var waitingSlotOwner by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    // Join dialog state
+    var showJoinDialog by remember { mutableStateOf(false) }
+    var joinMatch: com.trungkien.fbtp_cn.model.Match? by remember { mutableStateOf(null) }
+    var opponentName by remember { mutableStateOf("") }
     
     // ✅ NEW: Timer để delay hiện dialog đối thủ
     var opponentDialogTimer by remember { mutableStateOf<Job?>(null) }
@@ -90,6 +103,42 @@ fun RenterBookingCheckoutScreen(
     // ✅ FIX: Lấy trạng thái đối thủ cho ngày hiện tại
     val waitingOpponentSlots = waitingOpponentSlotsByDate[selectedDate.toString()] ?: emptySet()
     val lockedSlots = lockedSlotsByDate[selectedDate.toString()] ?: emptySet()
+    
+    // ✅ DEBUG: Log trạng thái slots
+    println("🎯 DEBUG: Current slot states for ${selectedDate.toString()}:")
+    println("  - waitingOpponentSlots: $waitingOpponentSlots")
+    println("  - lockedSlots: $lockedSlots")
+    println("  - waitingTimesFromVm: ${fieldViewModel.uiState.collectAsState().value.waitingOpponentTimes}")
+    println("  - bookedStartTimes: ${fieldViewModel.uiState.collectAsState().value.bookedStartTimes}")
+    println("  - lockedOpponentTimes: ${fieldViewModel.uiState.collectAsState().value.lockedOpponentTimes}")
+    
+    // ✅ DEBUG: Kiểm tra data consistency và sync nếu cần
+    val vmWaitingTimes = fieldViewModel.uiState.collectAsState().value.waitingOpponentTimes
+    val vmLockedTimes = fieldViewModel.uiState.collectAsState().value.lockedOpponentTimes
+    
+    if (vmWaitingTimes.isNotEmpty() && waitingOpponentSlots.isEmpty()) {
+        println("⚠️ WARNING: Data inconsistency detected!")
+        println("  - ViewModel waitingOpponentTimes: $vmWaitingTimes")
+        println("  - Local waitingOpponentSlots: $waitingOpponentSlots")
+        println("  - Syncing ViewModel data to local state...")
+        
+        // ✅ FIX: Sync data từ ViewModel vào local state
+        val currentDateKey = selectedDate.toString()
+        waitingOpponentSlotsByDate = waitingOpponentSlotsByDate + (currentDateKey to vmWaitingTimes.toSet())
+        println("✅ DEBUG: Synced waitingOpponentSlots: ${vmWaitingTimes.toSet()}")
+    }
+    
+    if (vmLockedTimes.isNotEmpty() && lockedSlots.isEmpty()) {
+        println("⚠️ WARNING: Locked times inconsistency detected!")
+        println("  - ViewModel lockedOpponentTimes: $vmLockedTimes")
+        println("  - Local lockedSlots: $lockedSlots")
+        println("  - Syncing ViewModel data to local state...")
+        
+        // ✅ FIX: Sync data từ ViewModel vào local state
+        val currentDateKey = selectedDate.toString()
+        lockedSlotsByDate = lockedSlotsByDate + (currentDateKey to vmLockedTimes.toSet())
+        println("✅ DEBUG: Synced lockedSlots: ${vmLockedTimes.toSet()}")
+    }
     
     // ✅ NEW: Tập slot thực sự dùng để tính toán (bao gồm slot đang chọn + chờ đối thủ + đã có đối thủ)
     val effectiveSlots: Set<String> = remember(selectedSlots, waitingOpponentSlots, lockedSlots) {
@@ -108,6 +157,68 @@ fun RenterBookingCheckoutScreen(
     val servicesTotal = servicesQuantity.entries.sumOf { entry ->
         val price = allServices.firstOrNull { it.id == entry.key }?.price ?: 0
         price * entry.value
+    }
+
+    // ✅ FIX: Load booking data for ownership check
+    val currentDate = selectedDate.toString()
+    
+    LaunchedEffect(fieldId, currentDate) {
+        println("🎯 DEBUG: LaunchedEffect triggered for fieldId: $fieldId, date: $currentDate")
+        
+        try {
+            println("🎯 DEBUG: Starting booking data load...")
+            val result = bookingRepo.getBookingsByFieldAndDate(fieldId, currentDate)
+            result.onSuccess { bookings ->
+                println("🎯 DEBUG: Booking loading for date $currentDate:")
+                println("  - Total bookings found: ${bookings.size}")
+                
+                val waiting = mutableSetOf<String>()
+                val locked = mutableSetOf<String>()
+                val slotToOwner = mutableMapOf<String, String>()
+                
+                bookings.forEach { booking ->
+                    println("🎯 DEBUG: Processing booking:")
+                    println("  - bookingId: ${booking.bookingId}")
+                    println("  - renterId: ${booking.renterId}")
+                    println("  - status: ${booking.status}")
+                    println("  - opponentMode: ${booking.opponentMode}")
+                    println("  - startAt: ${booking.startAt}, endAt: ${booking.endAt}")
+                    
+                    // Generate slots for this booking
+                    val slots = generateTimeSlots(booking.startAt, booking.endAt)
+                    println("  - generated slots: $slots")
+                    
+                    when {
+                        booking.opponentMode == "WAITING_OPPONENT" -> {
+                            waiting.addAll(slots)
+                            slots.forEach { slot ->
+                                slotToOwner[slot] = booking.renterId
+                                println("  - slotToOwner[$slot] = ${booking.renterId}")
+                            }
+                        }
+                        booking.status == "CONFIRMED" -> {
+                            locked.addAll(slots)
+                        }
+                    }
+                }
+                
+                println("🎯 DEBUG: Final slotToOwner map:")
+                println("  - slotToOwner: $slotToOwner")
+                println("  - waiting slots: $waiting")
+                println("  - locked slots: $locked")
+                
+                // Update UI state
+                waitingOpponentSlotsByDate = waitingOpponentSlotsByDate + (currentDate to waiting)
+                lockedSlotsByDate = lockedSlotsByDate + (currentDate to locked)
+                waitingSlotOwner = slotToOwner
+                
+                println("🎯 DEBUG: UI state updated successfully")
+            }.onFailure { error ->
+                println("❌ ERROR: Failed to load bookings: ${error.message}")
+            }
+        } catch (e: Exception) {
+            println("❌ ERROR: Exception in LaunchedEffect: ${e.message}")
+        }
     }
     // ✅ FIX: Tính giá chính xác theo từng slot đã chọn
     val fieldTotal = if (effectiveSlots.isNotEmpty()) {
@@ -313,10 +424,143 @@ fun RenterBookingCheckoutScreen(
                     )
                     
                     // ✅ FIX: Sử dụng field data thật cho BookingTimeSlotGrid
+                    val fvState = fieldViewModel.uiState.collectAsState().value
+                    val bookedTimes = fvState.bookedStartTimes
+                    val waitingTimesFromVm = fvState.waitingOpponentTimes
                     BookingTimeSlotGrid(
                         selectedDate = selectedDate, 
                         selected = selectedSlots, 
                         onToggle = { slot ->
+                            println("🎯 DEBUG: Slot clicked: $slot")
+                            println("🎯 DEBUG: lockedSlots: $lockedSlots")
+                            println("🎯 DEBUG: waitingOpponentSlots: $waitingOpponentSlots")
+                            println("🎯 DEBUG: waitingTimesFromVm: $waitingTimesFromVm")
+                            
+                            // Handle click rules with priority: locked(red) → toast; waiting(yellow) → join; booked(grey) → toast; else toggle
+                            if (lockedSlots.contains(slot)) {
+                                println("🎯 DEBUG: Slot is locked - showing toast")
+                                OpponentDialogUtils.showSlotBookedToast(context)
+                                return@BookingTimeSlotGrid
+                            }
+                            if (waitingOpponentSlots.contains(slot) || waitingTimesFromVm.contains(slot)) {
+                                println("🎯 DEBUG: Clicked on WAITING_OPPONENT slot: $slot")
+                                println("🎯 DEBUG: waitingOpponentSlots: $waitingOpponentSlots")
+                                println("🎯 DEBUG: waitingTimesFromVm: $waitingTimesFromVm")
+                                println("🎯 DEBUG: waitingSlotOwner map before check: $waitingSlotOwner")
+                                
+                                val ownerId = waitingSlotOwner[slot]
+                                val currentUserId = currentUser?.userId
+                                println("🎯 DEBUG: Slot ownership check:")
+                                println("  - ownerId from map: $ownerId")
+                                println("  - currentUserId: $currentUserId")
+                                println("  - waitingSlotOwner map: $waitingSlotOwner")
+                                
+                                if (ownerId != null && ownerId == currentUserId) {
+                                    println("🎯 DEBUG: User clicked on their own WAITING_OPPONENT slot")
+                                    OpponentDialogUtils.showOwnSlotToast(context)
+                                } else {
+                                    println("🎯 DEBUG: User clicked on other's WAITING_OPPONENT slot - starting timer")
+                                    // Không toast. Luôn hiển thị viền xanh + bắt đầu countdown 3s để show dialog
+                                    val currentDateKey = selectedDate.toString()
+                                    val currentSlots = selectedSlotsByDate[currentDateKey] ?: emptySet()
+                                    if (!currentSlots.contains(slot)) {
+                                        selectedSlotsByDate = selectedSlotsByDate + (currentDateKey to (currentSlots + slot))
+                                    }
+
+                                    opponentDialogTimer?.cancel()
+                                    showOpponentDialog = false
+
+                                    // Lấy thông tin match/opponent và tự động chọn tất cả khung giờ của match
+                                    val cachedMatch = waitingSlotToMatch[slot]
+                                    if (cachedMatch != null) {
+                                        println("🎯 DEBUG: Found cached match: ${cachedMatch.rangeKey}")
+                                        joinMatch = cachedMatch
+                                        val firstId = cachedMatch.participants.firstOrNull()?.renterId
+                                        if (!firstId.isNullOrEmpty()) {
+                                            userRepo.getUserById(firstId, onSuccess = { u -> opponentName = u.name }, onError = { opponentName = "" })
+                                        }
+                                        
+                                        // Tự động chọn tất cả các khung giờ của match này
+                                        val matchSlots = generateTimeSlots(cachedMatch.startAt, cachedMatch.endAt)
+                                        println("🎯 DEBUG: Auto-selecting match slots: $matchSlots")
+                                        val newSlots = currentSlots + matchSlots.toSet()
+                                        selectedSlotsByDate = selectedSlotsByDate + (currentDateKey to newSlots)
+                                        
+                                        // ✅ NEW: Delay 3 giây trước khi hiển thị OpponentConfirmationDialog
+                                        opponentDialogTimer = CoroutineScope(Dispatchers.Main).launch {
+                                            println("🎯 DEBUG: Starting 3-second timer for OpponentConfirmationDialog")
+                                            delay(3000) // 3 giây
+                                            val stillSelected = (selectedSlotsByDate[selectedDate.toString()] ?: emptySet()).contains(slot)
+                                            println("🎯 DEBUG: After 3 seconds, stillSelected: $stillSelected")
+                                            if (stillSelected) {
+                                                println("🎯 DEBUG: Showing OpponentConfirmationDialog")
+                                                showJoinDialog = true
+                                            } else {
+                                                println("🎯 DEBUG: Slot no longer selected, not showing dialog")
+                                            }
+                                        }
+                                    } else {
+                                        println("🎯 DEBUG: No cached match, fetching from database")
+                                        // Fetch match/booking theo slot ngay lập tức
+                                        CoroutineScope(Dispatchers.IO).launch {
+                                            val res = bookingRepo.findWaitingBookingBySlot(fieldId, selectedDate.toString(), slot)
+                                            res.getOrNull()?.let { b ->
+                                                println("🎯 DEBUG: Found booking from database: ${b.bookingId}")
+                                                userRepo.getUserById(b.renterId, onSuccess = { u -> 
+                                                    opponentName = u.name 
+                                                }, onError = { 
+                                                    opponentName = ""
+                                                })
+                                                joinMatch = com.trungkien.fbtp_cn.model.Match(
+                                                    rangeKey = b.matchId ?: "",
+                                                    fieldId = b.fieldId,
+                                                    date = b.date,
+                                                    startAt = b.startAt,
+                                                    endAt = b.endAt,
+                                                    capacity = 2,
+                                                    occupiedCount = 1,
+                                                    participants = listOf(com.trungkien.fbtp_cn.model.MatchParticipant(b.bookingId, b.renterId, b.matchSide ?: "A")),
+                                                    price = b.basePrice,
+                                                    totalPrice = b.totalPrice,
+                                                    status = "WAITING_OPPONENT"
+                                                )
+                                                
+                                                // Tự động chọn tất cả các khung giờ của match này
+                                                val matchSlots = generateTimeSlots(b.startAt, b.endAt)
+                                                println("🎯 DEBUG: Auto-selecting match slots from DB: $matchSlots")
+                                                val newSlots = currentSlots + matchSlots.toSet()
+                                                selectedSlotsByDate = selectedSlotsByDate + (currentDateKey to newSlots)
+                                                
+                                                // ✅ NEW: Delay 3 giây trước khi hiển thị OpponentConfirmationDialog
+                                                CoroutineScope(Dispatchers.Main).launch {
+                                                    println("🎯 DEBUG: Starting 3-second timer for OpponentConfirmationDialog (from DB)")
+                                                    delay(3000) // 3 giây
+                                                    val stillSelected = (selectedSlotsByDate[selectedDate.toString()] ?: emptySet()).contains(slot)
+                                                    println("🎯 DEBUG: After 3 seconds (from DB), stillSelected: $stillSelected")
+                                                    if (stillSelected) {
+                                                        println("🎯 DEBUG: Showing OpponentConfirmationDialog (from DB)")
+                                                        showJoinDialog = true
+                                                    } else {
+                                                        println("🎯 DEBUG: Slot no longer selected, not showing dialog (from DB)")
+                                                    }
+                                                }
+                                            } ?: run {
+                                                println("🎯 DEBUG: No booking found in database for slot: $slot")
+                                                println("🎯 DEBUG: Slot should be FREE (white), not WAITING_OPPONENT (yellow)")
+                                                println("🎯 DEBUG: Data inconsistency detected - ViewModel has data but DB doesn't")
+                                                // ✅ FIX: Không tạo mock data, chỉ log để debug
+                                                // Slot này thực sự là FREE, không phải WAITING_OPPONENT
+                                                // Cần kiểm tra tại sao waitingTimesFromVm có data nhưng DB không có
+                                            }
+                                        }
+                                    }
+                                }
+                                return@BookingTimeSlotGrid
+                            }
+                            if (bookedTimes.contains(slot)) {
+                                OpponentDialogUtils.showSlotBookedToast(context)
+                                return@BookingTimeSlotGrid
+                            }
                             // ✅ FIX: Chỉ cập nhật trạng thái khung giờ cho ngày hiện tại
                             val currentDateKey = selectedDate.toString()
                             val currentSlots = selectedSlotsByDate[currentDateKey] ?: emptySet()
@@ -325,6 +569,9 @@ fun RenterBookingCheckoutScreen(
                             } else {
                                 currentSlots + slot
                             }
+                            // ✅ NEW: Hủy timer join dialog nếu click vào slot khác
+                            opponentDialogTimer?.cancel()
+                            showJoinDialog = false
                             selectedSlotsByDate = selectedSlotsByDate + (currentDateKey to newSlots)
                             println("🔄 DEBUG: Toggle slot: $slot")
                             println("🔄 DEBUG: Current slots before: $currentSlots")
@@ -334,22 +581,32 @@ fun RenterBookingCheckoutScreen(
                         },
                         field = field,
                         fieldViewModel = fieldViewModel,
-                        // ✅ NEW: Thêm logic đối thủ với delay 3 giây
+                        // ✅ NEW: Logic đối thủ chỉ cho khung giờ trống (không phải WAITING_OPPONENT)
                         onConsecutiveSelection = { slots ->
-                            consecutiveSlots = slots
-                            if (slots.size > 1) {
-                                // ✅ FIX: Hủy timer cũ nếu có
-                                opponentDialogTimer?.cancel()
-                                
-                                // ✅ FIX: Tạo timer mới với delay 3 giây
-                                opponentDialogTimer = CoroutineScope(Dispatchers.Main).launch {
-                                    delay(3000) // 3 giây
-                                    showOpponentDialog = true
+                            // Chỉ hiển thị OpponentSelectionDialog nếu tất cả slots đều là khung giờ trống
+                            val allSlotsAreEmpty = slots.all { slot ->
+                                !waitingOpponentSlots.contains(slot) && 
+                                !waitingTimesFromVm.contains(slot) &&
+                                !lockedSlots.contains(slot) &&
+                                !bookedTimes.contains(slot)
+                            }
+                            
+                            if (allSlotsAreEmpty) {
+                                consecutiveSlots = slots
+                                if (slots.size > 1) {
+                                    // ✅ FIX: Hủy timer cũ nếu có
+                                    opponentDialogTimer?.cancel()
+                                    
+                                    // ✅ FIX: Tạo timer mới với delay 3 giây
+                                    opponentDialogTimer = CoroutineScope(Dispatchers.Main).launch {
+                                        delay(3000) // 3 giây
+                                        showOpponentDialog = true
+                                    }
+                                } else {
+                                    // ✅ FIX: Hủy timer nếu không có khung giờ liên tiếp
+                                    opponentDialogTimer?.cancel()
+                                    showOpponentDialog = false
                                 }
-                            } else {
-                                // ✅ FIX: Hủy timer nếu không có khung giờ liên tiếp
-                                opponentDialogTimer?.cancel()
-                                showOpponentDialog = false
                             }
                         },
                         waitingOpponentSlots = waitingOpponentSlots,
@@ -359,36 +616,38 @@ fun RenterBookingCheckoutScreen(
                         lockedOpponentTimes = fieldViewModel.uiState.collectAsState().value.lockedOpponentTimes
                     )
                 } ?: run {
-                    // Fallback nếu không có field data
-                    BookingDatePicker(
-                        selectedDate = selectedDate, 
-                        onDateChange = { newDate ->
-                            println("🔄 DEBUG: Date changed from ${selectedDate.toString()} to ${newDate.toString()}")
-                            selectedDate = newDate
-                            // ✅ FIX: Debug log để xem trạng thái khung giờ của ngày mới
-                            val newDateKey = newDate.toString()
-                            val slotsForNewDate = selectedSlotsByDate[newDateKey] ?: emptySet()
-                            val waitingSlotsForNewDate = waitingOpponentSlotsByDate[newDateKey] ?: emptySet()
-                            val lockedSlotsForNewDate = lockedSlotsByDate[newDateKey] ?: emptySet()
-                            println("🔄 DEBUG: Date changed to $newDateKey")
-                            println("  - Selected slots: $slotsForNewDate")
-                            println("  - Waiting opponent slots: $waitingSlotsForNewDate")
-                            println("  - Locked slots: $lockedSlotsForNewDate")
-                        }
-                    )
-                    BookingTimeSlotGrid(selectedDate = selectedDate, selected = selectedSlots, onToggle = { slot ->
-                        // ✅ FIX: Chỉ cập nhật trạng thái khung giờ cho ngày hiện tại
-                        val currentDateKey = selectedDate.toString()
-                        val currentSlots = selectedSlotsByDate[currentDateKey] ?: emptySet()
-                        val newSlots = if (currentSlots.contains(slot)) {
-                            currentSlots - slot
-                        } else {
-                            currentSlots + slot
-                        }
-                        selectedSlotsByDate = selectedSlotsByDate + (currentDateKey to newSlots)
-                        println("🔄 DEBUG: Updated slots for $currentDateKey: $newSlots")
-                        println("🔄 DEBUG: All slots by date: $selectedSlotsByDate")
-                    })
+                    // ✅ FIX: Chỉ hiển thị fallback UI khi không có field data
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        BookingDatePicker(
+                            selectedDate = selectedDate, 
+                            onDateChange = { newDate ->
+                                println("🔄 DEBUG: Date changed from ${selectedDate.toString()} to ${newDate.toString()}")
+                                selectedDate = newDate
+                                // ✅ FIX: Debug log để xem trạng thái khung giờ của ngày mới
+                                val newDateKey = newDate.toString()
+                                val slotsForNewDate = selectedSlotsByDate[newDateKey] ?: emptySet()
+                                val waitingSlotsForNewDate = waitingOpponentSlotsByDate[newDateKey] ?: emptySet()
+                                val lockedSlotsForNewDate = lockedSlotsByDate[newDateKey] ?: emptySet()
+                                println("🔄 DEBUG: Date changed to $newDateKey")
+                                println("  - Selected slots: $slotsForNewDate")
+                                println("  - Waiting opponent slots: $waitingSlotsForNewDate")
+                                println("  - Locked slots: $lockedSlotsForNewDate")
+                            },
+                            field = null
+                        )
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        Text(
+                            text = "Không có dữ liệu sân",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 
@@ -457,6 +716,60 @@ fun RenterBookingCheckoutScreen(
             println("✅ DEBUG: User confirmed finding opponent - slots waiting for $currentDateKey: $consecutiveSlots")
         }
     )
+
+    // Prompt join opponent for yellow slots of other users (custom styled box)
+    if (showJoinDialog && joinMatch != null) {
+        OpponentConfirmationDialog(
+            isVisible = true,
+            opponentName = opponentName.ifBlank { "người chơi" },
+            timeSlot = "${joinMatch!!.startAt} - ${joinMatch!!.endAt}",
+            date = joinMatch!!.date,
+            onConfirm = {
+                val m = joinMatch!!
+                val basePrice = uiState.pricingRules.firstOrNull()?.price?.toLong() ?: basePricePerHour.toLong()
+                currentUser?.userId?.let { renterId ->
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                        bookingRepo.joinOpponent(
+                            matchId = m.rangeKey,
+                            renterId = renterId,
+                            ownerId = uiState.currentField?.ownerId ?: "",
+                            basePrice = basePrice,
+                            serviceLines = emptyList(),
+                            notes = notes.ifBlank { null }
+                        )
+                        
+                        // ✅ NEW: Cập nhật trạng thái các khung giờ từ WAITING_OPPONENT thành FULL
+                        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                            val currentDateKey = selectedDate.toString()
+                            val matchSlots = generateTimeSlots(m.startAt, m.endAt)
+                            
+                            // Chuyển các khung giờ từ waitingOpponentSlots sang lockedSlots
+                            val currentWaitingSlots = waitingOpponentSlotsByDate[currentDateKey] ?: emptySet()
+                            val currentLockedSlots = lockedSlotsByDate[currentDateKey] ?: emptySet()
+                            
+                            val newWaitingSlots = currentWaitingSlots - matchSlots.toSet()
+                            val newLockedSlots = currentLockedSlots + matchSlots.toSet()
+                            
+                            waitingOpponentSlotsByDate = waitingOpponentSlotsByDate + (currentDateKey to newWaitingSlots)
+                            lockedSlotsByDate = lockedSlotsByDate + (currentDateKey to newLockedSlots)
+                            
+                            // Xóa các khung giờ khỏi selectedSlots vì đã được đặt
+                            val currentSlots = selectedSlotsByDate[currentDateKey] ?: emptySet()
+                            val newSlots = currentSlots - matchSlots.toSet()
+                            selectedSlotsByDate = selectedSlotsByDate + (currentDateKey to newSlots)
+                            
+                            // Reload field data để cập nhật UI
+                            fieldViewModel.handleEvent(FieldEvent.LoadFieldById(fieldId))
+                            
+                            println("✅ DEBUG: Match completed - slots moved from WAITING_OPPONENT to FULL: $matchSlots")
+                        }
+                    }
+                }
+                showJoinDialog = false
+            },
+            onCancel = { showJoinDialog = false }
+        )
+    }
 }
 
 // ✅ FIX: Hàm tính giá dựa trên PricingRules giống TimeSlots
@@ -498,6 +811,32 @@ private fun calculatePriceForTimeSlot(
     println("  - matchingRule: ${matchingRule?.price ?: "Not found"}")
     
     return matchingRule?.price
+}
+
+// ✅ NEW: Function để generate time slots từ startAt đến endAt
+private fun generateTimeSlots(startAt: String, endAt: String): List<String> {
+    val slots = mutableListOf<String>()
+    val startHour = startAt.substring(0, 2).toInt()
+    val startMinute = startAt.substring(3, 5).toInt()
+    val endHour = endAt.substring(0, 2).toInt()
+    val endMinute = endAt.substring(3, 5).toInt()
+    
+    var currentHour = startHour
+    var currentMinute = startMinute
+    
+    // ✅ FIX: Include endAt slot by using <= instead of <
+    while (currentHour < endHour || (currentHour == endHour && currentMinute <= endMinute)) {
+        val timeSlot = String.format("%02d:%02d", currentHour, currentMinute)
+        slots.add(timeSlot)
+        
+        currentMinute += 30
+        if (currentMinute >= 60) {
+            currentMinute = 0
+            currentHour++
+        }
+    }
+    
+    return slots
 }
 
 @RequiresApi(Build.VERSION_CODES.O)
