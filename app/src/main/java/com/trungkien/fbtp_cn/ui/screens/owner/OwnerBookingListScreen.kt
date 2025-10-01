@@ -27,9 +27,11 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import com.trungkien.fbtp_cn.R
 import com.trungkien.fbtp_cn.model.Booking
+import com.trungkien.fbtp_cn.model.Match
 import com.trungkien.fbtp_cn.ui.components.owner.booking.BookingEmptyState
 import com.trungkien.fbtp_cn.ui.components.owner.booking.BookingFilterBar
 import com.trungkien.fbtp_cn.ui.components.owner.booking.BookingDetailManage
+import com.trungkien.fbtp_cn.ui.components.owner.booking.OwnerMatchCard
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trungkien.fbtp_cn.viewmodel.AuthViewModel
@@ -37,6 +39,7 @@ import com.trungkien.fbtp_cn.viewmodel.BookingViewModel
 import com.trungkien.fbtp_cn.viewmodel.BookingEvent
 import com.trungkien.fbtp_cn.repository.UserRepository
 import com.trungkien.fbtp_cn.repository.FieldRepository
+import com.trungkien.fbtp_cn.repository.BookingRepository
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import android.util.Base64
@@ -56,6 +59,11 @@ private enum class BookingStatusFilter(val label: String) {
     Pending("Chờ xác nhận"),
     Confirmed("Đã xác nhận"),
     Canceled("Đã hủy")
+}
+
+private enum class MainTab(val label: String) {
+    Bookings("Đặt sân"),
+    Matches("Trận đấu")
 }
 
 private enum class RecentRangeFilter(val label: String, val days: Long?) {
@@ -82,6 +90,7 @@ fun OwnerBookingListScreen(
         }
     }
     val allBookings = ui.ownerBookings
+    var selectedTab by remember { mutableStateOf(MainTab.Bookings) }
     var selectedFilter by remember { mutableStateOf(BookingStatusFilter.All) }
     var showDatePicker by remember { mutableStateOf(false) }
     var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
@@ -200,60 +209,90 @@ fun OwnerBookingListScreen(
         // Header với thống kê (dựa trên danh sách đã lọc)
         BookingStatsHeader(bookings = filtered)
 
-        // Status filter chips
-        BookingFilterBar(
-            options = BookingStatusFilter.values().map { it.label },
-            selected = selectedFilter.label,
-            onSelectedChange = { label ->
-                selectedFilter = BookingStatusFilter.values().first { it.label == label }
-            },
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
+        // Main tab selector
+        TabRow(
+            selectedTabIndex = selectedTab.ordinal,
+            modifier = Modifier.padding(horizontal = 16.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.primary
+        ) {
+            MainTab.values().forEachIndexed { index, tab ->
+                Tab(
+                    selected = selectedTab == tab,
+                    onClick = { selectedTab = tab },
+                    text = { Text(tab.label) }
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Booking list
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp)
-        ) {
-            if (filtered.isEmpty()) {
-                item {
-                    BookingEmptyState(
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            } else {
-                items(filtered, key = { it.bookingId }) { booking ->
-                    AnimatedVisibility(
-                        visible = true,
-                        enter = fadeIn(),
-                        exit = fadeOut()
-                    ) {
-                        EnhancedBookingListItem(
-                            booking = booking,
-                            onBookingClick = {
-                                selectedBooking = booking
-                            },
-                            onActionClick = { action ->
-                                when (action) {
-                                    "approve" -> {
-                                        bookingViewModel.handle(BookingEvent.UpdateStatus(booking.bookingId, "PAID"))
+        // Content based on selected tab
+        when (selectedTab) {
+            MainTab.Bookings -> {
+                // Status filter chips for bookings
+                BookingFilterBar(
+                    options = BookingStatusFilter.values().map { it.label },
+                    selected = selectedFilter.label,
+                    onSelectedChange = { label ->
+                        selectedFilter = BookingStatusFilter.values().first { it.label == label }
+                    },
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Booking list
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp)
+                ) {
+                    if (filtered.isEmpty()) {
+                        item {
+                            BookingEmptyState(
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    } else {
+                        items(filtered, key = { it.bookingId }) { booking ->
+                            AnimatedVisibility(
+                                visible = true,
+                                enter = fadeIn(),
+                                exit = fadeOut()
+                            ) {
+                                EnhancedBookingListItem(
+                                    booking = booking,
+                                    onBookingClick = {
+                                        selectedBooking = booking
+                                    },
+                                    onActionClick = { action ->
+                                        when (action) {
+                                            "approve" -> {
+                                                bookingViewModel.handle(BookingEvent.UpdateStatus(booking.bookingId, "PAID"))
+                                            }
+                                            "reject" -> {
+                                                bookingViewModel.handle(BookingEvent.UpdateStatus(booking.bookingId, "CANCELLED"))
+                                            }
+                                        }
                                     }
-                                    "reject" -> {
-                                        bookingViewModel.handle(BookingEvent.UpdateStatus(booking.bookingId, "CANCELLED"))
-                                    }
-                                }
+                                )
                             }
-                        )
+                        }
+
+                        // Bottom spacing
+                        item {
+                            Spacer(modifier = Modifier.height(80.dp))
+                        }
                     }
                 }
-
-                // Bottom spacing
-                item {
-                    Spacer(modifier = Modifier.height(80.dp))
-                }
+            }
+            MainTab.Matches -> {
+                // Matches content
+                OwnerMatchesContent(
+                    selectedDate = selectedDate,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         }
     }
@@ -264,6 +303,95 @@ fun OwnerBookingListScreen(
         onDismiss = { showDatePicker = false },
         onSelected = { ld -> selectedDate = ld }
     )
+}
+
+@Composable
+private fun OwnerMatchesContent(
+    selectedDate: LocalDate?,
+    modifier: Modifier = Modifier
+) {
+    val authViewModel: AuthViewModel = viewModel()
+    val user = authViewModel.currentUser.collectAsState().value
+    val bookingRepo = remember { BookingRepository() }
+    var matches by remember { mutableStateOf<List<Match>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(user, selectedDate) {
+        if (user != null) {
+            isLoading = true
+            try {
+                // Load matches for all fields owned by this user
+                val fieldRepo = FieldRepository()
+                val fields = fieldRepo.getFieldsByOwnerId(user.userId).getOrNull() ?: emptyList()
+                
+                val allMatches = mutableListOf<Match>()
+                fields.forEach { field ->
+                    val dateStr = selectedDate?.toString() ?: LocalDate.now().toString()
+                    bookingRepo.listenMatchesByFieldDate(
+                        fieldId = field.fieldId,
+                        date = dateStr,
+                        onChange = { fieldMatches ->
+                            // Remove old matches for this field and add new ones
+                            allMatches.removeAll { it.fieldId == field.fieldId }
+                            // CHỈ thêm các match đã được ghép đôi (status = "FULL")
+                            allMatches.addAll(fieldMatches.filter { it.status == "FULL" })
+                            matches = allMatches.toList()
+                        },
+                        onError = { _ -> }
+                    )
+                }
+            } catch (_: Exception) {
+                // Handle error
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    Column(modifier = modifier.padding(horizontal = 16.dp)) {
+        if (isLoading) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        } else if (matches.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Icon(
+                        Icons.Default.SportsSoccer,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                    Text(
+                        text = "Chưa có trận đấu nào đã ghép đôi",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(bottom = 80.dp)
+            ) {
+                items(matches, key = { it.rangeKey }) { match ->
+                    OwnerMatchCard(
+                        match = match,
+                        onClick = { /* Handle match click */ }
+                    )
+                }
+            }
+        }
+    }
 }
 
 // Date picker dialog

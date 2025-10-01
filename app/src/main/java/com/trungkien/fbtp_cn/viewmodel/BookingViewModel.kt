@@ -77,21 +77,56 @@ class BookingViewModel(
     private fun create(e: BookingEvent.Create) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null, lastCreatedId = null)
-            val res = repository.createBooking(
-                renterId = e.renterId,
-                ownerId = e.ownerId,
-                fieldId = e.fieldId,
-                date = e.date,
-                consecutiveSlots = e.consecutiveSlots,
-                bookingType = e.bookingType,
-                hasOpponent = e.hasOpponent,
-                opponentId = e.opponentId,
-                opponentName = e.opponentName,
-                opponentAvatar = e.opponentAvatar,
-                basePrice = e.basePrice,
-                serviceLines = e.serviceLines,
-                notes = e.notes
-            )
+
+            println("🔍 DEBUG: BookingViewModel.create called:")
+            println("  - bookingType: ${e.bookingType}")
+            println("  - hasOpponent: ${e.hasOpponent}")
+            println("  - renterId: ${e.renterId}")
+            println("  - fieldId: ${e.fieldId}")
+            println("  - date: ${e.date}")
+            println("  - consecutiveSlots: ${e.consecutiveSlots}")
+
+            // ✅ FIX: Use createWaitingOpponentBooking for SOLO bookings without opponent
+            val res = if (e.bookingType == "SOLO" && !e.hasOpponent) {
+                println("🔍 DEBUG: Using createWaitingOpponentBooking")
+                repository.createWaitingOpponentBooking(
+                    renterId = e.renterId,
+                    ownerId = e.ownerId,
+                    fieldId = e.fieldId,
+                    date = e.date,
+                    consecutiveSlots = e.consecutiveSlots,
+                    basePrice = e.basePrice,
+                    serviceLines = e.serviceLines,
+                    notes = e.notes
+                )
+            } else {
+                println("🔍 DEBUG: Using regular createBooking")
+                repository.createBooking(
+                    renterId = e.renterId,
+                    ownerId = e.ownerId,
+                    fieldId = e.fieldId,
+                    date = e.date,
+                    consecutiveSlots = e.consecutiveSlots,
+                    bookingType = e.bookingType,
+                    hasOpponent = e.hasOpponent,
+                    opponentId = e.opponentId,
+                    opponentName = e.opponentName,
+                    opponentAvatar = e.opponentAvatar,
+                    basePrice = e.basePrice,
+                    serviceLines = e.serviceLines,
+                    notes = e.notes
+                )
+            }
+
+            println("🔍 DEBUG: Repository call result:")
+            println("  - isSuccess: ${res.isSuccess}")
+            println("  - isFailure: ${res.isFailure}")
+            if (res.isFailure) {
+                println("  - error: ${res.exceptionOrNull()?.message}")
+            } else {
+                println("  - bookingId: ${res.getOrNull()}")
+            }
+
             _uiState.value = res.fold(
                 onSuccess = { id -> _uiState.value.copy(isLoading = false, lastCreatedId = id) },
                 onFailure = { ex -> _uiState.value.copy(isLoading = false, error = ex.message) }

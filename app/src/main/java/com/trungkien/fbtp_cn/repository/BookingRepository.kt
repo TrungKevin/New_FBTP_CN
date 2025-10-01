@@ -183,6 +183,33 @@ class BookingRepository {
     }
 
     /**
+     * ✅ NEW: Đảm bảo có document Match cho booking SOLO đang chờ đối thủ
+     * Nếu chưa tồn tại, tạo mới với participant A và trạng thái WAITING_OPPONENT
+     */
+    suspend fun createMatchIfMissing(match: Match): Result<Unit> {
+        return try {
+            println("🔍 DEBUG: createMatchIfMissing called with rangeKey: ${match.rangeKey}")
+            val ref = firestore.collection(MATCHES_COLLECTION).document(match.rangeKey)
+            val snap = ref.get().await()
+            println("🔍 DEBUG: Match document exists: ${snap.exists()}")
+            if (!snap.exists()) {
+                val upsert = match.copy(
+                    status = match.status.ifBlank { "WAITING_OPPONENT" },
+                    occupiedCount = if (match.participants.size >= 1) 1 else 0
+                )
+                ref.set(upsert).await()
+                println("✅ DEBUG: Match document created successfully")
+            } else {
+                println("✅ DEBUG: Match document already exists")
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            println("❌ ERROR: createMatchIfMissing failed: ${e.message}")
+            Result.failure(e)
+        }
+    }
+
+    /**
      * ✅ NEW: Tạo booking SOLO chờ đối thủ + tạo Match WAITING_OPPONENT
      */
     suspend fun createWaitingOpponentBooking(
@@ -196,6 +223,14 @@ class BookingRepository {
         notes: String? = null
     ): Result<String> {
         return try {
+            println("🔍 DEBUG: createWaitingOpponentBooking called:")
+            println("  - renterId: $renterId")
+            println("  - ownerId: $ownerId")
+            println("  - fieldId: $fieldId")
+            println("  - date: $date")
+            println("  - consecutiveSlots: $consecutiveSlots")
+            println("  - basePrice: $basePrice")
+            
             val bookingId = UUID.randomUUID().toString()
             val startAt = consecutiveSlots.first()
             val endAt = consecutiveSlots.last()
@@ -204,6 +239,13 @@ class BookingRepository {
             val servicePrice = serviceLines.sumOf { it.lineTotal }
             val totalPrice = basePrice + servicePrice
             val rangeKey = "$fieldId${date.replace("-", "")}${startAt.replace(":", "")}${endAt.replace(":", "")}"
+
+            println("🔍 DEBUG: Generated data:")
+            println("  - bookingId: $bookingId")
+            println("  - startAt: $startAt")
+            println("  - endAt: $endAt")
+            println("  - rangeKey: $rangeKey")
+            println("  - totalPrice: $totalPrice")
 
             val booking = Booking(
                 bookingId = bookingId,
@@ -245,14 +287,26 @@ class BookingRepository {
                 notes = notes
             )
 
+            println("🔍 DEBUG: Created objects:")
+            println("  - booking: $booking")
+            println("  - match: $match")
+
             val batch = firestore.batch()
             val bookingDoc = firestore.collection(BOOKINGS_COLLECTION).document(bookingId)
             val matchDoc = firestore.collection(MATCHES_COLLECTION).document(rangeKey)
             batch.set(bookingDoc, booking)
             batch.set(matchDoc, match)
+            
+            println("🔍 DEBUG: About to commit batch...")
             batch.commit().await()
+            println("✅ DEBUG: createWaitingOpponentBooking completed successfully")
+            println("  - bookingId: $bookingId")
+            println("  - matchId: $rangeKey")
+            
             Result.success(bookingId)
         } catch (e: Exception) {
+            println("❌ ERROR: createWaitingOpponentBooking failed: ${e.message}")
+            e.printStackTrace()
             Result.failure(e)
         }
     }
@@ -269,9 +323,12 @@ class BookingRepository {
         notes: String? = null
     ): Result<String> {
         return try {
+            println("🔍 DEBUG: joinOpponent called with matchId: $matchId")
             val matchRef = firestore.collection(MATCHES_COLLECTION).document(matchId)
             val matchSnap = matchRef.get().await()
+            println("🔍 DEBUG: Match document exists: ${matchSnap.exists()}")
             val match = matchSnap.toObject(Match::class.java) ?: return Result.failure(IllegalStateException("Match not found"))
+            println("🔍 DEBUG: Match status: ${match.status}")
             if (match.status == "FULL") return Result.failure(IllegalStateException("Match already full"))
 
             val bookingId = UUID.randomUUID().toString()
@@ -325,8 +382,10 @@ class BookingRepository {
             }
 
             batch.commit().await()
+            println("✅ DEBUG: joinOpponent completed successfully, bookingId: $bookingId")
             Result.success(bookingId)
         } catch (e: Exception) {
+            println("❌ ERROR: joinOpponent failed: ${e.message}")
             Result.failure(e)
         }
     }

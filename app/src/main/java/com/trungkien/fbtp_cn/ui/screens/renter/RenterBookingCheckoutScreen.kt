@@ -626,6 +626,16 @@ fun RenterBookingCheckoutScreen(
                                     }
                                 }
                                 if (!renterId.isNullOrEmpty() && ownerId.isNotEmpty()) {
+                                    println("🔍 DEBUG: RenterBookingCheckoutScreen - Button clicked:")
+                                    println("  - renterId: $renterId")
+                                    println("  - ownerId: $ownerId")
+                                    println("  - fieldId: $fieldId")
+                                    println("  - date: ${selectedDate.toString()}")
+                                    println("  - effectiveSlots: $effectiveSlots")
+                                    println("  - bookingMode: $bookingMode")
+                                    println("  - bookingType: ${if (bookingMode == "HAS_OPPONENT") "DUO" else "SOLO"}")
+                                    println("  - hasOpponent: ${bookingMode == "HAS_OPPONENT"}")
+                                    
                                     bookingViewModel.handle(
                                         BookingEvent.Create(
                                             renterId = renterId,
@@ -1060,28 +1070,43 @@ fun RenterBookingCheckoutScreen(
         onDismiss = { showFindOpponentDialog = false },
         onConfirm = {
             // ✅ FIX: Xác nhận tìm đối thủ - chỉ cập nhật trạng thái cho ngày hiện tại
+            println("🔍 DEBUG: FindOpponentDialog.onConfirm called:")
+            println("  - consecutiveSlots: $consecutiveSlots")
+            println("  - currentUser: ${currentUser?.userId}")
+            println("  - selectedDate: ${selectedDate.toString()}")
+            
             bookingMode = "FIND_OPPONENT"
+            println("🔍 DEBUG: bookingMode set to: $bookingMode")
+            
             val currentDateKey = selectedDate.toString()
             val currentWaitingSlots = waitingOpponentSlotsByDate[currentDateKey] ?: emptySet()
             val newWaitingSlots = currentWaitingSlots + consecutiveSlots.toSet()
             waitingOpponentSlotsByDate = waitingOpponentSlotsByDate + (currentDateKey to newWaitingSlots)
+            println("🔍 DEBUG: Updated waitingOpponentSlotsByDate: $waitingOpponentSlotsByDate")
+            
             // ✅ NEW: Đảm bảo các slot này KHÔNG bị đỏ – loại khỏi locked ngay lập tức
             val currentLockedSlots = lockedSlotsByDate[currentDateKey] ?: emptySet()
             val newLockedSlots = currentLockedSlots - consecutiveSlots.toSet()
             lockedSlotsByDate = lockedSlotsByDate + (currentDateKey to newLockedSlots)
+            println("🔍 DEBUG: Updated lockedSlotsByDate: $lockedSlotsByDate")
+            
             // ✅ NEW: Gán owner cho các slot WAITING_OPPONENT vừa tạo để tổng tạm tính nhận diện là của user hiện tại
             val newOwners = waitingSlotOwner.toMutableMap()
             val me = currentUser?.userId
             consecutiveSlots.forEach { s -> if (me != null) newOwners[s] = me }
             waitingSlotOwner = newOwners
+            println("🔍 DEBUG: Updated waitingSlotOwner: $waitingSlotOwner")
+            
             // ✅ NEW: Lưu lại các slot vừa xác nhận để "Tổng tạm tính" vẫn hiển thị
             recentConfirmedSlotsByDate = recentConfirmedSlotsByDate + (currentDateKey to consecutiveSlots.toSet())
+            println("🔍 DEBUG: Updated recentConfirmedSlotsByDate: $recentConfirmedSlotsByDate")
             
             val currentSlots = selectedSlotsByDate[currentDateKey] ?: emptySet()
             val newSlots = currentSlots - consecutiveSlots.toSet()
             selectedSlotsByDate = selectedSlotsByDate + (currentDateKey to newSlots)
             consecutiveSlots = emptyList()
             println("✅ DEBUG: User confirmed finding opponent - slots waiting for $currentDateKey: $consecutiveSlots")
+            println("✅ DEBUG: FindOpponentDialog.onConfirm completed successfully")
         }
     )
 
@@ -1097,14 +1122,51 @@ fun RenterBookingCheckoutScreen(
                 val basePrice = uiState.pricingRules.firstOrNull()?.price?.toLong() ?: basePricePerHour.toLong()
                 currentUser?.userId?.let { renterId ->
                     kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                        bookingRepo.joinOpponent(
-                            matchId = m.rangeKey,
-                            renterId = renterId,
-                            ownerId = uiState.currentField?.ownerId ?: "",
-                            basePrice = basePrice,
-                            serviceLines = emptyList(),
-                            notes = notes.ifBlank { null }
-                        )
+                        // ✅ NEW: Đảm bảo document Match tồn tại trước khi join
+                        try {
+                            val ensure = com.trungkien.fbtp_cn.model.Match(
+                                rangeKey = m.rangeKey,
+                                fieldId = m.fieldId,
+                                date = m.date,
+                                startAt = m.startAt,
+                                endAt = m.endAt,
+                                capacity = 2,
+                                occupiedCount = m.occupiedCount,
+                                participants = m.participants,
+                                price = m.price,
+                                totalPrice = m.totalPrice,
+                                status = m.status,
+                                matchType = m.matchType,
+                                notes = m.notes
+                            )
+                            val createResult = bookingRepo.createMatchIfMissing(ensure)
+                            if (createResult.isFailure) {
+                                println("❌ ERROR: Failed to create match: ${createResult.exceptionOrNull()?.message}")
+                                return@launch
+                            } else {
+                                println("✅ DEBUG: Match created/verified successfully")
+                            }
+                            
+                            // ✅ FIX: Only call joinOpponent if createMatchIfMissing succeeded
+                            val joinResult = bookingRepo.joinOpponent(
+                                matchId = m.rangeKey,
+                                renterId = renterId,
+                                ownerId = uiState.currentField?.ownerId ?: "",
+                                basePrice = basePrice,
+                                serviceLines = emptyList(),
+                                notes = notes.ifBlank { null }
+                            )
+                            
+                            if (joinResult.isFailure) {
+                                println("❌ ERROR: Failed to join opponent: ${joinResult.exceptionOrNull()?.message}")
+                                return@launch
+                            } else {
+                                println("✅ DEBUG: Successfully joined opponent, bookingId: ${joinResult.getOrNull()}")
+                            }
+                        } catch (e: Exception) {
+                            println("❌ ERROR: Exception in match creation/joining: ${e.message}")
+                            return@launch
+                        }
                         
                         // ✅ FIX: Cập nhật trạng thái chỉ các slots liền nhau có cùng userId đã được chọn
                         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
