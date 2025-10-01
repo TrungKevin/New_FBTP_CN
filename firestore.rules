@@ -83,18 +83,29 @@ service cloud.firestore {
     match /matches/{matchId} {
       allow read: if true;  // ✅ Ai cũng đọc được matches để hiển thị trạng thái khung giờ
       
-      // CREATE: Chỉ user đã đăng nhập mới tạo được match
+      // CREATE: Chỉ user đã đăng nhập mới tạo được match (renter A tạo)
       allow create: if signedIn() && 
         request.resource.data.participants != null &&
         request.resource.data.participants.size() > 0 &&
         request.resource.data.participants[0].renterId == request.auth.uid;
       
-      // UPDATE: Chỉ participants trong match hoặc owner của sân mới sửa được
-      allow update: if signedIn() && 
-        (resource.data.participants != null &&
-         (resource.data.participants[0].renterId == request.auth.uid ||
-          (resource.data.participants.size() > 1 && resource.data.participants[1].renterId == request.auth.uid)) ||
-         isFieldOwner(resource.data.fieldId));
+      // UPDATE: Cho phép nếu
+      //  - Người dùng hiện tại nằm trong participants hiện có (renter A/B), HOẶC
+      //  - Người dùng hiện tại là participant mới trong request (renter B được thêm), HOẶC
+      //  - Chủ sân
+      allow update: if signedIn() && (
+        // Participant hiện có
+        (resource.data.participants != null && (
+          resource.data.participants[0].renterId == request.auth.uid ||
+          (resource.data.participants.size() > 1 && resource.data.participants[1].renterId == request.auth.uid)
+        )) ||
+        // Participant mới trong request (khi renter B join, nằm ở chỉ số 1)
+        (request.resource.data.participants != null &&
+          request.resource.data.participants.size() > 1 &&
+          request.resource.data.participants[1].renterId == request.auth.uid) ||
+        // Chủ sân
+        isFieldOwner(resource.data.fieldId)
+      );
       
       // DELETE: Chỉ owner của sân mới xóa được match
       allow delete: if signedIn() && 

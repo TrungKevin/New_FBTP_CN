@@ -357,9 +357,6 @@ class BookingRepository {
                 matchSide = "B"
             )
 
-            // booking A là participant[0]
-            val bookingAId = match.participants.firstOrNull()?.bookingId
-
             val batch = firestore.batch()
             val bookingBDoc = firestore.collection(BOOKINGS_COLLECTION).document(bookingId)
             batch.set(bookingBDoc, bookingB)
@@ -371,15 +368,6 @@ class BookingRepository {
                 "status" to "FULL",
                 "participants" to updatedParticipants
             ))
-
-            // update booking A opponent info
-            bookingAId?.let { aId ->
-                val bookingARef = firestore.collection(BOOKINGS_COLLECTION).document(aId)
-                batch.update(bookingARef, mapOf(
-                    "hasOpponent" to true,
-                    "opponentId" to renterId
-                ))
-            }
 
             batch.commit().await()
             println("✅ DEBUG: joinOpponent completed successfully, bookingId: $bookingId")
