@@ -183,6 +183,26 @@ class BookingRepository {
     }
 
     /**
+     * ✅ NEW: Cập nhật trạng thái của Match (OWNER xác nhận hoặc hủy)
+     */
+    suspend fun updateMatchStatus(matchId: String, newStatus: String): Result<Unit> {
+        return try {
+            firestore.collection(MATCHES_COLLECTION)
+                .document(matchId)
+                .update(mapOf(
+                    "status" to newStatus,
+                    "updatedAt" to System.currentTimeMillis()
+                ))
+                .await()
+            println("✅ DEBUG: Match status updated: $matchId -> $newStatus")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            println("❌ ERROR: Failed to update match status: ${e.message}")
+            Result.failure(e)
+        }
+    }
+
+    /**
      * ✅ NEW: Đảm bảo có document Match cho booking SOLO đang chờ đối thủ
      * Nếu chưa tồn tại, tạo mới với participant A và trạng thái WAITING_OPPONENT
      */

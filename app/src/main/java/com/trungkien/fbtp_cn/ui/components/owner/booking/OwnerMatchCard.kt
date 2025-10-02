@@ -33,7 +33,9 @@ import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 fun OwnerMatchCard(
     match: Match,
     modifier: Modifier = Modifier,
-    onClick: () -> Unit = {}
+    onClick: () -> Unit = {},
+    onConfirm: (() -> Unit)? = null,
+    onCancel: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val fieldRepo = remember { FieldRepository() }
@@ -85,11 +87,19 @@ fun OwnerMatchCard(
         }
     }
 
-    val statusColor = when (match.status) {
-        "FULL" -> Color(0xFF4CAF50)
+    val statusColor = when (match.status.uppercase()) {
         "WAITING_OPPONENT" -> Color(0xFFFF9800)
+        "FULL" -> MaterialTheme.colorScheme.primary
+        "CONFIRMED" -> Color(0xFF2E7D32)
         "CANCELLED" -> Color(0xFFF44336)
         else -> MaterialTheme.colorScheme.onSurface
+    }
+    val statusLabel = when (match.status.uppercase()) {
+        "WAITING_OPPONENT" -> "ĐANG CHỜ ĐỐI THỦ"
+        "FULL" -> "ĐÃ GHÉP ĐÔI"
+        "CONFIRMED" -> "ĐÃ XÁC NHẬN"
+        "CANCELLED" -> "ĐÃ HỦY"
+        else -> match.status
     }
 
     Card(
@@ -176,12 +186,7 @@ fun OwnerMatchCard(
                     modifier = Modifier.padding(start = 8.dp)
                 ) {
                     Text(
-                        text = when (match.status) {
-                            "FULL" -> "ĐÃ GHÉP ĐÔI"
-                            "WAITING_OPPONENT" -> "ĐANG CHỜ ĐỐI THỦ"
-                            "CANCELLED" -> "ĐÃ HỦY"
-                            else -> match.status
-                        },
+                        text = statusLabel,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                         color = statusColor
@@ -210,8 +215,8 @@ fun OwnerMatchCard(
 
             Spacer(Modifier.height(8.dp))
 
-            // Participant B (Đối thủ)
-            if (match.status == "FULL" && participantB != null) {
+            // Participant B (Đối thủ) - hiển thị nếu đã có dữ liệu B, không phụ thuộc trạng thái
+            if (participantB != null) {
                 ParticipantCard(
                     label = "Đối thủ",
                     name = bName,
@@ -239,11 +244,26 @@ fun OwnerMatchCard(
                         modifier = Modifier.size(24.dp)
                     )
                     Text(
-                        text = "Đang tìm đối thủ",
+                        text = statusLabel,
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        // Nút theo trạng thái
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (match.status.equals("FULL", ignoreCase = true) && onConfirm != null) {
+                Button(onClick = onConfirm, modifier = Modifier.weight(1f)) { Text("Xác nhận") }
+            }
+            if (!match.status.equals("CANCELLED", ignoreCase = true) && onCancel != null) {
+                OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) { Text("Hủy") }
             }
         }
     }

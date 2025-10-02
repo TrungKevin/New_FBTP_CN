@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,6 +15,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,17 +56,28 @@ import androidx.compose.material3.rememberDatePickerState
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.LocalTime
 
 private enum class BookingStatusFilter(val label: String) {
     All("Tất cả"),
     Pending("Chờ xác nhận"),
     Confirmed("Đã xác nhận"),
-    Canceled("Đã hủy")
+    Canceled("Đã hủy"),
+    Finished("Đã kết thúc")
 }
 
 private enum class MainTab(val label: String) {
     Bookings("Đặt sân"),
     Matches("Trận đấu")
+}
+
+private enum class MatchStatusFilter(val label: String) {
+    All("Tất cả"),
+    Waiting("Đang chờ"), // WAITING_OPPONENT
+    Full("Đã ghép đôi"),  // FULL
+    Confirmed("Đã xác nhận"), // CONFIRMED
+    Cancelled("Đã hủy"), // CANCELLED
+    Finished("Đã kết thúc") // endAt < now for today, or ngày chọn < hôm nay
 }
 
 private enum class RecentRangeFilter(val label: String, val days: Long?) {
@@ -92,13 +106,14 @@ fun OwnerBookingListScreen(
     val allBookings = ui.ownerBookings
     var selectedTab by remember { mutableStateOf(MainTab.Bookings) }
     var selectedFilter by remember { mutableStateOf(BookingStatusFilter.All) }
+    var selectedMatchFilter by remember { mutableStateOf(MatchStatusFilter.All) }
     var showDatePicker by remember { mutableStateOf(false) }
     var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
     var showRangeMenu by remember { mutableStateOf(false) }
     var selectedRange by remember { mutableStateOf(RecentRangeFilter.All) }
     var selectedBooking by remember { mutableStateOf<Booking?>(null) }
 
-    val filtered = remember(selectedFilter, selectedDate, selectedRange, allBookings) {
+    val filtered = remember(selectedFilter, selectedDate, selectedRange, allBookings, selectedTab) {
         var list = allBookings
         // Range filter
         selectedRange.days?.let { days ->
@@ -112,12 +127,40 @@ fun OwnerBookingListScreen(
             val ds = d.toString()
             list = list.filter { it.date == ds }
         }
-        // Status filter
-        list = when (selectedFilter) {
-            BookingStatusFilter.All -> list
-            BookingStatusFilter.Pending -> list.filter { it.status == "PENDING" }
-            BookingStatusFilter.Confirmed -> list.filter { it.status == "PAID" }
-            BookingStatusFilter.Canceled -> list.filter { it.status == "CANCELLED" }
+        
+        // ✅ FIX: Tách logic theo tab
+        when (selectedTab) {
+            MainTab.Bookings -> {
+                // Tab "Đặt sân": Chỉ hiển thị bookings đã có đối thủ
+                list = list.filter { booking ->
+                    booking.opponentMode == "HAS_OPPONENT" || 
+                    booking.status == "PAID" ||
+                    booking.status == "CONFIRMED"
+                }
+                // Status filter cho bookings đã có đối thủ
+                list = when (selectedFilter) {
+                    BookingStatusFilter.All -> list
+                    BookingStatusFilter.Pending -> list.filter { it.status == "PENDING" }
+                    BookingStatusFilter.Confirmed -> list.filter { it.status == "PAID" || it.status == "CONFIRMED" }
+                    BookingStatusFilter.Canceled -> list.filter { it.status == "CANCELLED" }
+                    BookingStatusFilter.Finished -> list.filter { isBookingFinished(it, selectedDate) }
+                }
+            }
+            MainTab.Matches -> {
+                // Tab "Trận đấu": Chỉ hiển thị bookings chưa có đối thủ
+                list = list.filter { booking ->
+                    booking.opponentMode == "WAITING_OPPONENT" || 
+                    booking.opponentMode == "FIND_OPPONENT"
+                }
+                // Status filter cho bookings chưa có đối thủ
+                list = when (selectedFilter) {
+                    BookingStatusFilter.All -> list
+                    BookingStatusFilter.Pending -> list.filter { it.status == "PENDING" }
+                    BookingStatusFilter.Confirmed -> list.filter { it.status == "PAID" || it.status == "CONFIRMED" }
+                    BookingStatusFilter.Canceled -> list.filter { it.status == "CANCELLED" }
+                    BookingStatusFilter.Finished -> list.filter { isBookingFinished(it, selectedDate) }
+                }
+            }
         }
         list
     }
@@ -288,11 +331,23 @@ fun OwnerBookingListScreen(
                 }
             }
             MainTab.Matches -> {
-                // Matches content
-                OwnerMatchesContent(
-                    selectedDate = selectedDate,
-                    modifier = Modifier.fillMaxSize()
-                )
+                // Matches content with status filter
+                Column(modifier = Modifier.fillMaxSize()) {
+                    BookingFilterBar(
+                        options = MatchStatusFilter.values().map { it.label },
+                        selected = selectedMatchFilter.label,
+                        onSelectedChange = { label ->
+                            selectedMatchFilter = MatchStatusFilter.values().first { it.label == label }
+                        },
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OwnerMatchesContent(
+                        selectedDate = selectedDate,
+                        selectedStatus = selectedMatchFilter,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
         }
     }
@@ -308,37 +363,102 @@ fun OwnerBookingListScreen(
 @Composable
 private fun OwnerMatchesContent(
     selectedDate: LocalDate?,
+    selectedStatus: MatchStatusFilter,
     modifier: Modifier = Modifier
 ) {
     val authViewModel: AuthViewModel = viewModel()
     val user = authViewModel.currentUser.collectAsState().value
     val bookingRepo = remember { BookingRepository() }
+    val scope = rememberCoroutineScope()
     var matches by remember { mutableStateOf<List<Match>>(emptyList()) }
+    var waitingBookings by remember { mutableStateOf<List<Booking>>(emptyList()) }
+    var listeners by remember { mutableStateOf<List<com.google.firebase.firestore.ListenerRegistration>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
-    LaunchedEffect(user, selectedDate) {
+    LaunchedEffect(user, selectedDate, selectedStatus) {
         if (user != null) {
             isLoading = true
             try {
                 // Load matches for all fields owned by this user
                 val fieldRepo = FieldRepository()
                 val fields = fieldRepo.getFieldsByOwnerId(user.userId).getOrNull() ?: emptyList()
+                println("🔍 DEBUG: OwnerMatchesContent - ownerId=${user.userId}, fields=${fields.map { it.fieldId }}")
                 
                 val allMatches = mutableListOf<Match>()
+                val allWaitingBookings = mutableListOf<Booking>()
+                
+                // Clear old listeners when filter/date changes
+                listeners.forEach { it.remove() }
+                listeners = emptyList()
+                
                 fields.forEach { field ->
                     val dateStr = selectedDate?.toString() ?: LocalDate.now().toString()
-                    bookingRepo.listenMatchesByFieldDate(
+                    println("🔍 DEBUG: listen matches field=${field.fieldId}, date=$dateStr, filter=${selectedStatus.name}")
+                    
+                    // Listen to matches
+                    val matchListener = bookingRepo.listenMatchesByFieldDate(
                         fieldId = field.fieldId,
                         date = dateStr,
                         onChange = { fieldMatches ->
+                            println("✅ DEBUG: listenMatchesByFieldDate → field=${field.fieldId} size=${fieldMatches.size}")
                             // Remove old matches for this field and add new ones
                             allMatches.removeAll { it.fieldId == field.fieldId }
-                            // CHỈ thêm các match đã được ghép đôi (status = "FULL")
-                            allMatches.addAll(fieldMatches.filter { it.status == "FULL" })
-                            matches = allMatches.toList()
+                            // Chỉ lấy matches đã ghép đôi (FULL hoặc CONFIRMED)
+                            val matchedOnly = fieldMatches.filter { match ->
+                                match.status == "FULL" || match.status == "CONFIRMED"
+                            }
+                            // Hiển thị theo filter trạng thái
+                            val filtered = when (selectedStatus) {
+                                MatchStatusFilter.All -> matchedOnly
+                                MatchStatusFilter.Waiting -> emptyList() // Không có matches đang chờ trong tab này
+                                MatchStatusFilter.Full -> matchedOnly.filter { it.status == "FULL" }
+                                MatchStatusFilter.Confirmed -> matchedOnly.filter { it.status == "CONFIRMED" }
+                                MatchStatusFilter.Cancelled -> matchedOnly.filter { it.status == "CANCELLED" }
+                                MatchStatusFilter.Finished -> matchedOnly.filter { isFinished(it) }
+                            }
+                            println("✅ DEBUG: filtered(${selectedStatus.name}) size=${filtered.size}")
+                            allMatches.addAll(filtered)
+                            matches = allMatches
                         },
                         onError = { _ -> }
                     )
+                    listeners = listeners + matchListener
+                    
+                    // Listen to waiting bookings (chưa có đối thủ) - sử dụng listenBookingsByOwner
+                    val bookingListener = bookingRepo.listenBookingsByOwner(
+                        ownerId = user.userId,
+                        onChange = { allOwnerBookings ->
+                            println("✅ DEBUG: listenBookingsByOwner → size=${allOwnerBookings.size}")
+                            // Remove old bookings for this field and add new ones
+                            allWaitingBookings.removeAll { it.fieldId == field.fieldId }
+                            // Filter theo fieldId và date
+                            val fieldBookings = allOwnerBookings.filter { booking ->
+                                booking.fieldId == field.fieldId && booking.date == dateStr
+                            }
+                            // Chỉ lấy bookings chưa có đối thủ (PENDING status) và chỉ hiển thị cho owner
+                            // Không hiển thị cho renter B khi đã match
+                            val waitingOnly = fieldBookings.filter { booking ->
+                                booking.bookingType == "SOLO" && 
+                                booking.hasOpponent == false && 
+                                booking.status == "PENDING" &&
+                                // Chỉ hiển thị cho owner của sân, không hiển thị cho renter B
+                                booking.ownerId == user.userId
+                            }
+                            // Filter theo status
+                            val filtered = when (selectedStatus) {
+                                MatchStatusFilter.All -> waitingOnly
+                                MatchStatusFilter.Waiting -> waitingOnly.filter { it.status == "PENDING" }
+                                MatchStatusFilter.Full -> waitingOnly.filter { it.status == "PAID" || it.status == "CONFIRMED" }
+                                MatchStatusFilter.Confirmed -> waitingOnly.filter { it.status == "PAID" || it.status == "CONFIRMED" }
+                                MatchStatusFilter.Cancelled -> waitingOnly.filter { it.status == "CANCELLED" }
+                                MatchStatusFilter.Finished -> waitingOnly.filter { isBookingFinished(it, selectedDate) }
+                            }
+                            allWaitingBookings.addAll(filtered)
+                            waitingBookings = allWaitingBookings
+                        },
+                        onError = { _ -> }
+                    )
+                    listeners = listeners + bookingListener
                 }
             } catch (_: Exception) {
                 // Handle error
@@ -356,7 +476,7 @@ private fun OwnerMatchesContent(
             ) {
                 CircularProgressIndicator()
             }
-        } else if (matches.isEmpty()) {
+        } else if (matches.isEmpty() && waitingBookings.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -372,7 +492,7 @@ private fun OwnerMatchesContent(
                         tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                     )
                     Text(
-                        text = "Chưa có trận đấu nào đã ghép đôi",
+                        text = "Chưa có trận đấu hoặc đặt sân chờ đối thủ",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
@@ -383,15 +503,64 @@ private fun OwnerMatchesContent(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(bottom = 80.dp)
             ) {
+                // Hiển thị waiting bookings trước (chưa có đối thủ) - Card như hình 1
+                items(waitingBookings, key = { it.bookingId }) { booking ->
+                    WaitingBookingCard(
+                        booking = booking,
+                        onClick = { /* Handle booking click */ },
+                        onConfirm = if (booking.status != "CANCELLED") {
+                            { scope.launch { bookingRepo.updateBookingStatus(booking.bookingId, "PAID") } }
+                        } else null,
+                        onCancel = if (booking.status != "CANCELLED") {
+                            { scope.launch { bookingRepo.updateBookingStatus(booking.bookingId, "CANCELLED") } }
+                        } else null,
+                        onSuggestTime = {
+                            // TODO: Xử lý gợi ý khung giờ khác
+                        }
+                    )
+                }
+                
+                // Hiển thị matches (đã ghép đôi) - Card như hình 2
                 items(matches, key = { it.rangeKey }) { match ->
                     OwnerMatchCard(
                         match = match,
-                        onClick = { /* Handle match click */ }
+                        onClick = { /* Handle match click */ },
+                        onConfirm = if (match.status != "CANCELLED") {
+                            { scope.launch { bookingRepo.updateMatchStatus(match.rangeKey, "CONFIRMED") } }
+                        } else null,
+                        onCancel = if (match.status != "CANCELLED") {
+                            { scope.launch { bookingRepo.updateMatchStatus(match.rangeKey, "CANCELLED") } }
+                        } else null
                     )
                 }
             }
         }
     }
+}
+
+private fun isFinished(match: Match): Boolean {
+    return try {
+        val matchDate = LocalDate.parse(match.date)
+        val end = LocalTime.parse(match.endAt)
+        val today = LocalDate.now()
+        if (matchDate.isBefore(today)) return true
+        if (matchDate.isAfter(today)) return false
+        // cùng ngày hôm nay: kết thúc nếu endAt < thời điểm hiện tại
+        val now = LocalTime.now()
+        return end.isBefore(now)
+    } catch (_: Exception) { false }
+}
+
+private fun isBookingFinished(booking: Booking, selectedDate: LocalDate?): Boolean {
+    return try {
+        val bookingDate = LocalDate.parse(booking.date)
+        val end = LocalTime.parse(booking.endAt)
+        val today = LocalDate.now()
+        if (bookingDate.isBefore(today)) return true
+        if (bookingDate.isAfter(today)) return false
+        val now = LocalTime.now()
+        return end.isBefore(now)
+    } catch (_: Exception) { false }
 }
 
 // Date picker dialog
@@ -908,6 +1077,345 @@ private fun mockBookings(): List<Booking> = listOf(
 )
 
 @Preview(showBackground = true, showSystemUi = true)
+@Composable
+private fun WaitingBookingCard(
+    booking: Booking,
+    onClick: () -> Unit = {},
+    onConfirm: (() -> Unit)? = null,
+    onCancel: (() -> Unit)? = null,
+    onSuggestTime: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val fieldRepo = remember { FieldRepository() }
+    val userRepo = remember { UserRepository() }
+    
+    var fieldName by remember(booking.fieldId) { mutableStateOf<String?>(null) }
+    var renterName by remember(booking.renterId) { mutableStateOf<String?>(null) }
+    var renterPhone by remember(booking.renterId) { mutableStateOf<String?>(null) }
+    var renterAvatarUrl by remember(booking.renterId) { mutableStateOf<String?>(null) }
+    
+    LaunchedEffect(booking.fieldId) {
+        fieldRepo.getFieldById(booking.fieldId).onSuccess { field ->
+            fieldName = field?.name
+        }
+    }
+    
+    LaunchedEffect(booking.renterId) {
+        userRepo.getUserById(
+            userId = booking.renterId,
+            onSuccess = { user ->
+                renterName = user.name
+                renterPhone = user.phone
+                renterAvatarUrl = user.avatarUrl
+            },
+            onError = { _ ->
+                // Handle error silently
+            }
+        )
+    }
+    
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            // Header với tên sân và trạng thái
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = fieldName ?: "Sân không xác định",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                
+                // Status chip
+                val statusColor = when (booking.status) {
+                    "PENDING" -> Color(0xFFFF9800) // Màu cam cho "ĐANG CHỜ ĐỐI THỦ"
+                    "PAID", "CONFIRMED" -> Color(0xFF4CAF50)
+                    "CANCELLED" -> Color(0xFFF44336)
+                    else -> Color(0xFFFF9800) // Mặc định là cam cho "ĐANG CHỜ ĐỐI THỦ"
+                }
+                
+                val statusText = when (booking.status) {
+                    "PENDING" -> "ĐANG CHỜ ĐỐI THỦ"
+                    "PAID", "CONFIRMED" -> "ĐÃ GHÉP ĐÔI"
+                    "CANCELLED" -> "ĐÃ HỦY"
+                    else -> "ĐANG CHỜ ĐỐI THỦ"
+                }
+                
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = statusColor.copy(alpha = 0.1f))
+                ) {
+                    Text(
+                        text = statusText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = statusColor,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // Thông tin booking
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Icon(
+                    Icons.Default.CalendarToday,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = booking.date,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Icon(
+                    Icons.Default.Schedule,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = "${booking.startAt} - ${booking.endAt}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Icon(
+                    Icons.Default.LocationOn,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = "71 duong 10", // TODO: Lấy từ field
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Thông tin người đặt với UI đẹp hơn
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.1f)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Text(
+                        text = "Người tham gia",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // Avatar với border đẹp
+                        Card(
+                            shape = CircleShape,
+                            modifier = Modifier.size(50.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (renterAvatarUrl != null) {
+                                    val imageBytes = Base64.decode(renterAvatarUrl, Base64.DEFAULT)
+                                    val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                                    if (bitmap != null) {
+                                        AsyncImage(
+                                            model = bitmap.asImageBitmap(),
+                                            contentDescription = "Avatar",
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        Icon(
+                                            Icons.Default.Person,
+                                            contentDescription = "Avatar",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                } else {
+                                    Icon(
+                                        Icons.Default.Person,
+                                        contentDescription = "Avatar",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
+                        }
+                        
+                        Column(
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = "Người đặt sân",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            )
+                            Text(
+                                text = renterName ?: "Đang tải...",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = renterPhone ?: "",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            )
+                            
+                            Spacer(modifier = Modifier.height(4.dp))
+                            
+                            // Text "Đang tìm kiếm đối thủ"
+                            Card(
+                                shape = RoundedCornerShape(8.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = Color(0xFFFF9800).copy(alpha = 0.1f)
+                                )
+                            ) {
+                                Text(
+                                    text = "🔍 Đang tìm kiếm đối thủ",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFFFF9800),
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Action buttons với UI đẹp hơn - 3 button bằng nhau
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (onConfirm != null) {
+                    Button(
+                        onClick = onConfirm,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF4CAF50)
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(vertical = 12.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            "Xác nhận",
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+                
+                if (onCancel != null) {
+                    OutlinedButton(
+                        onClick = onCancel,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color(0xFFF44336)
+                        ),
+                        border = BorderStroke(1.5.dp, Color(0xFFF44336)),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(vertical = 12.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            "Hủy",
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+                
+                if (onSuggestTime != null) {
+                    OutlinedButton(
+                        onClick = onSuggestTime,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color(0xFF9E9E9E)
+                        ),
+                        border = BorderStroke(1.5.dp, Color(0xFF9E9E9E)),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(vertical = 12.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Schedule,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            "Gợi ý",
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun PreviewOwnerBookingListScreen() {
     FBTP_CNTheme {
