@@ -80,6 +80,7 @@ private enum class MatchStatusFilter(val label: String) {
     Finished("Đã kết thúc") // endAt < now for today, or ngày chọn < hôm nay
 }
 
+// tạo hàm kiểm tra booking đã kết thúc
 private enum class RecentRangeFilter(val label: String, val days: Long?) {
     All("Tất cả", null),
     Week("1 tuần gần đây", 7),
@@ -401,6 +402,150 @@ private fun OwnerMatchesContent(
                         date = dateStr,
                         onChange = { fieldMatches ->
                             println("✅ DEBUG: listenMatchesByFieldDate → field=${field.fieldId} size=${fieldMatches.size}")
+                            
+                            // ✅ DEBUG: Log tất cả matches từ Firebase
+                            fieldMatches.forEach { match ->
+                                println("    - Raw match ${match.rangeKey}: status=${match.status}, time=${match.startAt}-${match.endAt}")
+                            }
+                            
+                            // Remove old matches for this field and add new ones
+                            allMatches.removeAll { it.fieldId == field.fieldId }
+                            
+                            // Chỉ lấy matches đã ghép đôi (FULL hoặc CONFIRMED)
+                            val matchedOnly = fieldMatches.filter { match ->
+                                val isMatched = match.status == "FULL" || match.status == "CONFIRMED"
+                                println("    - Match ${match.rangeKey}: status=${match.status}, isMatched=$isMatched")
+                                isMatched
+                            }
+                            
+                            println("✅ DEBUG: matchedOnly size=${matchedOnly.size}")
+                            
+                            // Hiển thị theo filter trạng thái
+                            val filtered = when (selectedStatus) {
+                                // "Tất cả" loại bỏ các trận đã kết thúc
+                                MatchStatusFilter.All -> matchedOnly.filter { !isFinished(it) }
+                                // Không có matches đang chờ trong tab này
+                                MatchStatusFilter.Waiting -> emptyList()
+                                // Chỉ hiển thị khi chưa kết thúc
+                                MatchStatusFilter.Full -> matchedOnly.filter { it.status == "FULL" && !isFinished(it) }
+                                MatchStatusFilter.Confirmed -> matchedOnly.filter { it.status == "CONFIRMED" && !isFinished(it) }
+                                MatchStatusFilter.Cancelled -> matchedOnly.filter { it.status == "CANCELLED" && !isFinished(it) }
+                                // Chỉ hiển thị các trận đã kết thúc
+                                MatchStatusFilter.Finished -> matchedOnly.filter { isFinished(it) }
+                            }
+                            
+                            println("✅ DEBUG: filtered(${selectedStatus.name}) size=${filtered.size}")
+                            allMatches.addAll(filtered)
+                            matches = allMatches
+
+                            // ✅ Re-filter waitingBookings ngay khi matches thay đổi
+                            val currentMatches = allMatches.toList()
+                            waitingBookings = waitingBookings.filter { booking ->
+                                val overlapped = currentMatches.any { m ->
+                                    m.fieldId == booking.fieldId && m.date == booking.date &&
+                                        isTimeOverlap(booking.startAt, booking.endAt, m.startAt, m.endAt)
+                                }
+                                val finished = isBookingFinished(booking, selectedDate)
+                                !overlapped && !finished
+                            }
+                            println("🔄 DEBUG: Re-filtered waitingBookings after matches update: ${waitingBookings.size}")
+                        },
+                        onError = { _ -> }
+                    )
+                    listeners = listeners + matchListener
+                    
+                     // Listen to waiting bookings (chưa có đối thủ) - sử dụng listenBookingsByOwner
+                     val bookingListener = bookingRepo.listenBookingsByOwner(
+                         ownerId = user.userId,
+                         onChange = { allOwnerBookings ->
+                             println("✅ DEBUG: listenBookingsByOwner → size=${allOwnerBookings.size}")
+                             // Remove old bookings for this field and add new ones
+                             allWaitingBookings.removeAll { it.fieldId == field.fieldId }
+                             // Filter theo fieldId và date
+                             val fieldBookings = allOwnerBookings.filter { booking ->
+                                 booking.fieldId == field.fieldId && booking.date == dateStr
+                             }
+                             
+                            // ✅ CRITICAL FIX: Logic filtering chính xác để loại bỏ booking khi đã có match
+                            val waitingOnly = fieldBookings.filter { booking ->
+                                val isSolo = booking.bookingType == "SOLO"
+                                val hasNoOpponent = booking.hasOpponent == false
+                                val isPending = booking.status == "PENDING"
+                                val isOwnerBooking = booking.ownerId == user.userId
+                                
+                                // ✅ KEY FIX: Kiểm tra xem booking này có bị match chưa
+                                val hasOverlappingMatch = allMatches.any { match ->
+                                    val sameField = match.fieldId == booking.fieldId
+                                    val sameDate = match.date == booking.date
+                                    val timeOverlap = isTimeOverlap(booking.startAt, booking.endAt, match.startAt, match.endAt)
+                                    
+                                    println("    🔍 Checking overlap for booking ${booking.bookingId} vs match ${match.rangeKey}:")
+                                    println("      - sameField: $sameField (${match.fieldId} == ${booking.fieldId})")
+                                    println("      - sameDate: $sameDate (${match.date} == ${booking.date})")
+                                    println("      - timeOverlap: $timeOverlap (${booking.startAt}-${booking.endAt} vs ${match.startAt}-${match.endAt})")
+                                    
+                                    sameField && sameDate && timeOverlap
+                                }
+                                
+                                val shouldShow = isSolo && hasNoOpponent && isPending && isOwnerBooking && !hasOverlappingMatch
+                                
+                                println("    📋 Booking ${booking.bookingId} (${booking.renterId}):")
+                                println("      - isSolo: $isSolo")
+                                println("      - hasNoOpponent: $hasNoOpponent")
+                                println("      - isPending: $isPending")
+                                println("      - isOwnerBooking: $isOwnerBooking")
+                                println("      - hasOverlappingMatch: $hasOverlappingMatch")
+                                println("      - shouldShow: $shouldShow")
+                                
+                                shouldShow
+                            }
+                             
+                             // ✅ DEBUG: Log chi tiết để debug
+                             println("🔍 DEBUG: Field ${field.fieldId}, Date $dateStr:")
+                             println("  - Total fieldBookings: ${fieldBookings.size}")
+                             println("  - WaitingOnly (after match check): ${waitingOnly.size}")
+                             println("  - AllMatches count: ${allMatches.size}")
+                             waitingOnly.forEach { booking ->
+                                 println("    - Waiting booking ${booking.bookingId}: status=${booking.status}, time=${booking.startAt}-${booking.endAt}")
+                             }
+                             allMatches.forEach { match ->
+                                 println("    - Match ${match.rangeKey}: status=${match.status}, time=${match.startAt}-${match.endAt}")
+                             }
+                             
+                            // Filter theo status: chỉ hiển thị ở đúng bộ lọc của nó và "Tất cả"
+                            val filtered = when (selectedStatus) {
+                                // All: loại các booking đã kết thúc
+                                MatchStatusFilter.All -> waitingOnly.filter { !isBookingFinished(it, selectedDate) }
+                                // Waiting: chỉ PENDING chưa kết thúc
+                                MatchStatusFilter.Waiting -> waitingOnly.filter { it.status == "PENDING" && !isBookingFinished(it, selectedDate) }
+                                // Full/Confirmed không áp dụng cho waiting bookings
+                                MatchStatusFilter.Full -> emptyList()
+                                MatchStatusFilter.Confirmed -> emptyList()
+                                // Cancelled: chỉ những booking đã hủy (không quan tâm kết thúc theo thời gian)
+                                MatchStatusFilter.Cancelled -> waitingOnly.filter { it.status == "CANCELLED" }
+                                // Finished: chỉ booking đã kết thúc theo thời gian
+                                MatchStatusFilter.Finished -> waitingOnly.filter { isBookingFinished(it, selectedDate) }
+                            }
+                             
+                             println("🔍 DEBUG: Filtered waiting bookings for ${selectedStatus.name}: ${filtered.size}")
+                             allWaitingBookings.addAll(filtered)
+                             waitingBookings = allWaitingBookings
+                         },
+                         onError = { _ -> }
+                     )
+                    listeners = listeners + bookingListener
+                }
+                
+                // ✅ FIX: Tạo listeners cho matches cho từng field
+                fields.forEach { field ->
+                    val dateStr = selectedDate?.toString() ?: LocalDate.now().toString()
+                    println("🔍 DEBUG: listen matches field=${field.fieldId}, date=$dateStr, filter=${selectedStatus.name}")
+                    
+                    val matchListener = bookingRepo.listenMatchesByFieldDate(
+                        fieldId = field.fieldId,
+                        date = dateStr,
+                        onChange = { fieldMatches ->
+                            println("✅ DEBUG: listenMatchesByFieldDate → field=${field.fieldId} size=${fieldMatches.size}")
                             // Remove old matches for this field and add new ones
                             allMatches.removeAll { it.fieldId == field.fieldId }
                             // Chỉ lấy matches đã ghép đôi (FULL hoặc CONFIRMED)
@@ -409,56 +554,32 @@ private fun OwnerMatchesContent(
                             }
                             // Hiển thị theo filter trạng thái
                             val filtered = when (selectedStatus) {
-                                MatchStatusFilter.All -> matchedOnly
-                                MatchStatusFilter.Waiting -> emptyList() // Không có matches đang chờ trong tab này
-                                MatchStatusFilter.Full -> matchedOnly.filter { it.status == "FULL" }
-                                MatchStatusFilter.Confirmed -> matchedOnly.filter { it.status == "CONFIRMED" }
-                                MatchStatusFilter.Cancelled -> matchedOnly.filter { it.status == "CANCELLED" }
+                                MatchStatusFilter.All -> matchedOnly.filter { !isFinished(it) }
+                                MatchStatusFilter.Waiting -> emptyList()
+                                MatchStatusFilter.Full -> matchedOnly.filter { it.status == "FULL" && !isFinished(it) }
+                                MatchStatusFilter.Confirmed -> matchedOnly.filter { it.status == "CONFIRMED" && !isFinished(it) }
+                                MatchStatusFilter.Cancelled -> matchedOnly.filter { it.status == "CANCELLED" && !isFinished(it) }
                                 MatchStatusFilter.Finished -> matchedOnly.filter { isFinished(it) }
                             }
                             println("✅ DEBUG: filtered(${selectedStatus.name}) size=${filtered.size}")
                             allMatches.addAll(filtered)
                             matches = allMatches
+
+                            // ✅ Re-filter waitingBookings ngay khi matches thay đổi (listener thứ 2)
+                            val currentMatches = allMatches.toList()
+                            waitingBookings = waitingBookings.filter { booking ->
+                                val overlapped = currentMatches.any { m ->
+                                    m.fieldId == booking.fieldId && m.date == booking.date &&
+                                        isTimeOverlap(booking.startAt, booking.endAt, m.startAt, m.endAt)
+                                }
+                                val finished = isBookingFinished(booking, selectedDate)
+                                !overlapped && !finished
+                            }
+                            println("🔄 DEBUG: Re-filtered waitingBookings (2nd) after matches update: ${waitingBookings.size}")
                         },
                         onError = { _ -> }
                     )
                     listeners = listeners + matchListener
-                    
-                    // Listen to waiting bookings (chưa có đối thủ) - sử dụng listenBookingsByOwner
-                    val bookingListener = bookingRepo.listenBookingsByOwner(
-                        ownerId = user.userId,
-                        onChange = { allOwnerBookings ->
-                            println("✅ DEBUG: listenBookingsByOwner → size=${allOwnerBookings.size}")
-                            // Remove old bookings for this field and add new ones
-                            allWaitingBookings.removeAll { it.fieldId == field.fieldId }
-                            // Filter theo fieldId và date
-                            val fieldBookings = allOwnerBookings.filter { booking ->
-                                booking.fieldId == field.fieldId && booking.date == dateStr
-                            }
-                            // Chỉ lấy bookings chưa có đối thủ (PENDING status) và chỉ hiển thị cho owner
-                            // Không hiển thị cho renter B khi đã match
-                            val waitingOnly = fieldBookings.filter { booking ->
-                                booking.bookingType == "SOLO" && 
-                                booking.hasOpponent == false && 
-                                booking.status == "PENDING" &&
-                                // Chỉ hiển thị cho owner của sân, không hiển thị cho renter B
-                                booking.ownerId == user.userId
-                            }
-                            // Filter theo status
-                            val filtered = when (selectedStatus) {
-                                MatchStatusFilter.All -> waitingOnly
-                                MatchStatusFilter.Waiting -> waitingOnly.filter { it.status == "PENDING" }
-                                MatchStatusFilter.Full -> waitingOnly.filter { it.status == "PAID" || it.status == "CONFIRMED" }
-                                MatchStatusFilter.Confirmed -> waitingOnly.filter { it.status == "PAID" || it.status == "CONFIRMED" }
-                                MatchStatusFilter.Cancelled -> waitingOnly.filter { it.status == "CANCELLED" }
-                                MatchStatusFilter.Finished -> waitingOnly.filter { isBookingFinished(it, selectedDate) }
-                            }
-                            allWaitingBookings.addAll(filtered)
-                            waitingBookings = allWaitingBookings
-                        },
-                        onError = { _ -> }
-                    )
-                    listeners = listeners + bookingListener
                 }
             } catch (_: Exception) {
                 // Handle error
@@ -505,30 +626,34 @@ private fun OwnerMatchesContent(
             ) {
                 // Hiển thị waiting bookings trước (chưa có đối thủ) - Card như hình 1
                 items(waitingBookings, key = { it.bookingId }) { booking ->
+                    val finished = isBookingFinished(booking, selectedDate)
                     WaitingBookingCard(
                         booking = booking,
                         onClick = { /* Handle booking click */ },
-                        onConfirm = if (booking.status != "CANCELLED") {
+                        onConfirm = if (booking.status != "CANCELLED" && !finished) {
                             { scope.launch { bookingRepo.updateBookingStatus(booking.bookingId, "PAID") } }
                         } else null,
-                        onCancel = if (booking.status != "CANCELLED") {
+                        onCancel = if (booking.status != "CANCELLED" && !finished) {
                             { scope.launch { bookingRepo.updateBookingStatus(booking.bookingId, "CANCELLED") } }
                         } else null,
-                        onSuggestTime = {
-                            // TODO: Xử lý gợi ý khung giờ khác
-                        }
+                        onSuggestTime = if (!finished) {
+                            {
+                                // TODO: Xử lý gợi ý khung giờ khác
+                            }
+                        } else null
                     )
                 }
                 
                 // Hiển thị matches (đã ghép đôi) - Card như hình 2
                 items(matches, key = { it.rangeKey }) { match ->
+                    val finished = isFinished(match)
                     OwnerMatchCard(
                         match = match,
                         onClick = { /* Handle match click */ },
-                        onConfirm = if (match.status != "CANCELLED") {
+                        onConfirm = if (match.status != "CANCELLED" && !finished) {
                             { scope.launch { bookingRepo.updateMatchStatus(match.rangeKey, "CONFIRMED") } }
                         } else null,
-                        onCancel = if (match.status != "CANCELLED") {
+                        onCancel = if (match.status != "CANCELLED" && !finished) {
                             { scope.launch { bookingRepo.updateMatchStatus(match.rangeKey, "CANCELLED") } }
                         } else null
                     )
@@ -1076,7 +1201,7 @@ private fun mockBookings(): List<Booking> = listOf(
     )
 )
 
-@Preview(showBackground = true, showSystemUi = true)
+
 @Composable
 private fun WaitingBookingCard(
     booking: Booking,
@@ -1414,6 +1539,15 @@ private fun WaitingBookingCard(
             }
         }
     }
+}
+
+// ✅ CRITICAL FIX: Helper function để kiểm tra time overlap
+private fun isTimeOverlap(bookingStartAt: String, bookingEndAt: String, matchStartAt: String, matchEndAt: String): Boolean {
+    // Kiểm tra xem booking và match có overlap về thời gian không
+    // Booking: 18:00-19:00, Match: 18:30-19:30 -> overlap = true
+    // Booking: 18:00-19:00, Match: 19:00-20:00 -> overlap = false (không overlap)
+    
+    return bookingStartAt < matchEndAt && bookingEndAt > matchStartAt
 }
 
 @Composable

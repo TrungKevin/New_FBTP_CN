@@ -94,11 +94,20 @@ fun OwnerMatchCard(
         "CANCELLED" -> Color(0xFFF44336)
         else -> MaterialTheme.colorScheme.onSurface
     }
-    val statusLabel = when (match.status.uppercase()) {
-        "WAITING_OPPONENT" -> "ĐANG CHỜ ĐỐI THỦ"
-        "FULL" -> "ĐÃ GHÉP ĐÔI"
-        "CONFIRMED" -> "ĐÃ XÁC NHẬN"
-        "CANCELLED" -> "ĐÃ HỦY"
+    // Hiển thị "ĐÃ KẾT THÚC" nếu trận đã kết thúc theo thời gian
+    val isFinishedByTime = try {
+        val date = java.time.LocalDate.parse(match.date)
+        val end = java.time.LocalTime.parse(match.endAt)
+        val today = java.time.LocalDate.now()
+        val now = java.time.LocalTime.now()
+        date.isBefore(today) || (date.isEqual(today) && end.isBefore(now))
+    } catch (_: Exception) { false }
+    val statusLabel = when {
+        isFinishedByTime -> "ĐÃ KẾT THÚC"
+        match.status.equals("WAITING_OPPONENT", true) -> "ĐANG CHỜ ĐỐI THỦ"
+        match.status.equals("FULL", true) -> "ĐÃ GHÉP ĐÔI"
+        match.status.equals("CONFIRMED", true) -> "ĐÃ XÁC NHẬN"
+        match.status.equals("CANCELLED", true) -> "ĐÃ HỦY"
         else -> match.status
     }
 
@@ -259,10 +268,10 @@ fun OwnerMatchCard(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            if (match.status.equals("FULL", ignoreCase = true) && onConfirm != null) {
+            if (!isFinishedByTime && match.status.equals("FULL", ignoreCase = true) && onConfirm != null) {
                 Button(onClick = onConfirm, modifier = Modifier.weight(1f)) { Text("Xác nhận") }
             }
-            if (!match.status.equals("CANCELLED", ignoreCase = true) && onCancel != null) {
+            if (!isFinishedByTime && !match.status.equals("CANCELLED", ignoreCase = true) && onCancel != null) {
                 OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) { Text("Hủy") }
             }
         }
