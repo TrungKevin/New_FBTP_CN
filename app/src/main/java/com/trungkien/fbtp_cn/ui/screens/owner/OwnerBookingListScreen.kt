@@ -144,7 +144,8 @@ fun OwnerBookingListScreen(
                     BookingStatusFilter.Pending -> list.filter { it.status == "PENDING" && !isBookingFinished(it, selectedDate) }
                     BookingStatusFilter.Confirmed -> list.filter { (it.status == "PAID" || it.status == "CONFIRMED") && !isBookingFinished(it, selectedDate) }
                     BookingStatusFilter.Canceled -> list.filter { it.status == "CANCELLED" }
-                    BookingStatusFilter.Finished -> list.filter { isBookingFinished(it, selectedDate) }
+                    // Chỉ coi là "Đã kết thúc" khi đã xác nhận/đã thanh toán và thời gian đã qua
+                    BookingStatusFilter.Finished -> list.filter { (it.status == "PAID" || it.status == "CONFIRMED") && isBookingFinished(it, selectedDate) }
                 }
             }
             MainTab.Matches -> {
@@ -433,7 +434,8 @@ private fun OwnerMatchesContent(
                                 MatchStatusFilter.Cancelled -> fieldMatches.filter { it.status == "CANCELLED" }
                                 MatchStatusFilter.Full -> fieldMatches.filter { it.status == "FULL" && !isFinished(it) }
                                 MatchStatusFilter.Confirmed -> fieldMatches.filter { it.status == "CONFIRMED" && !isFinished(it) }
-                                MatchStatusFilter.Finished -> fieldMatches.filter { isFinished(it) }
+                                // Đã kết thúc: chỉ những trận đã CONFIRMED và đã qua thời gian
+                                MatchStatusFilter.Finished -> fieldMatches.filter { it.status == "CONFIRMED" && isFinished(it) }
                                 MatchStatusFilter.Waiting -> emptyList() // Không hiển thị WAITING ở danh sách match
                                 MatchStatusFilter.All -> fieldMatches.filter { (it.status == "FULL" || it.status == "CONFIRMED") && !isFinished(it) }
                             }
@@ -569,7 +571,8 @@ private fun OwnerMatchesContent(
                                 MatchStatusFilter.Full -> matchedOnly.filter { it.status == "FULL" && !isFinished(it) }
                                 MatchStatusFilter.Confirmed -> matchedOnly.filter { it.status == "CONFIRMED" && !isFinished(it) }
                                 MatchStatusFilter.Cancelled -> matchedOnly.filter { it.status == "CANCELLED" && !isFinished(it) }
-                                MatchStatusFilter.Finished -> matchedOnly.filter { isFinished(it) }
+                                // Đã kết thúc: chỉ CONFIRMED và đã qua thời gian
+                                MatchStatusFilter.Finished -> matchedOnly.filter { it.status == "CONFIRMED" && isFinished(it) }
                             }
                             println("✅ DEBUG: filtered(${selectedStatus.name}) size=${filtered.size}")
                             allMatches.addAll(filtered)
@@ -768,27 +771,30 @@ private fun BookingStatsHeader(
     var matchListeners by remember { mutableStateOf<List<com.google.firebase.firestore.ListenerRegistration>>(emptyList()) }
 
     // Lắng nghe matches theo fieldId cho ngày đang chọn để đồng bộ thống kê với tab Trận đấu
-    LaunchedEffect(ownerId, selectedDate) {
+    LaunchedEffect(ownerId, selectedDate, selectedRange) {
         // Clear listeners cũ
         matchListeners.forEach { it.remove() }
         matchListeners = emptyList()
-
-        val dateStr = (selectedDate ?: LocalDate.now()).toString()
-        val fields = FieldRepository().getFieldsByOwnerId(ownerId ?: "").getOrNull().orEmpty()
-        val all = mutableListOf<Match>()
-        fields.forEach { f ->
-            val l = bookingRepo.listenMatchesByFieldDate(
-                fieldId = f.fieldId,
-                date = dateStr,
-                onChange = { ms ->
-                    // cập nhật danh sách theo field
-                    val withoutField = all.filter { it.fieldId != f.fieldId }.toMutableList()
-                    withoutField.addAll(ms)
-                    headerMatches = withoutField
-                },
-                onError = { _ -> }
-            )
-            matchListeners = matchListeners + l
+        // Chỉ lắng nghe khi lọc theo 1 ngày cụ thể; nếu lọc theo phạm vi, dùng bookings để tổng hợp
+        if (selectedDate != null) {
+            val dateStr = selectedDate.toString()
+            val fields = FieldRepository().getFieldsByOwnerId(ownerId ?: "").getOrNull().orEmpty()
+            val all = mutableListOf<Match>()
+            fields.forEach { f ->
+                val l = bookingRepo.listenMatchesByFieldDate(
+                    fieldId = f.fieldId,
+                    date = dateStr,
+                    onChange = { ms ->
+                        val withoutField = all.filter { it.fieldId != f.fieldId }.toMutableList()
+                        withoutField.addAll(ms)
+                        headerMatches = withoutField
+                    },
+                    onError = { _ -> }
+                )
+                matchListeners = matchListeners + l
+            }
+        } else {
+            headerMatches = emptyList()
         }
     }
     // Áp dụng bộ lọc ngày/phạm vi cho thống kê
@@ -964,15 +970,16 @@ private fun EnhancedBookingListItem(
 
     // Màu sắc trạng thái đồng bộ với OwnerMatchCard
     val statusColor = when {
-        isFinishedByTime -> MaterialTheme.colorScheme.outline
-        booking.status == "CONFIRMED" || booking.status == "PAID" -> Color(0xFF2E7D32) // CONFIRMED
-        booking.status == "PENDING" -> Color(0xFFFF9800) // WAITING/PENDING
+        // Hiển thị giống tab Trận đấu: màu chữ đậm, nền mờ (alpha 0.12)
+        isFinishedByTime && (booking.status == "PAID" || booking.status == "CONFIRMED") -> Color(0xFF2E7D32)
+        booking.status == "CONFIRMED" || booking.status == "PAID" -> Color(0xFF2E7D32)
+        booking.status == "PENDING" -> Color(0xFFFF9800)
         booking.status == "CANCELLED" -> Color(0xFFF44336)
         else -> MaterialTheme.colorScheme.onSurface
     }
 
     val statusText = when {
-        isFinishedByTime -> "ĐÃ KẾT THÚC"
+        isFinishedByTime && (booking.status == "PAID" || booking.status == "CONFIRMED") -> "ĐÃ KẾT THÚC"
         booking.status == "CONFIRMED" || booking.status == "PAID" -> "ĐÃ XÁC NHẬN"
         booking.status == "PENDING" -> "ĐANG CHỜ"
         booking.status == "CANCELLED" -> "ĐÃ HỦY"
