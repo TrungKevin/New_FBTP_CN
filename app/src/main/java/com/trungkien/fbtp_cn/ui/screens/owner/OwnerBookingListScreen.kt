@@ -252,8 +252,13 @@ fun OwnerBookingListScreen(
             }
         }
 
-        // Header với thống kê (dựa trên danh sách đã lọc)
-        BookingStatsHeader(bookings = filtered)
+        // Header thống kê tổng hợp theo bộ lọc ngày/phạm vi, gộp cả Đặt sân và Trận đấu (từ allBookings)
+        BookingStatsHeader(
+            bookings = allBookings,
+            selectedDate = selectedDate,
+            selectedRange = selectedRange,
+            ownerId = user?.userId
+        )
 
         // Main tab selector
         TabRow(
@@ -752,11 +757,96 @@ private fun OwnerBookingDatePicker(
 @Composable
 private fun BookingStatsHeader(
     bookings: List<Booking>,
+    selectedDate: LocalDate?,
+    selectedRange: RecentRangeFilter,
+    ownerId: String?,
     modifier: Modifier = Modifier
 ) {
-    val pendingCount = bookings.count { it.status == "PENDING" }
-    val confirmedCount = bookings.count { it.status == "PAID" }
-    val totalRevenue = bookings.filter { it.status == "PAID" }.sumOf { it.totalPrice }
+    val bookingRepo = remember { BookingRepository() }
+    val scope = rememberCoroutineScope()
+    var headerMatches by remember { mutableStateOf<List<Match>>(emptyList()) }
+    var matchListeners by remember { mutableStateOf<List<com.google.firebase.firestore.ListenerRegistration>>(emptyList()) }
+
+    // Lắng nghe matches theo fieldId cho ngày đang chọn để đồng bộ thống kê với tab Trận đấu
+    LaunchedEffect(ownerId, selectedDate) {
+        // Clear listeners cũ
+        matchListeners.forEach { it.remove() }
+        matchListeners = emptyList()
+
+        val dateStr = (selectedDate ?: LocalDate.now()).toString()
+        val fields = FieldRepository().getFieldsByOwnerId(ownerId ?: "").getOrNull().orEmpty()
+        val all = mutableListOf<Match>()
+        fields.forEach { f ->
+            val l = bookingRepo.listenMatchesByFieldDate(
+                fieldId = f.fieldId,
+                date = dateStr,
+                onChange = { ms ->
+                    // cập nhật danh sách theo field
+                    val withoutField = all.filter { it.fieldId != f.fieldId }.toMutableList()
+                    withoutField.addAll(ms)
+                    headerMatches = withoutField
+                },
+                onError = { _ -> }
+            )
+            matchListeners = matchListeners + l
+        }
+    }
+    // Áp dụng bộ lọc ngày/phạm vi cho thống kê
+    var list = bookings
+        // Chỉ tính các booking thuộc owner này (phòng tránh trộn dữ liệu người khác)
+        .filter { b -> ownerId == null || b.ownerId == ownerId }
+    selectedRange.days?.let { days ->
+        val cutoff = LocalDate.now().minusDays(days)
+        list = list.filter { b ->
+            try { LocalDate.parse(b.date) >= cutoff } catch (_: Exception) { true }
+        }
+    }
+    selectedDate?.let { d ->
+        val ds = d.toString()
+        list = list.filter { it.date == ds }
+    }
+
+    val isFinished: (Booking) -> Boolean = { b ->
+        try {
+            val bookingDate = LocalDate.parse(b.date)
+            val end = LocalTime.parse(b.endAt)
+            val today = LocalDate.now()
+            if (bookingDate.isBefore(today)) true
+            else if (bookingDate.isAfter(today)) false
+            else end.isBefore(LocalTime.now())
+        } catch (_: Exception) { false }
+    }
+
+    val pendingCount = list.count { it.status == "PENDING" }
+    // Xác nhận từ bookings + từ matches CONFIRMED trong ngày đã chọn
+    val confirmedFromBookings = list.count { b ->
+        val s = b.status.uppercase()
+        s == "PAID" || s == "CONFIRMED"
+    }
+    val confirmedFromMatches = headerMatches.count { it.status.equals("CONFIRMED", true) }
+    val confirmedCount = confirmedFromBookings + confirmedFromMatches
+    val cancelledCount = list.count { it.status == "CANCELLED" } +
+            headerMatches.count { it.status.equals("CANCELLED", true) }
+    // Doanh thu: chỉ tính các trận đã XÁC NHẬN và đã KẾT THÚC
+    val revenueFromBookings = list
+        .asSequence()
+        .filter { (it.status.equals("PAID", true) || it.status.equals("CONFIRMED", true)) && it.matchId.isNullOrBlank() }
+        .filter { isFinished(it) }
+        .sumOf { it.totalPrice }
+    val revenueFromMatches = headerMatches
+        .asSequence()
+        .filter { it.status.equals("CONFIRMED", true) }
+        .filter {
+            // đã kết thúc theo thời gian
+            try {
+                val d = LocalDate.parse(it.date)
+                val end = LocalTime.parse(it.endAt)
+                val today = LocalDate.now()
+                d.isBefore(today) || (d.isEqual(today) && end.isBefore(LocalTime.now()))
+            } catch (_: Exception) { false }
+        }
+        .sumOf { it.totalPrice }
+    val totalRevenue = revenueFromBookings + revenueFromMatches
 
     Card(
         modifier = modifier
@@ -782,7 +872,12 @@ private fun BookingStatsHeader(
             StatItem(
                 title = "Đã xác nhận",
                 value = confirmedCount.toString(),
-                color = Color(0xFF4CAF50)
+                color = Color(0xFF2E7D32)
+            )
+            StatItem(
+                title = "Đã hủy",
+                value = cancelledCount.toString(),
+                color = Color(0xFFF44336)
             )
             StatItem(
                 title = "Doanh thu",
