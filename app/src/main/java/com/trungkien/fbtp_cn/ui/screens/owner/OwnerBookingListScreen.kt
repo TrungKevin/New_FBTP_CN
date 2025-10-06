@@ -109,7 +109,8 @@ fun OwnerBookingListScreen(
     var selectedFilter by remember { mutableStateOf(BookingStatusFilter.All) }
     var selectedMatchFilter by remember { mutableStateOf(MatchStatusFilter.All) }
     var showDatePicker by remember { mutableStateOf(false) }
-    var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
+    // ✅ Mặc định xem lịch theo ngày hôm nay; người dùng có thể chuyển qua bộ lọc phạm vi
+    var selectedDate by remember { mutableStateOf<LocalDate?>(LocalDate.now()) }
     var showRangeMenu by remember { mutableStateOf(false) }
     var selectedRange by remember { mutableStateOf(RecentRangeFilter.All) }
     var selectedBooking by remember { mutableStateOf<Booking?>(null) }
@@ -132,17 +133,16 @@ fun OwnerBookingListScreen(
         // ✅ FIX: Tách logic theo tab
         when (selectedTab) {
             MainTab.Bookings -> {
-                // Tab "Đặt sân": Chỉ hiển thị bookings đã có đối thủ
+                // Tab "Đặt sân": Chỉ hiển thị bookings đã có đối thủ (DUO/hasOpponent/đã thanh toán/xác nhận)
                 list = list.filter { booking ->
-                    booking.opponentMode == "HAS_OPPONENT" || 
-                    booking.status == "PAID" ||
-                    booking.status == "CONFIRMED"
+                    booking.bookingType == "DUO" || booking.hasOpponent ||
+                    booking.status == "PAID" || booking.status == "CONFIRMED"
                 }
                 // Status filter cho bookings đã có đối thủ
                 list = when (selectedFilter) {
-                    BookingStatusFilter.All -> list
-                    BookingStatusFilter.Pending -> list.filter { it.status == "PENDING" }
-                    BookingStatusFilter.Confirmed -> list.filter { it.status == "PAID" || it.status == "CONFIRMED" }
+                    BookingStatusFilter.All -> list.filter { !isBookingFinished(it, selectedDate) }
+                    BookingStatusFilter.Pending -> list.filter { it.status == "PENDING" && !isBookingFinished(it, selectedDate) }
+                    BookingStatusFilter.Confirmed -> list.filter { (it.status == "PAID" || it.status == "CONFIRMED") && !isBookingFinished(it, selectedDate) }
                     BookingStatusFilter.Canceled -> list.filter { it.status == "CANCELLED" }
                     BookingStatusFilter.Finished -> list.filter { isBookingFinished(it, selectedDate) }
                 }
@@ -241,6 +241,8 @@ fun OwnerBookingListScreen(
                                 text = { Text(opt.label) },
                                 onClick = {
                                     selectedRange = opt
+                                    // ✅ Khi chọn phạm vi (tuần/tháng/...), bỏ chọn ngày đơn lẻ để phạm vi có hiệu lực
+                                    selectedDate = null
                                     showRangeMenu = false
                                 }
                             )
@@ -357,7 +359,11 @@ fun OwnerBookingListScreen(
     OwnerBookingDatePicker(
         show = showDatePicker,
         onDismiss = { showDatePicker = false },
-        onSelected = { ld -> selectedDate = ld }
+        onSelected = { ld ->
+            // ✅ Khi chọn ngày, ưu tiên ngày và reset phạm vi về "Tất cả"
+            selectedDate = ld
+            selectedRange = RecentRangeFilter.All
+        }
     )
 }
 
@@ -852,17 +858,37 @@ private fun EnhancedBookingListItem(
     fun formatVnCurrency(amount: Long): String {
         return "${String.format("%,d", amount).replace(',', '.')}đ"
     }
-    val statusColor = when (booking.status) {
-        "PAID" -> Color(0xFF4CAF50)
-        "PENDING" -> Color(0xFFFF9800)
-        "CANCELLED" -> Color(0xFFF44336)
+    // ✅ Xác định đã kết thúc theo thời gian thực tế (ngày/giờ)
+    val isFinishedByTime = try {
+        val bDate = java.time.LocalDate.parse(booking.date)
+        val end = java.time.LocalTime.parse(booking.endAt)
+        val today = java.time.LocalDate.now()
+        val now = java.time.LocalTime.now()
+        bDate.isBefore(today) || (bDate.isEqual(today) && end.isBefore(now))
+    } catch (_: Exception) { false }
+
+    // Màu sắc trạng thái đồng bộ với OwnerMatchCard
+    val statusColor = when {
+        isFinishedByTime -> MaterialTheme.colorScheme.outline
+        booking.status == "CONFIRMED" || booking.status == "PAID" -> Color(0xFF2E7D32) // CONFIRMED
+        booking.status == "PENDING" -> Color(0xFFFF9800) // WAITING/PENDING
+        booking.status == "CANCELLED" -> Color(0xFFF44336)
         else -> MaterialTheme.colorScheme.onSurface
     }
 
-    val statusIcon = when (booking.status) {
-        "PAID" -> "✓"
-        "PENDING" -> "⏱"
-        "CANCELLED" -> "✕"
+    val statusText = when {
+        isFinishedByTime -> "ĐÃ KẾT THÚC"
+        booking.status == "CONFIRMED" || booking.status == "PAID" -> "ĐÃ XÁC NHẬN"
+        booking.status == "PENDING" -> "ĐANG CHỜ"
+        booking.status == "CANCELLED" -> "ĐÃ HỦY"
+        else -> booking.status
+    }
+
+    val statusIcon = when {
+        isFinishedByTime -> "⌛"
+        booking.status == "PAID" || booking.status == "CONFIRMED" -> "✓"
+        booking.status == "PENDING" -> "⏱"
+        booking.status == "CANCELLED" -> "✕"
         else -> "•"
     }
 
@@ -933,7 +959,7 @@ private fun EnhancedBookingListItem(
                             color = statusColor
                         )
                         Text(
-                            text = booking.status,
+                            text = statusText,
                             style = MaterialTheme.typography.labelMedium.copy(
                                 fontWeight = FontWeight.SemiBold
                             ),
@@ -1038,8 +1064,8 @@ private fun EnhancedBookingListItem(
                 )
             }
 
-            // Action buttons cho pending bookings với design mới
-            if (booking.status == "PENDING") {
+            // Action buttons cho pending bookings với design mới (ẩn nếu trận đã kết thúc)
+            if (booking.status == "PENDING" && !isFinishedByTime) {
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Column(
@@ -1052,9 +1078,6 @@ private fun EnhancedBookingListItem(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(48.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF4CAF50)
-                        ),
                         shape = RoundedCornerShape(14.dp),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
                     ) {
@@ -1081,10 +1104,6 @@ private fun EnhancedBookingListItem(
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = Color(0xFFF44336)
-                            ),
-                            border = BorderStroke(2.dp, Color(0xFFF44336)),
                             shape = RoundedCornerShape(14.dp)
                         ) {
                             Icon(
@@ -1094,7 +1113,7 @@ private fun EnhancedBookingListItem(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                "Từ chối",
+                                "Hủy",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
