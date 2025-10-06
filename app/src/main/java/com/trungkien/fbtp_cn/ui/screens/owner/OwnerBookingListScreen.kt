@@ -372,6 +372,11 @@ private fun OwnerMatchesContent(
     val bookingRepo = remember { BookingRepository() }
     val scope = rememberCoroutineScope()
     var matches by remember { mutableStateOf<List<Match>>(emptyList()) }
+    // ✅ NEW: Danh sách matches dùng cho kiểm tra overlap (không bị ảnh hưởng bởi filter tab)
+    var matchedForOverlap by remember { mutableStateOf<List<Match>>(emptyList()) }
+    // ✅ NEW: Không mutate list trong items{} để tránh crash compose; dùng bộ lọc/override cục bộ
+    var removedWaitingIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var matchStatusOverride by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var waitingBookings by remember { mutableStateOf<List<Booking>>(emptyList()) }
     var listeners by remember { mutableStateOf<List<com.google.firebase.firestore.ListenerRegistration>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -410,36 +415,30 @@ private fun OwnerMatchesContent(
                             
                             // Remove old matches for this field and add new ones
                             allMatches.removeAll { it.fieldId == field.fieldId }
+                            matchedForOverlap = matchedForOverlap.filter { it.fieldId != field.fieldId }
                             
-                            // Chỉ lấy matches đã ghép đôi (FULL hoặc CONFIRMED)
-                            val matchedOnly = fieldMatches.filter { match ->
-                                val isMatched = match.status == "FULL" || match.status == "CONFIRMED"
-                                println("    - Match ${match.rangeKey}: status=${match.status}, isMatched=$isMatched")
-                                isMatched
+                            // ✅ Dùng danh sách đầy đủ cho hiển thị, nhưng chỉ FULL/CONFIRMED để overlap
+                            val matchedForDisplay = when (selectedStatus) {
+                                MatchStatusFilter.Cancelled -> fieldMatches.filter { it.status == "CANCELLED" }
+                                MatchStatusFilter.Full -> fieldMatches.filter { it.status == "FULL" && !isFinished(it) }
+                                MatchStatusFilter.Confirmed -> fieldMatches.filter { it.status == "CONFIRMED" && !isFinished(it) }
+                                MatchStatusFilter.Finished -> fieldMatches.filter { isFinished(it) }
+                                MatchStatusFilter.Waiting -> emptyList() // Không hiển thị WAITING ở danh sách match
+                                MatchStatusFilter.All -> fieldMatches.filter { (it.status == "FULL" || it.status == "CONFIRMED") && !isFinished(it) }
                             }
-                            
-                            println("✅ DEBUG: matchedOnly size=${matchedOnly.size}")
-                            
-                            // Hiển thị theo filter trạng thái
-                            val filtered = when (selectedStatus) {
-                                // "Tất cả" loại bỏ các trận đã kết thúc
-                                MatchStatusFilter.All -> matchedOnly.filter { !isFinished(it) }
-                                // Không có matches đang chờ trong tab này
-                                MatchStatusFilter.Waiting -> emptyList()
-                                // Chỉ hiển thị khi chưa kết thúc
-                                MatchStatusFilter.Full -> matchedOnly.filter { it.status == "FULL" && !isFinished(it) }
-                                MatchStatusFilter.Confirmed -> matchedOnly.filter { it.status == "CONFIRMED" && !isFinished(it) }
-                                MatchStatusFilter.Cancelled -> matchedOnly.filter { it.status == "CANCELLED" && !isFinished(it) }
-                                // Chỉ hiển thị các trận đã kết thúc
-                                MatchStatusFilter.Finished -> matchedOnly.filter { isFinished(it) }
-                            }
+
+                            // ✅ Lưu cho overlap-check (chỉ FULL/CONFIRMED)
+                            val overlapPool = fieldMatches.filter { it.status == "FULL" || it.status == "CONFIRMED" }
+                            matchedForOverlap = matchedForOverlap + overlapPool
+
+                            val filtered = matchedForDisplay
                             
                             println("✅ DEBUG: filtered(${selectedStatus.name}) size=${filtered.size}")
                             allMatches.addAll(filtered)
                             matches = allMatches
 
                             // ✅ Re-filter waitingBookings ngay khi matches thay đổi
-                            val currentMatches = allMatches.toList()
+                            val currentMatches = matchedForOverlap.toList()
                             waitingBookings = waitingBookings.filter { booking ->
                                 val overlapped = currentMatches.any { m ->
                                     m.fieldId == booking.fieldId && m.date == booking.date &&
@@ -467,14 +466,15 @@ private fun OwnerMatchesContent(
                              }
                              
                             // ✅ CRITICAL FIX: Logic filtering chính xác để loại bỏ booking khi đã có match
+                            // Ghi chú: Ở phía trên chúng ta đã lọc bookings theo field của owner
+                            // nên không cần ràng buộc ownerId ở đây nữa (tránh ẩn thẻ khi booking.ownerId bị lưu sai).
                             val waitingOnly = fieldBookings.filter { booking ->
                                 val isSolo = booking.bookingType == "SOLO"
                                 val hasNoOpponent = booking.hasOpponent == false
                                 val isPending = booking.status == "PENDING"
-                                val isOwnerBooking = booking.ownerId == user.userId
                                 
-                                // ✅ KEY FIX: Kiểm tra xem booking này có bị match chưa
-                                val hasOverlappingMatch = allMatches.any { match ->
+                                // ✅ KEY: Loại bỏ nếu khung giờ đã có match FULL/CONFIRMED trùng
+                                val hasOverlappingMatch = matchedForOverlap.any { match ->
                                     val sameField = match.fieldId == booking.fieldId
                                     val sameDate = match.date == booking.date
                                     val timeOverlap = isTimeOverlap(booking.startAt, booking.endAt, match.startAt, match.endAt)
@@ -487,13 +487,12 @@ private fun OwnerMatchesContent(
                                     sameField && sameDate && timeOverlap
                                 }
                                 
-                                val shouldShow = isSolo && hasNoOpponent && isPending && isOwnerBooking && !hasOverlappingMatch
+                                val shouldShow = isSolo && hasNoOpponent && isPending && !hasOverlappingMatch
                                 
                                 println("    📋 Booking ${booking.bookingId} (${booking.renterId}):")
                                 println("      - isSolo: $isSolo")
                                 println("      - hasNoOpponent: $hasNoOpponent")
                                 println("      - isPending: $isPending")
-                                println("      - isOwnerBooking: $isOwnerBooking")
                                 println("      - hasOverlappingMatch: $hasOverlappingMatch")
                                 println("      - shouldShow: $shouldShow")
                                 
@@ -514,16 +513,16 @@ private fun OwnerMatchesContent(
                              
                             // Filter theo status: chỉ hiển thị ở đúng bộ lọc của nó và "Tất cả"
                             val filtered = when (selectedStatus) {
-                                // All: loại các booking đã kết thúc
+                                // All: chỉ các booking SOLO-PENDING chưa kết thúc
                                 MatchStatusFilter.All -> waitingOnly.filter { !isBookingFinished(it, selectedDate) }
                                 // Waiting: chỉ PENDING chưa kết thúc
                                 MatchStatusFilter.Waiting -> waitingOnly.filter { it.status == "PENDING" && !isBookingFinished(it, selectedDate) }
                                 // Full/Confirmed không áp dụng cho waiting bookings
                                 MatchStatusFilter.Full -> emptyList()
                                 MatchStatusFilter.Confirmed -> emptyList()
-                                // Cancelled: chỉ những booking đã hủy (không quan tâm kết thúc theo thời gian)
-                                MatchStatusFilter.Cancelled -> waitingOnly.filter { it.status == "CANCELLED" }
-                                // Finished: chỉ booking đã kết thúc theo thời gian
+                                // Cancelled: lấy trực tiếp từ bookings theo field cho trạng thái CANCELLED (không áp ràng buộc isPending)
+                                MatchStatusFilter.Cancelled -> fieldBookings.filter { it.bookingType == "SOLO" && it.status == "CANCELLED" }
+                                // Finished: chỉ booking đã kết thúc theo thời gian (PENDING)
                                 MatchStatusFilter.Finished -> waitingOnly.filter { isBookingFinished(it, selectedDate) }
                             }
                              
@@ -566,7 +565,7 @@ private fun OwnerMatchesContent(
                             matches = allMatches
 
                             // ✅ Re-filter waitingBookings ngay khi matches thay đổi (listener thứ 2)
-                            val currentMatches = allMatches.toList()
+                            val currentMatches = matchedForOverlap.toList()
                             waitingBookings = waitingBookings.filter { booking ->
                                 val overlapped = currentMatches.any { m ->
                                     m.fieldId == booking.fieldId && m.date == booking.date &&
@@ -620,21 +619,37 @@ private fun OwnerMatchesContent(
                 }
             }
         } else {
+            // Tạo danh sách hiển thị an toàn (tránh mutate trực tiếp trong Lazy items)
+            val waitingToDisplay = remember(waitingBookings, removedWaitingIds) {
+                waitingBookings.filter { it.bookingId !in removedWaitingIds }
+            }
+            val matchesToDisplay = remember(matches, matchStatusOverride) {
+                matches.map { m -> matchStatusOverride[m.rangeKey]?.let { s -> m.copy(status = s) } ?: m }
+            }
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(bottom = 80.dp)
             ) {
                 // Hiển thị waiting bookings trước (chưa có đối thủ) - Card như hình 1
-                items(waitingBookings, key = { it.bookingId }) { booking ->
+                items(waitingToDisplay, key = { it.bookingId }) { booking ->
                     val finished = isBookingFinished(booking, selectedDate)
                     WaitingBookingCard(
                         booking = booking,
                         onClick = { /* Handle booking click */ },
+                        // ✅ Optimistic update: remove from waiting list ngay khi xác nhận/hủy
                         onConfirm = if (booking.status != "CANCELLED" && !finished) {
-                            { scope.launch { bookingRepo.updateBookingStatus(booking.bookingId, "PAID") } }
+                            {
+                                // Đánh dấu loại bỏ để UI không crash trong quá trình đo của LazyList
+                                removedWaitingIds = removedWaitingIds + booking.bookingId
+                                // Thực hiện cập nhật thật lên server
+                                scope.launch { bookingRepo.updateBookingStatus(booking.bookingId, "PAID") }
+                            }
                         } else null,
                         onCancel = if (booking.status != "CANCELLED" && !finished) {
-                            { scope.launch { bookingRepo.updateBookingStatus(booking.bookingId, "CANCELLED") } }
+                            {
+                                removedWaitingIds = removedWaitingIds + booking.bookingId
+                                scope.launch { bookingRepo.updateBookingStatus(booking.bookingId, "CANCELLED") }
+                            }
                         } else null,
                         onSuggestTime = if (!finished) {
                             {
@@ -645,16 +660,25 @@ private fun OwnerMatchesContent(
                 }
                 
                 // Hiển thị matches (đã ghép đôi) - Card như hình 2
-                items(matches, key = { it.rangeKey }) { match ->
+                items(matchesToDisplay, key = { it.rangeKey }) { match ->
                     val finished = isFinished(match)
-                    OwnerMatchCard(
+                        OwnerMatchCard(
                         match = match,
                         onClick = { /* Handle match click */ },
+                        // ✅ Optimistic update: cập nhật trạng thái local ngay khi bấm
                         onConfirm = if (match.status != "CANCELLED" && !finished) {
-                            { scope.launch { bookingRepo.updateMatchStatus(match.rangeKey, "CONFIRMED") } }
+                            {
+                                // Ghi override trạng thái để UI phản hồi tức thời, không mutate list gốc trong items
+                                matchStatusOverride = matchStatusOverride + (match.rangeKey to "CONFIRMED")
+                                // Nếu tab hiện tại không bao gồm CONFIRMED, re-filter sẽ ẩn nó sau khi recomposition
+                                scope.launch { bookingRepo.updateMatchStatus(match.rangeKey, "CONFIRMED") }
+                            }
                         } else null,
                         onCancel = if (match.status != "CANCELLED" && !finished) {
-                            { scope.launch { bookingRepo.updateMatchStatus(match.rangeKey, "CANCELLED") } }
+                            {
+                                matchStatusOverride = matchStatusOverride + (match.rangeKey to "CANCELLED")
+                                scope.launch { bookingRepo.updateMatchStatus(match.rangeKey, "CANCELLED") }
+                            }
                         } else null
                     )
                 }
@@ -1388,25 +1412,39 @@ private fun WaitingBookingCard(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
                             ) {
-                                if (renterAvatarUrl != null) {
-                                    val imageBytes = Base64.decode(renterAvatarUrl, Base64.DEFAULT)
-                                    val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-                                    if (bitmap != null) {
-                                        AsyncImage(
-                                            model = bitmap.asImageBitmap(),
+                                val data = renterAvatarUrl.orEmpty()
+                                var rendered = false
+                                if (data.isNotBlank()) {
+                                    // Ưu tiên decode base64 (strip data URI + whitespace)
+                                    val decodedBmp = try {
+                                        val base = if (data.startsWith("data:image")) data.substringAfter(",") else data
+                                        val compact = base.replace("\n", "").replace("\r", "").trim()
+                                        val bytes = Base64.decode(compact, Base64.DEFAULT)
+                                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                                    } catch (_: Exception) { null }
+                                    if (decodedBmp != null) {
+                                        androidx.compose.foundation.Image(
+                                            bitmap = decodedBmp.asImageBitmap(),
                                             contentDescription = "Avatar",
                                             modifier = Modifier.fillMaxSize(),
                                             contentScale = ContentScale.Crop
                                         )
-                                    } else {
-                                        Icon(
-                                            Icons.Default.Person,
+                                        rendered = true
+                                    } else if (data.startsWith("http", true) || data.startsWith("data:image", true)) {
+                                        AsyncImage(
+                                            model = ImageRequest.Builder(LocalContext.current)
+                                                .data(data)
+                                                .crossfade(true)
+                                                .allowHardware(false)
+                                                .build(),
                                             contentDescription = "Avatar",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(24.dp)
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
                                         )
+                                        rendered = true
                                     }
-                                } else {
+                                }
+                                if (!rendered) {
                                     Icon(
                                         Icons.Default.Person,
                                         contentDescription = "Avatar",
