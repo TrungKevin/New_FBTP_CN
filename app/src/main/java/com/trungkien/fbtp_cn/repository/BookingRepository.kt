@@ -6,6 +6,7 @@ import com.trungkien.fbtp_cn.model.Booking
 import com.trungkien.fbtp_cn.model.ServiceLine
 import com.trungkien.fbtp_cn.model.Match
 import com.trungkien.fbtp_cn.model.MatchParticipant
+import com.trungkien.fbtp_cn.model.MatchResult
 import kotlinx.coroutines.tasks.await
 import java.util.*
 
@@ -15,6 +16,7 @@ class BookingRepository {
     companion object {
         private const val BOOKINGS_COLLECTION = "bookings"
         private const val MATCHES_COLLECTION = "matches"
+        private const val MATCH_RESULTS_COLLECTION = "match_results"
     }
     
     /**
@@ -673,6 +675,89 @@ class BookingRepository {
             }
         } catch (e: Exception) {
             println("❌ ERROR: Failed to get booking: ${e.message}")
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * Lấy match theo ID
+     */
+    fun getMatchById(matchId: String, onSuccess: (Match?) -> Unit, onError: (Exception) -> Unit) {
+        firestore.collection(MATCHES_COLLECTION)
+            .document(matchId)
+            .get()
+            .addOnSuccessListener { document ->
+                if (document.exists()) {
+                    val match = document.toObject(Match::class.java)
+                    onSuccess(match)
+                } else {
+                    onSuccess(null)
+                }
+            }
+            .addOnFailureListener { e ->
+                onError(e)
+            }
+    }
+    
+    /**
+     * ✅ NEW: Lắng nghe thay đổi match theo matchId (realtime)
+     */
+    fun listenMatchById(
+        matchId: String,
+        onChange: (Match?) -> Unit,
+        onError: (Exception) -> Unit
+    ): ListenerRegistration {
+        return firestore.collection(MATCHES_COLLECTION)
+            .document(matchId)
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    onError(e)
+                    return@addSnapshotListener
+                }
+                val match = if (snapshot != null && snapshot.exists()) {
+                    snapshot.toObject(Match::class.java)
+                } else null
+                onChange(match)
+            }
+    }
+    
+    /**
+     * Lưu kết quả trận đấu
+     */
+    suspend fun saveMatchResult(matchResult: MatchResult): Result<Unit> {
+        return try {
+            firestore.collection(MATCH_RESULTS_COLLECTION)
+                .document(matchResult.resultId)
+                .set(matchResult)
+                .await()
+            
+            println("✅ DEBUG: Match result saved: ${matchResult.resultId}")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            println("❌ ERROR: Failed to save match result: ${e.message}")
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * Lấy kết quả trận đấu theo matchId
+     */
+    suspend fun getMatchResult(matchId: String): Result<MatchResult?> {
+        return try {
+            val query = firestore.collection(MATCH_RESULTS_COLLECTION)
+                .whereEqualTo("matchId", matchId)
+                .limit(1)
+                .get()
+                .await()
+            
+            if (!query.isEmpty) {
+                val matchResult = query.documents.first().toObject(MatchResult::class.java)
+                Result.success(matchResult)
+            } else {
+                Result.success(null)
+            }
+        } catch (e: Exception) {
+            println("❌ ERROR: Failed to get match result: ${e.message}")
             Result.failure(e)
         }
     }

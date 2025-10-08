@@ -215,7 +215,21 @@ fun OwnerMainScreen(
                 OwnerBookingListScreen(
                     onBookingClick = { bookingId ->
                         navController.navigate("owner_booking_detail/$bookingId")
+                    },
+                    onMatchClick = { matchId ->
+                        showTopAppBar = false
+                        showBottomNavBar = false
+                        navController.navigate("owner_match_detail/$matchId")
                     }
+                )
+            }
+            
+            // Màn hình chi tiết trận đấu
+            composable("owner_match_detail/{matchId}") { backStackEntry ->
+                val matchId = backStackEntry.arguments?.getString("matchId") ?: ""
+                OwnerMatchDetailScreen(
+                    matchId = matchId,
+                    navController = navController
                 )
             }
             

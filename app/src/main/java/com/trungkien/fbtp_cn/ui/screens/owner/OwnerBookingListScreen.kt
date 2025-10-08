@@ -57,6 +57,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.LocalTime
+import androidx.compose.runtime.saveable.rememberSaveable
 
 private enum class BookingStatusFilter(val label: String) {
     All("Tất cả"),
@@ -93,6 +94,7 @@ private enum class RecentRangeFilter(val label: String, val days: Long?) {
 @Composable
 fun OwnerBookingListScreen(
     onBookingClick: (String) -> Unit,
+    onMatchClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val authViewModel: AuthViewModel = viewModel()
@@ -105,15 +107,23 @@ fun OwnerBookingListScreen(
         }
     }
     val allBookings = ui.ownerBookings
-    var selectedTab by remember { mutableStateOf(MainTab.Bookings) }
-    var selectedFilter by remember { mutableStateOf(BookingStatusFilter.All) }
-    var selectedMatchFilter by remember { mutableStateOf(MatchStatusFilter.All) }
+    var selectedTab by rememberSaveable { mutableStateOf(MainTab.Bookings) }
+    var selectedFilter by rememberSaveable { mutableStateOf(BookingStatusFilter.All) }
+    var selectedMatchFilter by rememberSaveable { mutableStateOf(MatchStatusFilter.All) }
     var showDatePicker by remember { mutableStateOf(false) }
     // ✅ Mặc định xem lịch theo ngày hôm nay; người dùng có thể chuyển qua bộ lọc phạm vi
     var selectedDate by remember { mutableStateOf<LocalDate?>(LocalDate.now()) }
     var showRangeMenu by remember { mutableStateOf(false) }
     var selectedRange by remember { mutableStateOf(RecentRangeFilter.All) }
     var selectedBooking by remember { mutableStateOf<Booking?>(null) }
+    
+    // Capture callback for navigation
+    val matchClickCallback = remember(onMatchClick) { onMatchClick }
+    
+    // Function to handle match click
+    fun handleMatchClick(matchId: String) {
+        matchClickCallback(matchId)
+    }
 
     val filtered = remember(selectedFilter, selectedDate, selectedRange, allBookings, selectedTab) {
         var list = allBookings
@@ -354,6 +364,7 @@ fun OwnerBookingListScreen(
                     OwnerMatchesContent(
                         selectedDate = selectedDate,
                         selectedStatus = selectedMatchFilter,
+                        onMatchClick = onMatchClick,  // <-- Truyền callback từ parameter của OwnerBookingListScreen
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -377,6 +388,7 @@ fun OwnerBookingListScreen(
 private fun OwnerMatchesContent(
     selectedDate: LocalDate?,
     selectedStatus: MatchStatusFilter,
+    onMatchClick: (String) -> Unit,  // <-- Thêm parameter này
     modifier: Modifier = Modifier
 ) {
     val authViewModel: AuthViewModel = viewModel()
@@ -640,7 +652,10 @@ private fun OwnerMatchesContent(
             val matchesToDisplay = remember(matches, matchStatusOverride) {
                 matches.map { m -> matchStatusOverride[m.rangeKey]?.let { s -> m.copy(status = s) } ?: m }
             }
+            
+            val listState = androidx.compose.foundation.lazy.rememberLazyListState()
             LazyColumn(
+                state = listState,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(bottom = 80.dp)
             ) {
@@ -676,9 +691,12 @@ private fun OwnerMatchesContent(
                 // Hiển thị matches (đã ghép đôi) - Card như hình 2
                 items(matchesToDisplay, key = { it.rangeKey }) { match ->
                     val finished = isFinished(match)
-                        OwnerMatchCard(
+                    OwnerMatchCard(
                         match = match,
-                        onClick = { /* Handle match click */ },
+                        onClick = { 
+                            // Navigate to match detail - sử dụng callback đã truyền
+                            onMatchClick(match.rangeKey)
+                        },
                         // ✅ Optimistic update: cập nhật trạng thái local ngay khi bấm
                         onConfirm = if (match.status != "CANCELLED" && !finished) {
                             {
@@ -823,15 +841,20 @@ private fun BookingStatsHeader(
         } catch (_: Exception) { false }
     }
 
-    val pendingCount = list.count { it.status == "PENDING" }
-    // Xác nhận từ bookings + từ matches CONFIRMED trong ngày đã chọn
+    // Tổng số theo 2 tab (Đặt sân + Trận đấu)
+    // Chờ xác nhận:
+    //  - Bookings: trạng thái PENDING
+    //  - Matches: đã ghép đôi (FULL) nhưng owner chưa xác nhận
+    val pendingFromBookings = list.count { it.status.equals("PENDING", true) }
+    val pendingFromMatches = headerMatches.count { it.status.equals("FULL", true) }
+    val pendingCount = pendingFromBookings + pendingFromMatches
+    // Xác nhận từ bookings (PAID/CONFIRMED) + từ matches CONFIRMED
     val confirmedFromBookings = list.count { b ->
-        val s = b.status.uppercase()
-        s == "PAID" || s == "CONFIRMED"
+        val s = b.status.uppercase(); s == "PAID" || s == "CONFIRMED"
     }
     val confirmedFromMatches = headerMatches.count { it.status.equals("CONFIRMED", true) }
     val confirmedCount = confirmedFromBookings + confirmedFromMatches
-    val cancelledCount = list.count { it.status == "CANCELLED" } +
+    val cancelledCount = list.count { it.status.equals("CANCELLED", true) } +
             headerMatches.count { it.status.equals("CANCELLED", true) }
     // Doanh thu: chỉ tính các trận đã XÁC NHẬN và đã KẾT THÚC
     val revenueFromBookings = list
@@ -1709,6 +1732,7 @@ private fun isTimeOverlap(bookingStartAt: String, bookingEndAt: String, matchSta
     return bookingStartAt < matchEndAt && bookingEndAt > matchStartAt
 }
 
+@Preview(showBackground = true, showSystemUi = true)
 @Composable
 private fun PreviewOwnerBookingListScreen() {
     FBTP_CNTheme {

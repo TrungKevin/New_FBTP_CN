@@ -149,5 +149,31 @@ service cloud.firestore {
         (resource.data.userId == request.auth.uid || 
          isFieldOwner(get(/databases/$(db)/documents/reviews/$(reviewId)).data.fieldId));
     }
+
+    // MATCH_RESULTS - Lưu kết quả trận đấu
+    match /match_results/{resultId} {
+      allow read: if true;
+
+      // CREATE: cho phép owner của field hoặc một trong các renter tham gia match
+      allow create: if signedIn() &&
+        request.resource.data.fieldId != null &&
+        request.resource.data.matchId != null && (
+          // Chủ sân của field
+          isFieldOwner(request.resource.data.fieldId) ||
+          // Người tham gia trận đấu (A/B)
+          (
+            let m = get(/databases/$(db)/documents/matches/$(request.resource.data.matchId)).data;
+            m.participants.size() > 0 && (
+              m.participants[0].renterId == request.auth.uid ||
+              (m.participants.size() > 1 && m.participants[1].renterId == request.auth.uid)
+            )
+          )
+        );
+
+      // UPDATE/DELETE: chỉ owner field
+      allow update, delete: if signedIn() &&
+        resource.data.fieldId != null &&
+        isFieldOwner(resource.data.fieldId);
+    }
   }
 }
