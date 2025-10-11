@@ -35,7 +35,9 @@ sealed class BookingEvent {
         val opponentAvatar: String?,
         val basePrice: Long,
         val serviceLines: List<ServiceLine>,
-        val notes: String?
+        val notes: String?,
+        val matchSide: String? = null, // ✅ FIX: Add matchSide parameter
+        val createdWithOpponent: Boolean = false // ✅ CRITICAL FIX: immutable origin flag
     ): BookingEvent()
     object ResetLastCreatedId: BookingEvent()
 }
@@ -81,6 +83,7 @@ class BookingViewModel(
             println("🔍 DEBUG: BookingViewModel.create called:")
             println("  - bookingType: ${e.bookingType}")
             println("  - hasOpponent: ${e.hasOpponent}")
+            println("  - matchSide: ${e.matchSide}")
             println("  - renterId: ${e.renterId}")
             println("  - fieldId: ${e.fieldId}")
             println("  - date: ${e.date}")
@@ -114,7 +117,9 @@ class BookingViewModel(
                     opponentAvatar = e.opponentAvatar,
                     basePrice = e.basePrice,
                     serviceLines = e.serviceLines,
-                    notes = e.notes
+                    notes = e.notes,
+                    matchSide = e.matchSide, // ✅ FIX: Pass matchSide
+                    createdWithOpponent = e.createdWithOpponent // ✅ CRITICAL FIX: Pass immutable origin flag
                 )
             }
 

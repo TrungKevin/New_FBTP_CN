@@ -16,7 +16,9 @@ data class Match(
     val totalPrice: Long = 0,
     val status: String = "WAITING_OPPONENT", // "FREE" | "WAITING_OPPONENT" | "FULL"
     val matchType: String? = null, // "SINGLE" | "DOUBLE"
-    val notes: String? = null,
+    val notes: String? = null, // Notes chung của trận đấu
+    val noteA: String? = null, // Notes riêng của renter A
+    val noteB: String? = null, // Notes riêng của renter B
     val createdAt: Long = System.currentTimeMillis()
 )
 

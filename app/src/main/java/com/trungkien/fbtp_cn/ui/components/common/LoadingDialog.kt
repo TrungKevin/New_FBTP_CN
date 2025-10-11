@@ -36,12 +36,13 @@ import kotlin.math.sin
 
 @Composable
 fun LoadingDialog(
-    message: String = "Loading..."
+    message: String = "Loading...",
+    onDismiss: (() -> Unit)? = null
 ) {
     Dialog(
-        onDismissRequest = {},
+        onDismissRequest = { onDismiss?.invoke() },
         properties = DialogProperties(
-            dismissOnBackPress = false,
+            dismissOnBackPress = onDismiss != null,
             dismissOnClickOutside = false
         )
     ) {

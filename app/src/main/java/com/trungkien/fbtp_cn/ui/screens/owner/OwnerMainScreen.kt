@@ -229,7 +229,11 @@ fun OwnerMainScreen(
                 val matchId = backStackEntry.arguments?.getString("matchId") ?: ""
                 OwnerMatchDetailScreen(
                     matchId = matchId,
-                    navController = navController
+                    navController = navController,
+                    onRestoreBars = {
+                        showTopAppBar = true
+                        showBottomNavBar = true
+                    }
                 )
             }
             

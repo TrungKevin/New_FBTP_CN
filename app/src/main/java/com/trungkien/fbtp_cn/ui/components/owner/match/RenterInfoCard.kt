@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -35,6 +36,12 @@ fun RenterInfoCard(
     isSelected: Boolean,
     isMatchFinished: Boolean,
     onWinnerSelected: () -> Unit,
+    score: Int = 0,
+    onScoreChanged: (Int) -> Unit = {},
+    opponentScore: Int = 0,
+    isDraw: Boolean = false,
+    renterNote: String? = null,
+    onNoteChanged: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val containerColor = if (isSelected && isMatchFinished) {
@@ -56,16 +63,20 @@ fun RenterInfoCard(
             modifier = Modifier.padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Tên renter với checkbox
+            // Tên renter với checkbox và ô nhập tỉ số
             RenterHeaderRow(
                 renter = renter,
                 side = side,
                 isSelected = isSelected,
                 isMatchFinished = isMatchFinished,
-                onWinnerSelected = onWinnerSelected
+                onWinnerSelected = onWinnerSelected,
+                score = score,
+                onScoreChanged = onScoreChanged,
+                opponentScore = opponentScore,
+                isDraw = isDraw
             )
             
-            // Hiển thị trạng thái thắng/thua
+            // Hiển thị trạng thái thắng/thua/hòa
             if (isMatchFinished) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -73,12 +84,14 @@ fun RenterInfoCard(
                 ) {
                     Text(
                         text = when {
+                            isDraw -> "Hòa"
                             isSelected -> "Thắng"
                             else -> "Thua"
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
                         color = when {
+                            isDraw -> Color(0xFF4CAF50) // Xanh lá
                             isSelected -> Color(0xFFFFD700) // Vàng
                             else -> Color(0xFF808080) // Xám
                         }
@@ -100,11 +113,17 @@ fun RenterInfoCard(
                 value = renter.email
             )
             
-            // Ghi chú (đồng bộ style EnhancedInfoRow)
+            // Ghi chú riêng của renter - CHỈ HIỂN THỊ DỮ LIỆU CÓ SẴN
+            println("🔍 DEBUG: RenterInfoCard - side: $side")
+            println("  - renterNote: '$renterNote'")
+            println("  - isMatchFinished: $isMatchFinished")
+            println("  - renter.name: '${renter.name}'")
+            
+            // Luôn hiển thị ghi chú có sẵn từ dữ liệu, không cho nhập
             EnhancedInfoRowLocal(
                 icon = Icons.Filled.Edit,
-                label = "Ghi chú",
-                value = "Ghi chú"
+                label = "Ghi chú của ${renter.name.ifBlank { "Renter $side" }}",
+                value = renterNote?.ifBlank { "Chưa có ghi chú" } ?: "Chưa có ghi chú"
             )
         }
     }
@@ -116,7 +135,11 @@ private fun RenterHeaderRow(
     side: String,
     isSelected: Boolean,
     isMatchFinished: Boolean,
-    onWinnerSelected: () -> Unit
+    onWinnerSelected: () -> Unit,
+    score: Int = 0,
+    onScoreChanged: (Int) -> Unit = {},
+    opponentScore: Int = 0,
+    isDraw: Boolean = false
 ) {
     val context = LocalContext.current
     Row(
@@ -179,13 +202,70 @@ private fun RenterHeaderRow(
             modifier = Modifier.weight(1f)
         )
         
+        // Ô nhập tỉ số (chỉ hiển thị khi trận đấu kết thúc)
+        if (isMatchFinished) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Tỉ số:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                
+                OutlinedTextField(
+                    value = score.toString(),
+                    onValueChange = { newValue ->
+                        val newScore = newValue.toIntOrNull() ?: 0
+                        if (newScore >= 0 && newScore <= 99) {
+                            onScoreChanged(newScore)
+                        }
+                    },
+                    enabled = isMatchFinished,
+                    modifier = Modifier.width(60.dp),
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    ),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                )
+            }
+        }
+        
         // Checkbox để chọn đội thắng
         Checkbox(
-            checked = isSelected,
-            onCheckedChange = { onWinnerSelected() },
+            checked = isSelected || isDraw,
+            onCheckedChange = { 
+                // Kiểm tra validation tỉ số
+                if (isMatchFinished) {
+                    val isValidSelection = when {
+                        isDraw -> true // Hòa thì luôn hợp lệ (bao gồm cả 0-0)
+                        score > opponentScore -> true // Người có tỉ số cao hơn được chọn thắng
+                        score < opponentScore -> false // Người có tỉ số thấp hơn không được chọn thắng
+                        else -> true // Tỉ số bằng nhau thì có thể chọn hòa
+                    }
+                    
+                    if (isValidSelection) {
+                        onWinnerSelected()
+                    } else {
+                        // Hiển thị toast lỗi - sẽ được xử lý ở parent component
+                        onWinnerSelected() // Vẫn gọi để parent có thể hiển thị toast
+                    }
+                } else {
+                    onWinnerSelected()
+                }
+            },
             enabled = isMatchFinished,
             colors = CheckboxDefaults.colors(
-                checkedColor = MaterialTheme.colorScheme.primary,
+                checkedColor = if (isDraw) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary,
                 uncheckedColor = MaterialTheme.colorScheme.outline
             )
         )

@@ -30,6 +30,11 @@ data class MatchResult(
     val totalPrice: Long = 0,
     val notes: String? = null,
     
+    // Tỉ số trận đấu
+    val renterAScore: Int = 0, // Số bàn thắng của renter A
+    val renterBScore: Int = 0, // Số bàn thắng của renter B
+    val isDraw: Boolean = false, // Trạng thái hòa
+    
     // Metadata
     val recordedAt: Long = System.currentTimeMillis(),
     val recordedBy: String = "", // userId của owner ghi kết quả

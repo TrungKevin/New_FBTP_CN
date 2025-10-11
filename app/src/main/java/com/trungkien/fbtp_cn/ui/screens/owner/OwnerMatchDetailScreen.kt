@@ -23,6 +23,7 @@ import com.trungkien.fbtp_cn.repository.UserRepository
 import com.trungkien.fbtp_cn.ui.components.owner.match.BookingInfoCard
 import com.trungkien.fbtp_cn.ui.components.owner.match.RenterInfoCard
 import com.trungkien.fbtp_cn.ui.components.owner.match.MatchResultNoteCard
+import com.trungkien.fbtp_cn.ui.components.common.LoadingDialog
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.Color
@@ -30,12 +31,14 @@ import androidx.compose.ui.draw.clip
 import java.time.LocalDate
 import java.time.LocalTime
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.DisposableEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OwnerMatchDetailScreen(
     matchId: String,
     navController: NavController,
+    onRestoreBars: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -54,10 +57,27 @@ fun OwnerMatchDetailScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var toastMessage by remember { mutableStateOf<String?>(null) }
     
-    // State cho việc chọn đội thắng
+    // State cho việc chọn đội thắng và tỉ số
     var selectedWinner by remember { mutableStateOf<String?>(null) }
+    var renterAScore by remember { mutableStateOf(0) }
+    var renterBScore by remember { mutableStateOf(0) }
+    var renterANote by remember { mutableStateOf("") }
+    var renterBNote by remember { mutableStateOf("") }
     var isSavingResult by remember { mutableStateOf(false) }
     var existingResult by remember { mutableStateOf<MatchResult?>(null) }
+    
+    // Tính toán trạng thái hòa
+    val isDraw = renterAScore == renterBScore && renterAScore >= 0
+    
+    // Hàm validation tỉ số và trạng thái
+    fun validateScoreAndStatus(side: String): Boolean {
+        return when {
+            isDraw -> true // Hòa thì luôn hợp lệ (bao gồm cả 0-0)
+            side == "A" -> renterAScore > renterBScore // A thắng khi tỉ số A > B
+            side == "B" -> renterBScore > renterAScore // B thắng khi tỉ số B > A
+            else -> false
+        }
+    }
     
     // Load và lắng nghe realtime theo matchId
     DisposableEffect(matchId) {
@@ -67,6 +87,17 @@ fun OwnerMatchDetailScreen(
             onChange = { matchData ->
                 match = matchData
                 if (matchData != null) {
+                    // Load notes từ match ngay lập tức
+                    renterANote = matchData.noteA ?: ""
+                    renterBNote = matchData.noteB ?: ""
+                    println("🔍 DEBUG: Loaded notes from match:")
+                    println("  - matchData.noteA: '${matchData.noteA}' -> renterANote: '$renterANote' (for Renter A)")
+                    println("  - matchData.noteB: '${matchData.noteB}' -> renterBNote: '$renterBNote' (for Renter B)")
+                    println("  - Match participants:")
+                    matchData.participants.forEach { participant ->
+                        println("    - ${participant.side}: ${participant.renterId}")
+                    }
+                    
                     // Load field khi thay đổi match
                     scope.launch {
                         fieldRepo.getFieldById(matchData.fieldId).onSuccess { fieldData ->
@@ -79,6 +110,12 @@ fun OwnerMatchDetailScreen(
                         if (res.isSuccess) {
                             existingResult = res.getOrNull()
                             selectedWinner = existingResult?.winnerSide
+                            renterAScore = existingResult?.renterAScore ?: 0
+                            renterBScore = existingResult?.renterBScore ?: 0
+                            // Load trạng thái hòa
+                            if (existingResult?.isDraw == true) {
+                                selectedWinner = "DRAW"
+                            }
                         }
                     }
                     // Load participants khi thay đổi match
@@ -140,7 +177,10 @@ fun OwnerMatchDetailScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = { 
+                        println("🔍 DEBUG: Back button clicked")
+                        navController.popBackStack() 
+                    }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Quay lại")
                     }
                 },
@@ -153,23 +193,54 @@ fun OwnerMatchDetailScreen(
     ) { paddingValues ->
         when {
             isLoading -> {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
+                LoadingDialog(message = "Đang tải thông tin trận đấu...")
             }
             error != null -> {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "Lỗi: $error",
-                        color = MaterialTheme.colorScheme.error,
-                        textAlign = TextAlign.Center
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text(
+                            text = "Không thể kết nối đến server",
+                            color = MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Vui lòng kiểm tra kết nối internet và thử lại",
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Button(
+                            onClick = { 
+                                isLoading = true
+                                error = null
+                                // Retry loading
+                                bookingRepo.getMatchById(
+                                    matchId = matchId,
+                                    onSuccess = { matchData ->
+                                        match = matchData
+                                        isLoading = false
+                                    },
+                                    onError = { e ->
+                                        error = e.message ?: "Lỗi kết nối"
+                                        isLoading = false
+                                    }
+                                )
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Text("Thử lại")
+                        }
+                    }
                 }
             }
             match == null -> {
@@ -231,6 +302,10 @@ fun OwnerMatchDetailScreen(
                     
                     // Renter A
                     renterA?.let { user ->
+                        println("🔍 DEBUG: Rendering RenterInfoCard A:")
+                        println("  - User: ${user.name} (${user.userId})")
+                        println("  - Note from Firebase (noteA): '$renterANote'")
+                        println("  - isMatchFinished: $isMatchFinished")
                         RenterInfoCard(
                             renter = user,
                             side = "A",
@@ -238,9 +313,35 @@ fun OwnerMatchDetailScreen(
                             isMatchFinished = isMatchFinished,
                             onWinnerSelected = { 
                                 if (isMatchFinished && existingResult == null) {
-                                    selectedWinner = if (selectedWinner == "A") null else "A"
+                                    // Kiểm tra validation tỉ số
+                                    if (validateScoreAndStatus("A")) {
+                                        if (isDraw) {
+                                            selectedWinner = "DRAW" // Trạng thái hòa
+                                        } else {
+                                            selectedWinner = if (selectedWinner == "A") null else "A"
+                                        }
+                                    } else {
+                                        toastMessage = "Tỉ số và trạng thái không trùng khớp"
+                                    }
                                 } else {
                                     toastMessage = if (!isMatchFinished) "Trận đấu chưa kết thúc" else "Kết quả đã được lưu, không thể thay đổi"
+                                }
+                            },
+                            score = renterAScore,
+                            onScoreChanged = { newScore ->
+                                if (isMatchFinished && existingResult == null) {
+                                    renterAScore = newScore
+                                    // Reset selection khi thay đổi tỉ số
+                                    selectedWinner = null
+                                }
+                            },
+                            opponentScore = renterBScore,
+                            isDraw = isDraw,
+                            renterNote = renterANote,
+                            onNoteChanged = { newNote ->
+                                if (isMatchFinished && existingResult == null) {
+                                    renterANote = newNote
+                                    println("🔍 DEBUG: Updated renterANote to: '$newNote'")
                                 }
                             },
                             modifier = Modifier.fillMaxWidth()
@@ -249,6 +350,10 @@ fun OwnerMatchDetailScreen(
                     
                     // Renter B
                     renterB?.let { user ->
+                        println("🔍 DEBUG: Rendering RenterInfoCard B:")
+                        println("  - User: ${user.name} (${user.userId})")
+                        println("  - Note from Firebase (noteB): '$renterBNote'")
+                        println("  - isMatchFinished: $isMatchFinished")
                         RenterInfoCard(
                             renter = user,
                             side = "B", 
@@ -256,9 +361,35 @@ fun OwnerMatchDetailScreen(
                             isMatchFinished = isMatchFinished,
                             onWinnerSelected = { 
                                 if (isMatchFinished && existingResult == null) {
-                                    selectedWinner = if (selectedWinner == "B") null else "B"
+                                    // Kiểm tra validation tỉ số
+                                    if (validateScoreAndStatus("B")) {
+                                        if (isDraw) {
+                                            selectedWinner = "DRAW" // Trạng thái hòa
+                                        } else {
+                                            selectedWinner = if (selectedWinner == "B") null else "B"
+                                        }
+                                    } else {
+                                        toastMessage = "Tỉ số và trạng thái không trùng khớp"
+                                    }
                                 } else {
                                     toastMessage = if (!isMatchFinished) "Trận đấu chưa kết thúc" else "Kết quả đã được lưu, không thể thay đổi"
+                                }
+                            },
+                            score = renterBScore,
+                            onScoreChanged = { newScore ->
+                                if (isMatchFinished && existingResult == null) {
+                                    renterBScore = newScore
+                                    // Reset selection khi thay đổi tỉ số
+                                    selectedWinner = null
+                                }
+                            },
+                            opponentScore = renterAScore,
+                            isDraw = isDraw,
+                            renterNote = renterBNote,
+                            onNoteChanged = { newNote ->
+                                if (isMatchFinished && existingResult == null) {
+                                    renterBNote = newNote
+                                    println("🔍 DEBUG: Updated renterBNote to: '$newNote'")
                                 }
                             },
                             modifier = Modifier.fillMaxWidth()
@@ -286,28 +417,47 @@ fun OwnerMatchDetailScreen(
                             if (selectedWinner != null && match != null) {
                                 isSavingResult = true
                                 scope.launch {
-                                    val result = saveMatchResult(
-                                        match = match!!,
-                                        winnerSide = selectedWinner!!,
-                                        renterA = renterA,
-                                        renterB = renterB,
-                                        bookingRepo = bookingRepo
+                                    // Lưu notes trước
+                                    val notesResult = bookingRepo.updateMatchNotes(
+                                        matchId = match!!.rangeKey,
+                                        noteA = renterANote.ifBlank { null },
+                                        noteB = renterBNote.ifBlank { null }
                                     )
-                                    isSavingResult = false
-                                    if (result.isSuccess) {
-                                        toastMessage = "Lưu kết quả trận đấu thành công"
-                                        existingResult = MatchResult(
-                                            resultId = "", // không cần dùng lại
-                                            matchId = match!!.rangeKey,
-                                            fieldId = match!!.fieldId,
-                                            date = match!!.date,
-                                            startAt = match!!.startAt,
-                                            endAt = match!!.endAt,
-                                            winnerSide = selectedWinner
+                                    
+                                    if (notesResult.isSuccess) {
+                                        // Sau đó lưu kết quả
+                                        val result = saveMatchResult(
+                                            match = match!!,
+                                            winnerSide = selectedWinner!!,
+                                            renterA = renterA,
+                                            renterB = renterB,
+                                            renterAScore = renterAScore,
+                                            renterBScore = renterBScore,
+                                            isDraw = isDraw,
+                                            bookingRepo = bookingRepo
                                         )
-                                        navController.popBackStack()
+                                        isSavingResult = false
+                                        if (result.isSuccess) {
+                                            toastMessage = "Lưu kết quả trận đấu thành công"
+                                            existingResult = MatchResult(
+                                                resultId = "", // không cần dùng lại
+                                                matchId = match!!.rangeKey,
+                                                fieldId = match!!.fieldId,
+                                                date = match!!.date,
+                                                startAt = match!!.startAt,
+                                                endAt = match!!.endAt,
+                                                winnerSide = selectedWinner,
+                                                renterAScore = renterAScore,
+                                                renterBScore = renterBScore,
+                                                isDraw = isDraw
+                                            )
+                                            navController.popBackStack()
+                                        } else {
+                                            toastMessage = "Lỗi: ${result.exceptionOrNull()?.message ?: "Không thể lưu kết quả"}"
+                                        }
                                     } else {
-                                        toastMessage = "Lỗi: ${result.exceptionOrNull()?.message ?: "Không thể lưu kết quả"}"
+                                        isSavingResult = false
+                                        toastMessage = "Lỗi: ${notesResult.exceptionOrNull()?.message ?: "Không thể lưu ghi chú"}"
                                     }
                                 }
                             }
@@ -321,18 +471,11 @@ fun OwnerMatchDetailScreen(
                         ),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        if (isSavingResult) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
-                        } else {
-                            Text(
-                                text = "Lưu thông tin",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                        Text(
+                            text = "Lưu thông tin",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
@@ -346,6 +489,25 @@ fun OwnerMatchDetailScreen(
             toastMessage = null
         }
     }
+    
+    // Loading Dialog cho việc lưu kết quả
+    if (isSavingResult) {
+        LoadingDialog(
+            message = "Đang lưu kết quả trận đấu...",
+            onDismiss = {
+                // Cho phép hủy save và back
+                isSavingResult = false
+            }
+        )
+    }
+    
+    // Restore bars khi back
+    DisposableEffect(Unit) {
+        onDispose {
+            // Chỉ restore bars nếu không có navigation đang diễn ra
+            onRestoreBars?.invoke()
+        }
+    }
 }
 
 private suspend fun saveMatchResult(
@@ -353,6 +515,9 @@ private suspend fun saveMatchResult(
     winnerSide: String,
     renterA: User?,
     renterB: User?,
+    renterAScore: Int,
+    renterBScore: Int,
+    isDraw: Boolean,
     bookingRepo: BookingRepository
 ): Result<Unit> {
     val loserSide = if (winnerSide == "A") "B" else "A"
@@ -366,19 +531,22 @@ private suspend fun saveMatchResult(
         date = match.date,
         startAt = match.startAt,
         endAt = match.endAt,
-        winnerSide = winnerSide,
-        winnerRenterId = winnerRenter?.userId,
-        winnerName = winnerRenter?.name,
-        winnerPhone = winnerRenter?.phone,
-        winnerEmail = winnerRenter?.email,
-        loserSide = loserSide,
-        loserRenterId = loserRenter?.userId,
-        loserName = loserRenter?.name,
-        loserPhone = loserRenter?.phone,
-        loserEmail = loserRenter?.email,
+        winnerSide = if (isDraw) "DRAW" else winnerSide,
+        winnerRenterId = if (isDraw) null else winnerRenter?.userId,
+        winnerName = if (isDraw) null else winnerRenter?.name,
+        winnerPhone = if (isDraw) null else winnerRenter?.phone,
+        winnerEmail = if (isDraw) null else winnerRenter?.email,
+        loserSide = if (isDraw) null else loserSide,
+        loserRenterId = if (isDraw) null else loserRenter?.userId,
+        loserName = if (isDraw) null else loserRenter?.name,
+        loserPhone = if (isDraw) null else loserRenter?.phone,
+        loserEmail = if (isDraw) null else loserRenter?.email,
         matchType = match.matchType,
         totalPrice = match.totalPrice,
         notes = match.notes,
+        renterAScore = renterAScore,
+        renterBScore = renterBScore,
+        isDraw = isDraw,
         recordedBy = "current_user_id" // TODO: Lấy từ AuthViewModel
     )
     

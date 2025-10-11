@@ -35,7 +35,9 @@ class BookingRepository {
         opponentAvatar: String? = null,
         basePrice: Long,
         serviceLines: List<ServiceLine> = emptyList(),
-        notes: String? = null
+        notes: String? = null,
+        matchSide: String? = null, // ✅ FIX: Add matchSide parameter
+        createdWithOpponent: Boolean = false // ✅ CRITICAL FIX: immutable origin flag
     ): Result<String> {
         return try {
             val bookingId = UUID.randomUUID().toString()
@@ -72,7 +74,9 @@ class BookingRepository {
                 opponentName = opponentName,
                 opponentAvatar = opponentAvatar,
                 bookingType = bookingType,
-                consecutiveSlots = consecutiveSlots
+                consecutiveSlots = consecutiveSlots,
+                matchSide = matchSide, // ✅ FIX: Add matchSide
+                createdWithOpponent = createdWithOpponent // ✅ CRITICAL FIX: immutable origin flag
             )
             
             // Lưu vào Firebase
@@ -184,6 +188,29 @@ class BookingRepository {
             }
     }
 
+    /**
+     * ✅ NEW: Cập nhật notes của Match
+     */
+    suspend fun updateMatchNotes(matchId: String, noteA: String?, noteB: String?): Result<Unit> {
+        return try {
+            val updateData = mutableMapOf<String, Any>()
+            noteA?.let { updateData["noteA"] = it }
+            noteB?.let { updateData["noteB"] = it }
+            
+            if (updateData.isNotEmpty()) {
+                firestore.collection(MATCHES_COLLECTION)
+                    .document(matchId)
+                    .update(updateData)
+                    .await()
+                println("✅ DEBUG: Match notes updated: $matchId")
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            println("❌ ERROR: Failed to update match notes: ${e.message}")
+            Result.failure(e)
+        }
+    }
+    
     /**
      * ✅ NEW: Cập nhật trạng thái của Match (OWNER xác nhận hoặc hủy)
      */
@@ -306,7 +333,8 @@ class BookingRepository {
                 totalPrice = totalPrice,
                 status = "WAITING_OPPONENT",
                 matchType = "SINGLE",
-                notes = notes
+                notes = notes, // Notes chung của trận đấu
+                noteA = notes   // Notes riêng của renter A (người đặt đầu tiên)
             )
 
             println("🔍 DEBUG: Created objects:")
@@ -383,13 +411,17 @@ class BookingRepository {
             val bookingBDoc = firestore.collection(BOOKINGS_COLLECTION).document(bookingId)
             batch.set(bookingBDoc, bookingB)
 
-            // update match FULL
+            // update match FULL và lưu noteB
             val updatedParticipants = match.participants + MatchParticipant(bookingId = bookingId, renterId = renterId, side = "B")
-            batch.update(matchRef, mapOf(
+            val updateData = mutableMapOf<String, Any>(
                 "occupiedCount" to 2,
                 "status" to "FULL",
                 "participants" to updatedParticipants
-            ))
+            )
+            // Lưu notes của renter B vào noteB
+            notes?.let { updateData["noteB"] = it }
+            
+            batch.update(matchRef, updateData)
 
             batch.commit().await()
             println("✅ DEBUG: joinOpponent completed successfully, bookingId: $bookingId")

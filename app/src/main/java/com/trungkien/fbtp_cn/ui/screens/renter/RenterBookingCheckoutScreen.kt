@@ -643,7 +643,9 @@ fun RenterBookingCheckoutScreen(
                                             opponentAvatar = null,
                                             basePrice = fieldTotal.toLong(),
                                             serviceLines = serviceLines,
-                                            notes = notes.ifBlank { null }
+                                            notes = notes.ifBlank { null },
+                                            matchSide = "A", // ✅ CRITICAL FIX: Renter A always has matchSide="A" regardless of opponent choice
+                                            createdWithOpponent = bookingMode == "HAS_OPPONENT" // ✅ CRITICAL FIX: immutable origin flag
                                         )
                                     )
                                     // Loading UI sẽ hiển thị qua bookingUi.isLoading composable ở phía trên
