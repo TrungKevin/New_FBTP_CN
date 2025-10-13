@@ -2,6 +2,7 @@ package com.trungkien.fbtp_cn.ui.components.notification
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -21,6 +22,7 @@ fun NotificationHeader(
     onBackClick: () -> Unit,
     unreadCount: Int,
     onMarkAllAsRead: () -> Unit,
+    onCalendarClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     TopAppBar(
@@ -40,6 +42,12 @@ fun NotificationHeader(
             }
         },
         actions = {
+            IconButton(onClick = onCalendarClick) {
+                Icon(
+                    imageVector = Icons.Default.DateRange,
+                    contentDescription = "Chọn ngày"
+                )
+            }
             if (unreadCount > 0) {
                 TextButton(onClick = onMarkAllAsRead) {
                     Text("Đánh dấu đã đọc tất cả")
@@ -57,7 +65,8 @@ fun NotificationHeaderPreview() {
         NotificationHeader(
             onBackClick = {},
             unreadCount = 5,
-            onMarkAllAsRead = {}
+            onMarkAllAsRead = {},
+            onCalendarClick = {}
         )
     }
 }
@@ -69,7 +78,8 @@ fun NotificationHeaderNoUnreadPreview() {
         NotificationHeader(
             onBackClick = {},
             unreadCount = 0,
-            onMarkAllAsRead = {}
+            onMarkAllAsRead = {},
+            onCalendarClick = {}
         )
     }
 }
@@ -81,7 +91,8 @@ fun NotificationHeaderLargeCountPreview() {
         NotificationHeader(
             onBackClick = {},
             unreadCount = 99,
-            onMarkAllAsRead = {}
+            onMarkAllAsRead = {},
+            onCalendarClick = {}
         )
     }
 }
