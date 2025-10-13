@@ -7,11 +7,16 @@ import com.trungkien.fbtp_cn.model.ServiceLine
 import com.trungkien.fbtp_cn.model.Match
 import com.trungkien.fbtp_cn.model.MatchParticipant
 import com.trungkien.fbtp_cn.model.MatchResult
+import com.trungkien.fbtp_cn.service.NotificationHelper
 import kotlinx.coroutines.tasks.await
 import java.util.*
+import com.trungkien.fbtp_cn.model.NotificationData
 
-class BookingRepository {
+class BookingRepository(
+    private val notificationHelper: NotificationHelper? = null
+) {
     private val firestore = FirebaseFirestore.getInstance()
+    private val notificationRepository = NotificationRepository()
     
     companion object {
         private const val BOOKINGS_COLLECTION = "bookings"
@@ -107,6 +112,40 @@ class BookingRepository {
             println("  - Type: $bookingType")
             println("  - Has opponent: $hasOpponent")
             println("  - Consecutive slots: $consecutiveSlots")
+            
+            // ✅ Gửi thông báo cho owner khi có đặt sân mới (Client-side Approach A)
+            try {
+                val result = notificationRepository.createNotification(
+                    toUserId = ownerId,
+                    type = "BOOKING_CREATED",
+                    title = "Đặt sân mới!",
+                    body = "Có đặt sân lúc $startAt ngày $date",
+                    data = NotificationData(
+                        bookingId = bookingId,
+                        fieldId = fieldId,
+                        userId = renterId,
+                        customData = emptyMap()
+                    ),
+                    priority = "HIGH"
+                )
+                if (result.isSuccess) {
+                    println("🔔 DEBUG: Notification CREATED -> ownerId=$ownerId, bookingId=$bookingId")
+                } else {
+                    println("❌ ERROR: Notification CREATE FAILED -> ${result.exceptionOrNull()?.message}")
+                }
+            } catch (e: Exception) {
+                println("❌ ERROR: Notification CREATE EXCEPTION -> ${e.message}")
+            }
+            
+            // ✅ Gửi thông báo thành công cho renter (giữ nguyên helper nếu có)
+            notificationHelper?.notifyBookingSuccess(
+                renterId = renterId,
+                fieldName = "Sân",
+                date = date,
+                time = startAt,
+                bookingId = bookingId,
+                fieldId = fieldId
+            )
             
             Result.success(bookingId)
         } catch (e: Exception) {
@@ -425,6 +464,31 @@ class BookingRepository {
 
             batch.commit().await()
             println("✅ DEBUG: joinOpponent completed successfully, bookingId: $bookingId")
+            
+            // ✅ Thông báo cho owner là trận đã đủ người (Client-side Approach A)
+            try {
+                val result = notificationRepository.createNotification(
+                    toUserId = ownerId,
+                    type = "OPPONENT_JOINED",
+                    title = "Có đối thủ tham gia!",
+                    body = "Trận đấu lúc ${match.startAt} ngày ${match.date} đã đủ người",
+                    data = NotificationData(
+                        matchId = matchId,
+                        fieldId = match.fieldId,
+                        userId = renterId,
+                        customData = emptyMap()
+                    ),
+                    priority = "HIGH"
+                )
+                if (result.isSuccess) {
+                    println("🔔 DEBUG: Notification OPPONENT_JOINED CREATED -> ownerId=$ownerId, matchId=$matchId")
+                } else {
+                    println("❌ ERROR: Notification OPPONENT_JOINED CREATE FAILED -> ${result.exceptionOrNull()?.message}")
+                }
+            } catch (e: Exception) {
+                println("❌ ERROR: Notification OPPONENT_JOINED EXCEPTION -> ${e.message}")
+            }
+            
             Result.success(bookingId)
         } catch (e: Exception) {
             println("❌ ERROR: joinOpponent failed: ${e.message}")
@@ -641,6 +705,19 @@ class BookingRepository {
                 .await()
             
             println("✅ DEBUG: Opponent joined booking: $bookingId")
+            
+            // ✅ Gửi thông báo cho Renter A khi có đối thủ tham gia
+            // TODO: Cần lấy thông tin booking để gửi thông báo chính xác
+            notificationHelper?.notifyOpponentJoined(
+                renterAId = "", // TODO: Lấy từ booking
+                opponentName = opponentName,
+                fieldName = "Sân", // TODO: Lấy từ booking
+                date = "", // TODO: Lấy từ booking
+                time = "", // TODO: Lấy từ booking
+                matchId = null,
+                fieldId = null
+            )
+            
             Result.success(Unit)
         } catch (e: Exception) {
             println("❌ ERROR: Failed to join opponent: ${e.message}")
@@ -653,17 +730,46 @@ class BookingRepository {
      */
     suspend fun cancelBooking(bookingId: String): Result<Unit> {
         return try {
-            firestore.collection(BOOKINGS_COLLECTION)
-                .document(bookingId)
-                .update(
-                    mapOf(
-                        "status" to "CANCELLED",
-                        "updatedAt" to System.currentTimeMillis()
-                    )
+            val ref = firestore.collection(BOOKINGS_COLLECTION).document(bookingId)
+            val snap = ref.get().await()
+            val current = snap.toObject(Booking::class.java)
+            
+            ref.update(
+                mapOf(
+                    "status" to "CANCELLED",
+                    "updatedAt" to System.currentTimeMillis()
                 )
-                .await()
+            )
+            .await()
             
             println("✅ DEBUG: Booking cancelled: $bookingId")
+            
+            // ✅ Thông báo cho owner (Client-side Approach A)
+            try {
+                if (current != null) {
+                    val result = notificationRepository.createNotification(
+                        toUserId = current.ownerId,
+                        type = "BOOKING_CANCELLED",
+                        title = "Đặt sân bị hủy!",
+                        body = "Khung giờ ${current.startAt} ngày ${current.date} đã hủy",
+                        data = NotificationData(
+                            bookingId = bookingId,
+                            fieldId = current.fieldId,
+                            userId = current.renterId,
+                            customData = emptyMap()
+                        ),
+                        priority = "HIGH"
+                    )
+                    if (result.isSuccess) {
+                        println("🔔 DEBUG: Notification CANCEL CREATED -> ownerId=${current.ownerId}, bookingId=$bookingId")
+                    } else {
+                        println("❌ ERROR: Notification CANCEL CREATE FAILED -> ${result.exceptionOrNull()?.message}")
+                    }
+                }
+            } catch (e: Exception) {
+                println("❌ ERROR: Notification CANCEL EXCEPTION -> ${e.message}")
+            }
+            
             Result.success(Unit)
         } catch (e: Exception) {
             println("❌ ERROR: Failed to cancel booking: ${e.message}")
@@ -764,6 +870,18 @@ class BookingRepository {
                 .await()
             
             println("✅ DEBUG: Match result saved: ${matchResult.resultId}")
+            
+            // ✅ Gửi thông báo kết quả trận đấu cho cả hai renter
+            val resultText = "${matchResult.renterAScore} - ${matchResult.renterBScore}"
+            notificationHelper?.notifyMatchResult(
+                renterAId = "", // TODO: Lấy từ matchResult hoặc match
+                renterBId = "", // TODO: Lấy từ matchResult hoặc match
+                fieldName = "Sân", // TODO: Lấy từ match
+                result = resultText,
+                matchId = matchResult.matchId,
+                fieldId = null // TODO: Lấy từ match
+            )
+            
             Result.success(Unit)
         } catch (e: Exception) {
             println("❌ ERROR: Failed to save match result: ${e.message}")

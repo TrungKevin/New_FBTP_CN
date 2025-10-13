@@ -1,6 +1,8 @@
 package com.trungkien.fbtp_cn.ui.components.renter
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -9,7 +11,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.ui.graphics.vector.ImageVector
 import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import android.util.Base64
@@ -21,7 +22,6 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -32,13 +32,16 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.trungkien.fbtp_cn.R
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
+import com.trungkien.fbtp_cn.ui.components.notification.NotificationBell
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RenterTopAppBar(
     onMenuClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
+    onNotificationClick: () -> Unit = {},
     avatarUrl: String? = null,
+    unreadNotificationCount: Int = 0,
     modifier: Modifier = Modifier
 ) {
     CenterAlignedTopAppBar(
@@ -69,12 +72,23 @@ fun RenterTopAppBar(
             )
         },
         actions = {
-            IconButton(
-                onClick = onProfileClick,
-                modifier = Modifier
-                    .size(48.dp)
-                    .padding(4.dp)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(end = 8.dp)
             ) {
+                // Icon thông báo với badge
+                NotificationBell(
+                    unreadCount = unreadNotificationCount,
+                    onNotificationClick = onNotificationClick
+                )
+                
+                // Icon profile
+                IconButton(
+                    onClick = onProfileClick,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .padding(4.dp)
+                ) {
                 if (!avatarUrl.isNullOrEmpty()) {
                     if (avatarUrl.startsWith("data:image", ignoreCase = true)) {
                         val bitmap = remember(avatarUrl) {
@@ -121,6 +135,7 @@ fun RenterTopAppBar(
                         modifier = Modifier.size(24.dp)
                     )
                 }
+            }
             }
         },
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(

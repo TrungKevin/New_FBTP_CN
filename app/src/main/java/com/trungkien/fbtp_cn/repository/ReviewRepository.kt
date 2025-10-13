@@ -11,6 +11,7 @@ import kotlinx.coroutines.tasks.await
  */
 class ReviewRepository {
     private val firestore = FirebaseFirestore.getInstance()
+    private val notificationRepository = NotificationRepository()
     
     // Collection names
     companion object {
@@ -124,6 +125,36 @@ class ReviewRepository {
             )
             
             val docRef = firestore.collection(REVIEWS_COLLECTION).add(reviewWithTimestamp).await()
+
+            // ✅ Thông báo cho chủ sân (Client-side Approach A)
+            try {
+                val fieldSnap = firestore.collection("fields").document(review.fieldId).get().await()
+                val ownerId = fieldSnap.getString("ownerId")
+                if (!ownerId.isNullOrBlank()) {
+                    val result = notificationRepository.createNotification(
+                        toUserId = ownerId,
+                        type = "REVIEW_ADDED",
+                        title = "Đánh giá mới!",
+                        body = "Bạn nhận được đánh giá ${review.rating} sao",
+                        data = NotificationData(
+                            reviewId = docRef.id,
+                            fieldId = review.fieldId,
+                            userId = review.renterId,
+                            customData = emptyMap()
+                        ),
+                        priority = "NORMAL"
+                    )
+                    if (result.isSuccess) {
+                        println("🔔 DEBUG: Notification REVIEW_ADDED CREATED -> ownerId=$ownerId, reviewId=${docRef.id}")
+                    } else {
+                        println("❌ ERROR: Notification REVIEW_ADDED CREATE FAILED -> ${result.exceptionOrNull()?.message}")
+                    }
+                } else {
+                    println("⚠️ WARN: addReview - ownerId is null for fieldId=${review.fieldId}")
+                }
+            } catch (e: Exception) {
+                println("❌ ERROR: Notification REVIEW_ADDED EXCEPTION -> ${e.message}")
+            }
             
             Result.success(docRef.id)
         } catch (e: Exception) {

@@ -52,7 +52,8 @@ class EvaluateCourtViewModel(
      */
     private fun loadReviews(fieldId: String) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            // Clear state khi đổi sân để tránh lẫn dữ liệu giữa các fieldId
+            _uiState.value = _uiState.value.copy(reviews = emptyList(), reviewSummary = null, isLoading = true, error = null)
             
             try {
                 val result = repository.getReviewsByFieldId(fieldId)

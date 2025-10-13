@@ -181,7 +181,8 @@ fun OwnerBookingListScreen(
                 // Then apply status filter on this already restricted list
                 list = when (selectedFilter) {
                     BookingStatusFilter.All -> list.filter { !isBookingFinished(it, selectedDate) }
-                    BookingStatusFilter.Pending -> list.filter { it.status.equals("PENDING", true) && !isBookingFinished(it, selectedDate) }
+                    // PENDING: hiển thị tất cả đang chờ, không ẩn theo finished để owner thấy ngay
+                    BookingStatusFilter.Pending -> list.filter { it.status.equals("PENDING", true) }
                     BookingStatusFilter.Confirmed -> list.filter { (it.status.equals("PAID", true) || it.status.equals("CONFIRMED", true)) && !isBookingFinished(it, selectedDate) }
                     BookingStatusFilter.Canceled -> list.filter { it.status.equals("CANCELLED", true) }
                     BookingStatusFilter.Finished -> list.filter { (it.status.equals("PAID", true) || it.status.equals("CONFIRMED", true)) && isBookingFinished(it, selectedDate) }

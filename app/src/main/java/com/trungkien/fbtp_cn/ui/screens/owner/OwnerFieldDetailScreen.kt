@@ -46,6 +46,9 @@ import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 
 import com.trungkien.fbtp_cn.R
 import com.trungkien.fbtp_cn.model.Field
@@ -62,6 +65,7 @@ import com.trungkien.fbtp_cn.ui.components.owner.dialogs.DeleteFieldDialog
 import com.trungkien.fbtp_cn.viewmodel.FieldViewModel
 import com.trungkien.fbtp_cn.viewmodel.FieldEvent
 import com.trungkien.fbtp_cn.viewmodel.AuthViewModel
+import com.trungkien.fbtp_cn.viewmodel.EvaluateCourtViewModel
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -69,7 +73,8 @@ fun OwnerFieldDetailScreen(
     fieldId: String,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
-    fieldViewModel: FieldViewModel? = null // NHẬN VIEWMODEL TỪ PARENT
+    fieldViewModel: FieldViewModel? = null, // NHẬN VIEWMODEL TỪ PARENT
+    initialTab: String = "info"
 ) {
     // Lấy dữ liệu thực từ Firebase thay vì mock data
     val localFieldViewModel: FieldViewModel = fieldViewModel ?: viewModel()
@@ -163,6 +168,19 @@ fun OwnerFieldDetailScreen(
     // Tabs + swipe state - Đơn giản hóa logic
     val tabs = listOf("Thông tin", "Dịch vụ", "Đánh giá", "Khung giờ")
     val tabPagerState = rememberPagerState(pageCount = { tabs.size })
+
+    // cuộn về tab yêu cầu (reviews/info/services/slots)
+    LaunchedEffect(initialTab) {
+        val target = when (initialTab.lowercase()) {
+            "reviews", "danh_gia" -> 2
+            "services", "dich_vu" -> 1
+            "slots", "khung_gio" -> 3
+            else -> 0
+        }
+        try {
+            tabPagerState.scrollToPage(target)
+        } catch (_: Exception) {}
+    }
     val coroutineScope = rememberCoroutineScope()
     
     // State cho dialog xóa
@@ -267,11 +285,11 @@ fun OwnerFieldDetailScreen(
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
-                // Hero Image Section with Image Carousel
+                // Hero Image Section with Image Carousel (không đè lên nội dung header của app)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(260.dp)
+                        .height(220.dp)
                 ) {
                     // Image Carousel với Pager
                     HorizontalPager( // Sử dụng HorizontalPager để tạo carousel
@@ -417,12 +435,16 @@ fun OwnerFieldDetailScreen(
                             )
                         }
 
-                        2 -> EvaluateCourt(
-                            fieldId = field.fieldId,
-                            currentUser = currentUser,
-                            isOwner = true,
-                            viewModel = viewModel()
-                        )// Hiển thị đánh giá sân
+                        2 -> {
+                            // Tạo ViewModel theo key gắn với fieldId để tách instance giữa các sân
+                            val evalVm: EvaluateCourtViewModel = viewModel(key = "EvaluateCourt_${field.fieldId}")
+                            EvaluateCourt(
+                                fieldId = field.fieldId,
+                                currentUser = currentUser,
+                                isOwner = true,
+                                viewModel = evalVm
+                            )
+                        }// Hiển thị đánh giá sân
 
                         3 -> {
                             // Debug: Kiểm tra xem có vào được case này không
@@ -662,4 +684,6 @@ fun InfoRowItem( // Hàm Composable để hiển thị một dòng thông tin v�
         }
     }
 }
+
+
 

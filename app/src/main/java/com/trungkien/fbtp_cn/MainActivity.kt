@@ -11,6 +11,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import com.google.firebase.messaging.FirebaseMessaging
 import com.trungkien.fbtp_cn.ui.screens.MainSplashScreen
 import com.trungkien.fbtp_cn.ui.screens.owner.OwnerMainScreen
 import com.trungkien.fbtp_cn.ui.screens.renter.RenterMainScreen
@@ -21,6 +22,19 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        
+        // ✅ Lấy FCM Token để test thông báo
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            if (!task.isSuccessful) {
+                println("❌ ERROR: Failed to get FCM token: ${task.exception}")
+                return@addOnCompleteListener
+            }
+            
+            val token = task.result
+            println("🔔 FCM Token: $token")
+            println("🔔 Copy token này để test thông báo từ Firebase Console")
+        }
+        
         setContent {
             FBTP_CNTheme {
                 Surface(
