@@ -270,9 +270,26 @@ fun NotificationList(
             println("🔍 DEBUG: NotificationList - Filtered notifications count: ${filtered.size}")
             filtered
         } else {
-            // Mặc định hiển thị TẤT CẢ notifications (không lọc theo ngày)
-            println("🔍 DEBUG: NotificationList - Showing all notifications (no date filter)")
-            notifications
+            // Mặc định chỉ hiển thị notifications của ngày hôm nay
+            val today = java.util.Calendar.getInstance()
+            val todayYear = today.get(java.util.Calendar.YEAR)
+            val todayMonth = today.get(java.util.Calendar.MONTH)
+            val todayDay = today.get(java.util.Calendar.DAY_OF_MONTH)
+            val todayDate = "$todayDay/${todayMonth + 1}/$todayYear"
+            println("🔍 DEBUG: NotificationList - Filtering by today: $todayDate")
+            
+            val filtered = notifications.filter { notification ->
+                val calendar = java.util.Calendar.getInstance()
+                calendar.timeInMillis = notification.createdAt
+                val year = calendar.get(java.util.Calendar.YEAR)
+                val month = calendar.get(java.util.Calendar.MONTH)
+                val day = calendar.get(java.util.Calendar.DAY_OF_MONTH)
+                val notificationDate = "$day/${month + 1}/$year"
+                println("🔍 DEBUG: NotificationList - Comparing: $notificationDate == $todayDate")
+                notificationDate == todayDate
+            }
+            println("🔍 DEBUG: NotificationList - Today's notifications count: ${filtered.size}")
+            filtered
         }
         
         if (filteredNotifications.isEmpty()) {
@@ -287,7 +304,7 @@ fun NotificationList(
                         message = if (selectedDate != null) 
                             "Không có thông báo nào cho ngày $selectedDate" 
                         else 
-                            "Không có thông báo nào"
+                            "Không có thông báo nào cho ngày hôm nay"
                     )
                 }
             }
