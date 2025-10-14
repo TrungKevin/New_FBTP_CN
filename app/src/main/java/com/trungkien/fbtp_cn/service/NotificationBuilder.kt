@@ -334,28 +334,184 @@ class NotificationBuilder {// dùng để tạo các notification khác nhau tro
     }
     
     /**
-     * Tạo notification cho thông báo hệ thống
+     * Tạo notification cho booking được xác nhận bởi owner
      */
-    fun buildSystemAnnouncementNotification(
-        userId: String,
-        title: String,
-        body: String,
-        priority: NotificationPriority = NotificationPriority.NORMAL,
-        actionUrl: String? = null
+    fun buildBookingConfirmedNotification(
+        renterId: String,
+        fieldName: String,
+        date: String,
+        time: String,
+        bookingId: String,
+        fieldId: String
     ): Notification {
         return Notification(
             notificationId = UUID.randomUUID().toString(),
-            toUserId = userId,
-            type = NotificationType.SYSTEM_ANNOUNCEMENT.value,
+            toUserId = renterId,
+            type = "BOOKING_CONFIRMED",
+            title = "Đặt sân được xác nhận!",
+            body = "Đặt sân $fieldName vào lúc $time ngày $date đã được chủ sân xác nhận.",
+            data = NotificationData(
+                bookingId = bookingId,
+                fieldId = fieldId,
+                customData = mapOf(
+                    "fieldName" to fieldName,
+                    "date" to date,
+                    "time" to time
+                )
+            ),
+            priority = NotificationPriority.HIGH.value,
+            channel = NotificationChannel.IN_APP.value,
+            relatedEntityId = bookingId,
+            relatedEntityType = "BOOKING",
+            category = "BOOKING",
+            tags = listOf("booking", "confirmed"),
+            source = "SYSTEM"
+        )
+    }
+    
+    /**
+     * Tạo notification cho booking bị hủy bởi owner
+     */
+    fun buildBookingCancelledByOwnerNotification(
+        renterId: String,
+        fieldName: String,
+        date: String,
+        time: String,
+        reason: String?,
+        bookingId: String,
+        fieldId: String
+    ): Notification {
+        val reasonText = if (!reason.isNullOrBlank()) " Lý do: $reason" else ""
+        return Notification(
+            notificationId = UUID.randomUUID().toString(),
+            toUserId = renterId,
+            type = "BOOKING_CANCELLED_BY_OWNER",
+            title = "Đặt sân bị hủy",
+            body = "Đặt sân $fieldName vào lúc $time ngày $date đã bị chủ sân hủy.$reasonText",
+            data = NotificationData(
+                bookingId = bookingId,
+                fieldId = fieldId,
+                customData = mapOf(
+                    "fieldName" to fieldName,
+                    "date" to date,
+                    "time" to time,
+                    "reason" to (reason ?: "")
+                )
+            ),
+            priority = NotificationPriority.HIGH.value,
+            channel = NotificationChannel.IN_APP.value,
+            relatedEntityId = bookingId,
+            relatedEntityType = "BOOKING",
+            category = "BOOKING",
+            tags = listOf("booking", "cancelled"),
+            source = "SYSTEM"
+        )
+    }
+    
+    /**
+     * Tạo notification cho phản hồi đánh giá từ owner
+     */
+    fun buildReviewReplyNotification(
+        renterId: String,
+        ownerName: String,
+        fieldName: String,
+        replyContent: String,
+        reviewId: String,
+        fieldId: String
+    ): Notification {
+        return Notification(
+            notificationId = UUID.randomUUID().toString(),
+            toUserId = renterId,
+            type = "REVIEW_REPLY",
+            title = "Chủ sân đã phản hồi đánh giá",
+            body = "$ownerName đã phản hồi đánh giá của bạn về sân $fieldName: \"$replyContent\"",
+            data = NotificationData(
+                reviewId = reviewId,
+                fieldId = fieldId,
+                customData = mapOf(
+                    "ownerName" to ownerName,
+                    "fieldName" to fieldName,
+                    "replyContent" to replyContent
+                )
+            ),
+            priority = NotificationPriority.NORMAL.value,
+            channel = NotificationChannel.IN_APP.value,
+            relatedEntityId = reviewId,
+            relatedEntityType = "REVIEW",
+            category = "REVIEW",
+            tags = listOf("review", "reply"),
+            source = "USER"
+        )
+    }
+    
+    /**
+     * Tạo notification cho kết quả trận đấu (customized cho renter)
+     */
+    fun buildMatchResultNotification(
+        renterId: String,
+        fieldName: String,
+        result: String,
+        isWinner: Boolean,
+        matchId: String,
+        fieldId: String?
+    ): Notification {
+        val title = if (isWinner) "Chúc mừng! Bạn đã thắng!" else "Kết quả trận đấu"
+        val body = "Trận đấu tại sân $fieldName đã kết thúc với tỷ số $result."
+        
+        return Notification(
+            notificationId = UUID.randomUUID().toString(),
+            toUserId = renterId,
+            type = NotificationType.MATCH_RESULT.value,
             title = title,
             body = body,
-            data = NotificationData(),
-            priority = priority.value,
+            data = NotificationData(
+                matchId = matchId,
+                fieldId = fieldId,
+                customData = mapOf(
+                    "fieldName" to fieldName,
+                    "result" to result,
+                    "isWinner" to isWinner
+                )
+            ),
+            priority = NotificationPriority.HIGH.value,
             channel = NotificationChannel.IN_APP.value,
-            actionUrl = actionUrl,
-            category = "SYSTEM",
-            tags = listOf("system", "announcement"),
-            source = "ADMIN"
+            relatedEntityId = matchId,
+            relatedEntityType = "MATCH",
+            category = "MATCH",
+            tags = listOf("match", "result"),
+            source = "SYSTEM"
+        )
+    }
+    
+    /**
+     * Tạo notification cho cập nhật sân (dành cho renter)
+     */
+    fun buildFieldUpdatedForRenterNotification(
+        renterId: String,
+        fieldName: String,
+        updateType: String,
+        fieldId: String
+    ): Notification {
+        return Notification(
+            notificationId = UUID.randomUUID().toString(),
+            toUserId = renterId,
+            type = NotificationType.FIELD_UPDATED.value,
+            title = "Sân đã được cập nhật",
+            body = "Sân $fieldName đã được cập nhật thông tin về $updateType.",
+            data = NotificationData(
+                fieldId = fieldId,
+                customData = mapOf(
+                    "fieldName" to fieldName,
+                    "updateType" to updateType
+                )
+            ),
+            priority = NotificationPriority.NORMAL.value,
+            channel = NotificationChannel.IN_APP.value,
+            relatedEntityId = fieldId,
+            relatedEntityType = "FIELD",
+            category = "FIELD",
+            tags = listOf("field", "update"),
+            source = "SYSTEM"
         )
     }
 }

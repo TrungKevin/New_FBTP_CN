@@ -67,7 +67,7 @@ class NotificationRepository {
                     return@addSnapshotListener
                 }
                 val count = snapshot?.documents?.count { doc ->
-                    (doc.getBoolean("isRead") ?: false).not()
+                    !(doc.getBoolean("isRead") ?: false)
                 } ?: 0
                 println("🔔 DEBUG: NotificationRepository.listenUnreadNotificationCount - User $userId has $count unread notifications")
                 trySend(count)

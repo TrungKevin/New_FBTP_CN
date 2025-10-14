@@ -1,34 +1,15 @@
-package com.trungkien.fbtp_cn.ui.components.owner
+package com.trungkien.fbtp_cn.ui.components.renter
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.ExitToApp
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,23 +18,68 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import com.trungkien.fbtp_cn.model.User
+import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 import coil.compose.AsyncImage
 import android.util.Base64
 import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.runtime.remember
-import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OwnerDrawerContent(
+fun RenterDrawer(
+    currentUser: User?,
+    unreadNotificationCount: Int = 0,
+    onNotificationClick: () -> Unit,
+    onProfileClick: () -> Unit,
+    onHomeClick: () -> Unit,
+    onSearchClick: () -> Unit,
+    onMapClick: () -> Unit,
+    onBookingClick: () -> Unit,
+    onLogoutClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            RenterDrawerContent(
+                avatarUrl = currentUser?.avatarUrl,
+                userName = currentUser?.name ?: "Renter",
+                unreadNotificationCount = unreadNotificationCount,
+                onNotificationClick = {
+                    onNotificationClick()
+                    scope.launch { drawerState.close() }
+                },
+                onProfileClick = {
+                    onProfileClick()
+                    scope.launch { drawerState.close() }
+                },
+                onLogoutClick = {
+                    onLogoutClick()
+                    scope.launch { drawerState.close() }
+                }
+            )
+        }
+    ) {
+        // Content sẽ được wrap bởi ModalNavigationDrawer
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RenterDrawerContent(
     avatarUrl: String? = null,
-    userName: String = "Owner",
+    userName: String = "Renter",
     unreadNotificationCount: Int = 0,
     onNotificationClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
     onLogoutClick: () -> Unit = {},
-    onCloseDrawer: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -88,7 +114,7 @@ fun OwnerDrawerContent(
                             modifier = Modifier
                                 .size(60.dp)
                                 .clip(CircleShape),
-                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            contentScale = ContentScale.Crop
                         )
                     } else {
                         AsyncImage(
@@ -97,7 +123,7 @@ fun OwnerDrawerContent(
                             modifier = Modifier
                                 .size(60.dp)
                                 .clip(CircleShape),
-                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            contentScale = ContentScale.Crop
                         )
                     }
                 } else {
@@ -107,7 +133,7 @@ fun OwnerDrawerContent(
                         modifier = Modifier
                             .size(60.dp)
                             .clip(CircleShape),
-                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        contentScale = ContentScale.Crop
                     )
                 }
             } else {
@@ -129,7 +155,7 @@ fun OwnerDrawerContent(
                     color = Color.Black
                 )
                 Text(
-                    text = "Chủ sân",
+                    text = "Người thuê sân",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.Gray
                 )
@@ -145,10 +171,7 @@ fun OwnerDrawerContent(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable {
-                    onNotificationClick()
-                    onCloseDrawer()
-                },
+                .clickable(onClick = onNotificationClick),
             colors = CardDefaults.cardColors(
                 containerColor = if (unreadNotificationCount > 0) 
                     Color(0xFFE8F5E8) else Color(0xFFF5F5F5)
@@ -212,10 +235,7 @@ fun OwnerDrawerContent(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable {
-                    onProfileClick()
-                    onCloseDrawer()
-                },
+                .clickable(onClick = onProfileClick),
             colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
             shape = RoundedCornerShape(12.dp)
@@ -307,20 +327,22 @@ fun OwnerDrawerContent(
 
 @Preview(showBackground = true)
 @Composable
-fun OwnerDrawerContentPreview() {
-    OwnerDrawerContent(
-        userName = "Nguyễn Văn A",
-        unreadNotificationCount = 5,
-        onLogoutClick = {}
-    )
+fun RenterDrawerContentPreview() {
+    FBTP_CNTheme {
+        RenterDrawerContent(
+            userName = "Nguyễn Văn A",
+            unreadNotificationCount = 5
+        )
+    }
 }
 
 @Preview(showBackground = true)
 @Composable
-fun OwnerDrawerContentNoNotificationPreview() {
-    OwnerDrawerContent(
-        userName = "Nguyễn Văn A",
-        unreadNotificationCount = 0,
-        onLogoutClick = {}
-    )
+fun RenterDrawerContentNoNotificationPreview() {
+    FBTP_CNTheme {
+        RenterDrawerContent(
+            userName = "Nguyễn Văn A",
+            unreadNotificationCount = 0
+        )
+    }
 }

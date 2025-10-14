@@ -76,11 +76,7 @@ fun RenterTopAppBar(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(end = 8.dp)
             ) {
-                // Icon thông báo với badge
-                NotificationBell(
-                    unreadCount = unreadNotificationCount,
-                    onNotificationClick = onNotificationClick
-                )
+
                 
                 // Icon profile
                 IconButton(

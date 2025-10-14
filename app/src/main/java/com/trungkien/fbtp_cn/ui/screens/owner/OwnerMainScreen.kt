@@ -207,6 +207,10 @@ fun OwnerMainScreen(
                             popUpTo("owner_home") { inclusive = true }
                         }
                     },
+                    onLogoutClick = {
+                        onLogoutToSplash()
+                        scope.launch { drawerState.close() }
+                    },
                     onCloseDrawer = {
                         scope.launch { drawerState.close() }
                     }

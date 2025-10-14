@@ -59,19 +59,19 @@ data class NotificationStyle(
 // Function để get style dựa trên notification type
 fun getNotificationStyle(type: String): NotificationStyle {
     return when (type) {
-        "BOOKING_CREATED", "BOOKING_SUCCESS" -> NotificationStyle(
+        "BOOKING_CREATED", "BOOKING_SUCCESS", "BOOKING_CONFIRMED" -> NotificationStyle(
             backgroundColor = Color(0xFFE8F5E8), // Xanh nhạt
             iconColor = Color(0xFF4CAF50), // Xanh lá
             iconBackgroundColor = Color(0xFF4CAF50).copy(alpha = 0.1f),
             indicatorColor = Color(0xFF4CAF50)
         )
-        "REVIEW_ADDED" -> NotificationStyle(
+        "REVIEW_ADDED", "REVIEW_REPLY" -> NotificationStyle(
             backgroundColor = Color(0xFFFFF3E0), // Cam nhạt
             iconColor = Color(0xFFFF9800), // Cam
             iconBackgroundColor = Color(0xFFFF9800).copy(alpha = 0.1f),
             indicatorColor = Color(0xFFFF9800)
         )
-        "BOOKING_CANCELLED" -> NotificationStyle(
+        "BOOKING_CANCELLED", "BOOKING_CANCELLED_BY_OWNER" -> NotificationStyle(
             backgroundColor = Color(0xFFFFEBEE), // Đỏ nhạt
             iconColor = Color(0xFFF44336), // Đỏ
             iconBackgroundColor = Color(0xFFF44336).copy(alpha = 0.1f),
@@ -118,9 +118,15 @@ fun NotificationCard(
         notification.title.isNotBlank() -> notification.title
         else -> when (notification.type) {
             "BOOKING_CREATED" -> "Đặt sân mới!"
+            "BOOKING_CONFIRMED" -> "Đặt sân được xác nhận!"
             "REVIEW_ADDED" -> "Đánh giá mới!"
+            "REVIEW_REPLY" -> "Phản hồi đánh giá!"
             "BOOKING_CANCELLED" -> "Đặt sân bị hủy!"
+            "BOOKING_CANCELLED_BY_OWNER" -> "Đặt sân bị hủy!"
             "OPPONENT_JOINED" -> "Có đối thủ tham gia!"
+            "MATCH_RESULT" -> "Kết quả trận đấu!"
+            "PAYMENT_SUCCESS" -> "Thanh toán thành công!"
+            "PAYMENT_FAILED" -> "Thanh toán thất bại!"
             else -> "Thông báo"
         }
     }
@@ -217,7 +223,8 @@ fun UnreadIndicator(color: Color = MaterialTheme.colorScheme.primary) {
 fun NotificationList(
     notifications: List<Notification>,
     onItemClick: (Notification) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    selectedDate: String? = null // null = hiển thị ngày hôm nay, có giá trị = hiển thị ngày được chọn
 ) {
     if (notifications.isEmpty()) {
         // Hiển thị 4 card placeholder cho từng nhóm thông báo
@@ -232,19 +239,116 @@ fun NotificationList(
             item { PlaceholderNotificationCard(title = "Có đối thủ tham gia!") }
         }
     } else {
-        LazyColumn(
-            modifier = modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(8.dp)
-        ) {
-            items(notifications) { notification ->
-                NotificationCard(
-                    notification = notification,
-                    onItemClick = onItemClick
-                )
+        // Debug: In ra tất cả notifications và ngày của chúng
+        println("🔍 DEBUG: NotificationList - Total notifications: ${notifications.size}")
+        println("🔍 DEBUG: NotificationList - Selected date: $selectedDate")
+        
+        notifications.forEach { notification ->
+            val calendar = java.util.Calendar.getInstance()
+            calendar.timeInMillis = notification.createdAt
+            val year = calendar.get(java.util.Calendar.YEAR)
+            val month = calendar.get(java.util.Calendar.MONTH)
+            val day = calendar.get(java.util.Calendar.DAY_OF_MONTH)
+            val notificationDate = "$day/${month + 1}/$year"
+            println("🔍 DEBUG: NotificationList - Notification: ${notification.title} - Date: $notificationDate - CreatedAt: ${notification.createdAt}")
+        }
+        
+        // Lọc notifications theo ngày
+        val filteredNotifications = if (selectedDate != null) {
+            // Hiển thị notifications của ngày được chọn
+            println("🔍 DEBUG: NotificationList - Filtering by selected date: $selectedDate")
+            val filtered = notifications.filter { notification ->
+                val calendar = java.util.Calendar.getInstance()
+                calendar.timeInMillis = notification.createdAt
+                val year = calendar.get(java.util.Calendar.YEAR)
+                val month = calendar.get(java.util.Calendar.MONTH)
+                val day = calendar.get(java.util.Calendar.DAY_OF_MONTH)
+                val notificationDate = "$day/${month + 1}/$year"
+                println("🔍 DEBUG: NotificationList - Comparing: $notificationDate == $selectedDate")
+                notificationDate == selectedDate
+            }
+            println("🔍 DEBUG: NotificationList - Filtered notifications count: ${filtered.size}")
+            filtered
+        } else {
+            // Mặc định chỉ hiển thị notifications của ngày hôm nay
+            val today = java.util.Calendar.getInstance()
+            val todayYear = today.get(java.util.Calendar.YEAR)
+            val todayMonth = today.get(java.util.Calendar.MONTH)
+            val todayDay = today.get(java.util.Calendar.DAY_OF_MONTH)
+            val todayDate = "$todayDay/${todayMonth + 1}/$todayYear"
+            println("🔍 DEBUG: NotificationList - Filtering by today: $todayDate")
+            
+            val filtered = notifications.filter { notification ->
+                val calendar = java.util.Calendar.getInstance()
+                calendar.timeInMillis = notification.createdAt
+                val year = calendar.get(java.util.Calendar.YEAR)
+                val month = calendar.get(java.util.Calendar.MONTH)
+                val day = calendar.get(java.util.Calendar.DAY_OF_MONTH)
+                val notificationDate = "$day/${month + 1}/$year"
+                println("🔍 DEBUG: NotificationList - Comparing: $notificationDate == $todayDate")
+                notificationDate == todayDate
+            }
+            println("🔍 DEBUG: NotificationList - Today's notifications count: ${filtered.size}")
+            filtered
+        }
+        
+        if (filteredNotifications.isEmpty()) {
+            // Hiển thị empty state
+            LazyColumn(
+                modifier = modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(8.dp)
+            ) {
+                item { 
+                    EmptyNotificationState(
+                        message = if (selectedDate != null) 
+                            "Không có thông báo nào cho ngày $selectedDate" 
+                        else 
+                            "Không có thông báo nào cho ngày hôm nay"
+                    )
+                }
+            }
+        } else {
+            // Hiển thị notifications đã lọc
+            val displayDate = selectedDate ?: run {
+                val today = java.util.Calendar.getInstance()
+                val todayYear = today.get(java.util.Calendar.YEAR)
+                val todayMonth = today.get(java.util.Calendar.MONTH)
+                val todayDay = today.get(java.util.Calendar.DAY_OF_MONTH)
+                "$todayDay/${todayMonth + 1}/$todayYear"
+            }
+            
+            LazyColumn(
+                modifier = modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(8.dp)
+            ) {
+                // Date header
+                item {
+                    DateHeader(date = displayDate)
+                }
+                
+                // Notifications for this date
+                items(filteredNotifications.sortedByDescending { it.createdAt }) { notification ->
+                    NotificationCard(
+                        notification = notification,
+                        onItemClick = onItemClick
+                    )
+                }
             }
         }
     }
+}
+
+@Composable
+fun DateHeader(date: String) {
+    Text(
+        text = date,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.Bold,
+        color = Color(0xFF666666),
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+    )
 }
 
 @Composable
@@ -289,13 +393,13 @@ fun PlaceholderNotificationCard(title: String) {
 }
 
 @Composable
-fun EmptyNotificationState() {
+fun EmptyNotificationState(message: String = "Không có thông báo nào.") {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = "Không có thông báo nào.",
+            text = message,
             style = MaterialTheme.typography.bodyLarge
         )
     }
@@ -304,12 +408,14 @@ fun EmptyNotificationState() {
 @Composable
 fun getNotificationIcon(type: String): ImageVector {
     return when (type) {
-        "BOOKING_CREATED", "BOOKING_SUCCESS" -> Icons.Default.Event
+        "BOOKING_CREATED", "BOOKING_SUCCESS", "BOOKING_CONFIRMED" -> Icons.Default.Event
+        "BOOKING_CANCELLED", "BOOKING_CANCELLED_BY_OWNER" -> Icons.Default.AlarmOff
         "OPPONENT_JOINED", "OPPONENT_SEARCH" -> Icons.Default.Person
         "MATCH_RESULT" -> Icons.Default.SportsSoccer
         "FIELD_UPDATED" -> Icons.Default.Update
-        "BOOKING_CANCELLED" -> Icons.Default.AlarmOff
-        "REVIEW_ADDED" -> Icons.Default.Notifications
+        "REVIEW_ADDED", "REVIEW_REPLY" -> Icons.Default.Notifications
+        "PAYMENT_SUCCESS" -> Icons.Default.CheckCircle
+        "PAYMENT_FAILED" -> Icons.Default.Notifications
         else -> Icons.Default.Notifications
     }
 }

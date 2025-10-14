@@ -17,12 +17,14 @@ import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 fun NotificationScreenContent(
     notifications: List<Notification>,
     onItemClick: (Notification) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    selectedDate: String? = null
 ) {
     NotificationList(
         notifications = notifications,
         onItemClick = onItemClick,
-        modifier = modifier
+        modifier = modifier,
+        selectedDate = selectedDate
     )
 }
 

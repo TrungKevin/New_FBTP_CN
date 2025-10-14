@@ -6,12 +6,17 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.tooling.preview.Preview
 import com.trungkien.fbtp_cn.ui.components.renter.RenterNavScreen
 import com.trungkien.fbtp_cn.ui.components.renter.RenterBottomNavBar
 import com.trungkien.fbtp_cn.ui.components.renter.RenterTopAppBar
+import com.trungkien.fbtp_cn.ui.components.renter.RenterDrawerContent
 import com.trungkien.fbtp_cn.viewmodel.AuthViewModel
 import com.trungkien.fbtp_cn.viewmodel.FieldViewModel
+import com.trungkien.fbtp_cn.repository.NotificationRepository
+import com.trungkien.fbtp_cn.viewmodel.NotificationViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trungkien.fbtp_cn.ui.screens.ModernEditProfileScreen
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
@@ -27,11 +32,22 @@ fun RenterMainScreen(
     // If not null, we're viewing order detail inside Search tab
     var activeOrderDetailFieldId by remember { mutableStateOf<String?>(null) }
     var isEditingProfile by remember { mutableStateOf(false) }
+    var showNotificationScreen by remember { mutableStateOf(false) }
     
-    // FieldViewModel để load pricing rules
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    
+    // ViewModels
     val fieldViewModel: FieldViewModel = viewModel()
-    // BookingViewModel để reset trạng thái điều hướng sau khi đặt
     val bookingViewModel: com.trungkien.fbtp_cn.viewmodel.BookingViewModel = viewModel()
+    val authViewModel: AuthViewModel = viewModel()
+    val notificationRepository = NotificationRepository()
+    val notificationViewModel: NotificationViewModel = viewModel { 
+        NotificationViewModel(notificationRepository) 
+    }
+    
+    val currentUser = authViewModel.currentUser.collectAsState().value
+    val notificationUiState by notificationViewModel.uiState.collectAsState()
     
     // Load pricing rules when we have a fieldId
     LaunchedEffect(activeOrderDetailFieldId) {
@@ -40,33 +56,64 @@ fun RenterMainScreen(
         }
     }
     
-    Scaffold(
-        modifier = modifier,
-        containerColor = Color.White,
-        topBar = {
-            // Ẩn TopAppBar khi đang hiển thị RenterOrderDetailScreen trong tab Search
-            val shouldShowTop = !(selectedScreen == RenterNavScreen.Search && activeOrderDetailFieldId != null) && !isEditingProfile
-            val authViewModel: AuthViewModel = viewModel()
-            val currentUser = authViewModel.currentUser.collectAsState().value
-            if (shouldShowTop) {
-                RenterTopAppBar(
-                    onMenuClick = { /* TODO open drawer or menu */ },
-                    onProfileClick = { selectedScreen = RenterNavScreen.Profile },
-                    avatarUrl = currentUser?.avatarUrl
-                )
-            }
-        },
-        bottomBar = {
-            if (!isEditingProfile) {
-                RenterBottomNavBar(
-                    currentScreen = selectedScreen,
-                    onTabSelected = { screen ->
-                        selectedScreen = screen
-                    }
-                )
-            }
+    // Load notifications when user is available
+    LaunchedEffect(currentUser?.userId) {
+        currentUser?.userId?.let { userId ->
+            notificationViewModel.handle(
+                com.trungkien.fbtp_cn.viewmodel.NotificationEvent.LoadNotifications(userId)
+            )
         }
-    ) { paddingValues ->
+    }
+    
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            RenterDrawerContent(
+                avatarUrl = currentUser?.avatarUrl,
+                userName = currentUser?.name ?: "Renter",
+                unreadNotificationCount = notificationUiState.unreadCount,
+                onNotificationClick = {
+                    showNotificationScreen = true
+                    scope.launch { drawerState.close() }
+                },
+                onProfileClick = {
+                    selectedScreen = RenterNavScreen.Profile
+                    scope.launch { drawerState.close() }
+                },
+                onLogoutClick = {
+                    onLogoutToSplash()
+                    scope.launch { drawerState.close() }
+                }
+            )
+        }
+    ) {
+        Scaffold(
+            modifier = modifier,
+            containerColor = Color.White,
+            topBar = {
+                // Ẩn TopAppBar khi đang hiển thị RenterOrderDetailScreen trong tab Search
+                val shouldShowTop = !(selectedScreen == RenterNavScreen.Search && activeOrderDetailFieldId != null) && !isEditingProfile && !showNotificationScreen
+                if (shouldShowTop) {
+                    RenterTopAppBar(
+                        onMenuClick = { scope.launch { drawerState.open() } },
+                        onProfileClick = { selectedScreen = RenterNavScreen.Profile },
+                        onNotificationClick = { showNotificationScreen = true },
+                        avatarUrl = currentUser?.avatarUrl,
+                        unreadNotificationCount = notificationUiState.unreadCount
+                    )
+                }
+            },
+            bottomBar = {
+                if (!isEditingProfile && !showNotificationScreen) {
+                    RenterBottomNavBar(
+                        currentScreen = selectedScreen,
+                        onTabSelected = { screen ->
+                            selectedScreen = screen
+                        }
+                    )
+                }
+            }
+        ) { paddingValues ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -74,6 +121,28 @@ fun RenterMainScreen(
         ) {
             if (isEditingProfile) {
                 ModernEditProfileScreen(onBackClick = { isEditingProfile = false })
+            } else if (showNotificationScreen) {
+                RenterNotificationScreen(
+                    onBackClick = { showNotificationScreen = false },
+                    onNavigateToBooking = { 
+                        showNotificationScreen = false
+                        selectedScreen = RenterNavScreen.Booking
+                    },
+                    onNavigateToField = { 
+                        showNotificationScreen = false
+                        selectedScreen = RenterNavScreen.Search
+                    },
+                    onNavigateToProfile = { 
+                        showNotificationScreen = false
+                        selectedScreen = RenterNavScreen.Profile
+                    },
+                    onNavigateToFieldDetail = { fieldId, initialTab ->
+                        showNotificationScreen = false
+                        activeOrderDetailFieldId = fieldId
+                        selectedScreen = RenterNavScreen.Search
+                    },
+                    userId = currentUser?.userId ?: ""
+                )
             } else when (selectedScreen) {
                 RenterNavScreen.Home -> {
                     RenterHomeScreen(
@@ -162,6 +231,7 @@ fun RenterMainScreen(
                 }
             }
         }
+    }
     }
 }
 
