@@ -80,15 +80,11 @@ fun SimpleNotificationScreen(
         val selectedLocalDate: LocalDate? = selectedDateMillis?.let { ms ->
             Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).toLocalDate()
         }
-        fun toLocalDate(ms: Long): LocalDate =
-            Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).toLocalDate()
-
-        val dayFiltered = selectedLocalDate?.let { date ->
-            notifications.filter { toLocalDate(it.createdAt) == date }
-        } ?: notifications
-
         NotificationScreenContent(
-            notifications = dayFiltered,
+            notifications = notifications, // Truyền tất cả notifications
+            selectedDate = selectedLocalDate?.let { date ->
+                "${date.dayOfMonth}/${date.monthValue}/${date.year}"
+            },
             onItemClick = { notification ->
                 scope.launch { repo.markAsRead(notification.notificationId) }
 

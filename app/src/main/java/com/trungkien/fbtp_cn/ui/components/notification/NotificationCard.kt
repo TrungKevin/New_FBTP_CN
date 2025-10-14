@@ -398,10 +398,29 @@ fun EmptyNotificationState(message: String = "Không có thông báo nào.") {
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodyLarge
-        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = Icons.Default.Notifications,
+                contentDescription = null,
+                modifier = Modifier.size(64.dp),
+                tint = Color.Gray
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Chưa có thông báo nào",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.Gray
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Bạn sẽ nhận được thông báo khi có cập nhật về đặt sân, trận đấu và đánh giá",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.Gray,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
     }
 }
 
@@ -463,7 +482,12 @@ fun NotificationCardPreview() {
 @Composable
 fun EmptyNotificationStatePreview() {
     FBTP_CNTheme {
-        EmptyNotificationState()
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            EmptyNotificationState()
+        }
     }
 }
 

@@ -17,6 +17,7 @@ import com.trungkien.fbtp_cn.model.Notification
 import com.trungkien.fbtp_cn.ui.components.notification.NotificationCard
 import com.trungkien.fbtp_cn.ui.components.notification.NotificationHeader
 import com.trungkien.fbtp_cn.ui.components.notification.NotificationScreenContent
+import com.trungkien.fbtp_cn.ui.components.notification.EmptyNotificationState
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 import com.trungkien.fbtp_cn.repository.NotificationRepository
 import com.trungkien.fbtp_cn.viewmodel.NotificationViewModel
@@ -124,11 +125,13 @@ fun RenterNotificationScreen(
             }
             
             uiState.notifications.isEmpty() -> {
-                EmptyNotificationState(
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(paddingValues)
-                )
+                ) {
+                    EmptyNotificationState()
+                }
             }
             
             else -> {
@@ -198,39 +201,6 @@ fun RenterNotificationScreen(
     }
 }
 
-@Composable
-fun EmptyNotificationState(
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier,
-        contentAlignment = androidx.compose.ui.Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
-        ) {
-            Icon(
-                imageVector = Icons.Default.Notifications,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = Color.Gray
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "Chưa có thông báo nào",
-                style = MaterialTheme.typography.titleMedium,
-                color = Color.Gray
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Bạn sẽ nhận được thông báo khi có cập nhật về đặt sân, trận đấu và đánh giá",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.Gray
-            )
-        }
-    }
-}
-
 @Preview(showBackground = true)
 @Composable
 fun RenterNotificationScreenPreview() {
@@ -239,13 +209,5 @@ fun RenterNotificationScreenPreview() {
             onBackClick = {},
             userId = "user1"
         )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun EmptyNotificationStatePreview() {
-    FBTP_CNTheme {
-        EmptyNotificationState()
     }
 }
