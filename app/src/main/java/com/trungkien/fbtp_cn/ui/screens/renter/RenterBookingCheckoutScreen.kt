@@ -467,14 +467,15 @@ fun RenterBookingCheckoutScreen(
                     println("  - generated slots: $slots")
                     
                     when {
-                        booking.opponentMode == "WAITING_OPPONENT" -> {
+                        // Chỉ hiển thị màu vàng khi booking còn hiệu lực
+                        booking.status.equals("PENDING", true) && booking.opponentMode == "WAITING_OPPONENT" -> {
                             waiting.addAll(slots)
                             slots.forEach { slot ->
                                 slotToOwner[slot] = booking.renterId
                                 println("  - slotToOwner[$slot] = ${booking.renterId}")
                             }
                         }
-                        booking.status == "CONFIRMED" -> {
+                        booking.status.equals("CONFIRMED", true) || booking.status.equals("PAID", true) -> {
                             locked.addAll(slots)
                         }
                     }

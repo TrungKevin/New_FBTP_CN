@@ -325,7 +325,7 @@ class EvaluateCourtViewModel(
             println("🔄 DEBUG: ViewModel.updateReply called - reviewId: $reviewId, replyId: $replyId, updates: $updates")
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
-                val result = repository.updateReply(reviewId, replyId, updates)
+                val result = repository.updateReply(reviewId, replyId, updates["comment"] as? String ?: "")
                 result.fold(
                     onSuccess = {
                         _uiState.value = _uiState.value.copy(
@@ -388,28 +388,41 @@ class EvaluateCourtViewModel(
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             
             try {
-                val result = repository.updateReview(reviewId, updates)
-                result.fold(
-                    onSuccess = {
-                        _uiState.value = _uiState.value.copy(
-                            isLoading = false,
-                            success = "Cập nhật đánh giá thành công!"
-                        )
-                        println("✅ DEBUG: Đã cập nhật review $reviewId thành công")
-                        
-                        // Reload reviews để cập nhật UI
-                        _uiState.value.reviews.find { it.reviewId == reviewId }?.fieldId?.let { 
-                            loadReviews(it) 
+                // Tạo Review object từ updates
+                val currentReview = _uiState.value.reviews.find { it.reviewId == reviewId }
+                if (currentReview != null) {
+                    val updatedReview = currentReview.copy(
+                        comment = updates["comment"] as? String ?: currentReview.comment,
+                        rating = (updates["rating"] as? Number)?.toInt() ?: currentReview.rating
+                    )
+                    val result = repository.updateReview(reviewId, updatedReview)
+                    result.fold(
+                        onSuccess = {
+                            _uiState.value = _uiState.value.copy(
+                                isLoading = false,
+                                success = "Cập nhật đánh giá thành công!"
+                            )
+                            println("✅ DEBUG: Đã cập nhật review $reviewId thành công")
+                            
+                            // Reload reviews để cập nhật UI
+                            _uiState.value.reviews.find { it.reviewId == reviewId }?.fieldId?.let { 
+                                loadReviews(it) 
+                            }
+                        },
+                        onFailure = { exception ->
+                            _uiState.value = _uiState.value.copy(
+                                error = "Lỗi cập nhật review: ${exception.message}",
+                                isLoading = false
+                            )
+                            println("❌ DEBUG: Lỗi cập nhật review: ${exception.message}")
                         }
-                    },
-                    onFailure = { exception ->
-                        _uiState.value = _uiState.value.copy(
-                            error = "Lỗi cập nhật review: ${exception.message}",
-                            isLoading = false
-                        )
-                        println("❌ DEBUG: Lỗi cập nhật review: ${exception.message}")
-                    }
-                )
+                    )
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = "Không tìm thấy đánh giá"
+                    )
+                }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     error = "Lỗi không xác định: ${e.message}",
@@ -423,7 +436,7 @@ class EvaluateCourtViewModel(
     /**
      * Set current user và quyền hạn
      */
-    private fun setCurrentUser(user: User, isOwner: Boolean) {
+    fun setCurrentUser(user: User, isOwner: Boolean) {
         _uiState.value = _uiState.value.copy(
             currentUser = user,
             isOwner = isOwner
@@ -434,7 +447,7 @@ class EvaluateCourtViewModel(
     /**
      * Chọn review để xem chi tiết
      */
-    private fun selectReview(review: Review?) {
+    fun selectReview(review: Review?) {
         _uiState.value = _uiState.value.copy(selectedReview = review)
         println("✅ DEBUG: Đã chọn review: ${review?.reviewId ?: "null"}")
     }
@@ -442,7 +455,7 @@ class EvaluateCourtViewModel(
     /**
      * Hiển thị/ẩn dialog thêm reply
      */
-    private fun showReplyDialog(show: Boolean) {
+    fun showReplyDialog(show: Boolean) {
         _uiState.value = _uiState.value.copy(showReplyDialog = show)
         println("✅ DEBUG: Show reply dialog: $show")
     }
@@ -450,14 +463,14 @@ class EvaluateCourtViewModel(
     /**
      * Clear error message
      */
-    private fun clearError() {
+    fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
     }
     
     /**
      * Clear success message
      */
-    private fun clearSuccess() {
+    fun clearSuccess() {
         _uiState.value = _uiState.value.copy(success = null)
     }
 }

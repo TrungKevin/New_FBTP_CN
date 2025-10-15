@@ -57,7 +57,19 @@ fun RenterBookingScreen(
             val myUid = authViewModel.currentUser.collectAsState().value?.userId
             val bookingUi = bookingViewModel.uiState.collectAsState().value
             LaunchedEffect(myUid) {
-                myUid?.let { bookingViewModel.handle(com.trungkien.fbtp_cn.viewmodel.BookingEvent.LoadMine(it)) }
+                myUid?.let { 
+                    println("🔍 DEBUG: RenterBookingScreen - Loading bookings for userId: $it")
+                    bookingViewModel.handle(com.trungkien.fbtp_cn.viewmodel.BookingEvent.LoadMine(it)) 
+                }
+            }
+            
+            // Debug logs for booking data
+            LaunchedEffect(bookingUi.myBookings) {
+                println("🔍 DEBUG: RenterBookingScreen - Booking data updated:")
+                println("  - Total bookings: ${bookingUi.myBookings.size}")
+                bookingUi.myBookings.forEachIndexed { index, booking ->
+                    println("  [$index] bookingId: ${booking.bookingId}, type: ${booking.bookingType}, status: ${booking.status}, date: ${booking.date}")
+                }
             }
             
             // ✅ Cải thiện logic lọc: Ẩn booking đã qua ngày hiện tại khi không có filter ngày

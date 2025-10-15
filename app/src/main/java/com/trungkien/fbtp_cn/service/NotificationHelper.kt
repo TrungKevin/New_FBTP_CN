@@ -196,4 +196,29 @@ class NotificationHelper(
             notificationRepository.createNotification(notification)
         }
     }
+    
+    /**
+     * Gửi thông báo khi có đánh giá mới cho owner
+     */
+    fun notifyReviewAdded(
+        ownerId: String,
+        renterName: String,
+        fieldName: String,
+        rating: Int,
+        comment: String,
+        reviewId: String,
+        fieldId: String
+    ) {
+        CoroutineScope(Dispatchers.IO).launch {
+            val notification = notificationBuilder.buildReviewAddedNotification(
+                ownerId = ownerId,
+                reviewerName = renterName,
+                fieldName = fieldName,
+                rating = rating,
+                reviewId = reviewId,
+                fieldId = fieldId
+            )
+            notificationRepository.createNotification(notification)
+        }
+    }
 }

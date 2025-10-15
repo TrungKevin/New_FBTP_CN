@@ -34,6 +34,7 @@ fun SimpleNotificationScreen(
     onBackClick: () -> Unit,
     onNavigateToHome: () -> Unit = {},
     onNavigateToBooking: () -> Unit = {},
+    onNavigateToMatches: () -> Unit = {}, // ✅ NEW: Navigate to Matches tab
     onNavigateToField: () -> Unit = {},
     onNavigateToStats: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
@@ -90,13 +91,13 @@ fun SimpleNotificationScreen(
 
                 // Điều hướng theo loại
                 when (notification.type) {
-                    "BOOKING_CREATED", "BOOKING_SUCCESS", "BOOKING_CANCELLED" -> {
+                    "BOOKING_CREATED", "BOOKING_SUCCESS", "BOOKING_CANCELLED", "BOOKING_CONFIRMED", "BOOKING_CANCELLED_BY_OWNER" -> {
                         onNavigateToBooking()
                     }
                     "FIELD_UPDATED" -> {
                         onNavigateToField()
                     }
-                    "REVIEW_ADDED" -> {
+                    "REVIEW_ADDED", "REVIEW_REPLY" -> {
                         val fieldId = notification.data.fieldId
                         if (!fieldId.isNullOrBlank()) {
                             onNavigateToFieldDetail(fieldId, "reviews")
@@ -104,8 +105,22 @@ fun SimpleNotificationScreen(
                             onNavigateToProfile()
                         }
                     }
-                    "OPPONENT_JOINED", "MATCH_RESULT" -> {
-                        onNavigateToBooking()
+                    "OPPONENT_JOINED", "MATCH_RESULT", "WAITING_OPPONENT_BOOKING" -> {
+                        // ✅ NEW: Chuyển đến tab "Trận đấu" trong quản lý đặt sân
+                        if (notification.type == "WAITING_OPPONENT_BOOKING") {
+                            onNavigateToMatches()
+                        } else {
+                            onNavigateToBooking()
+                        }
+                    }
+                    "OPPONENT_AVAILABLE" -> {
+                        // Renter: điều hướng thẳng tới chi tiết sân mà renter A đang chờ đối thủ
+                        val fieldId = notification.data.fieldId
+                        if (!fieldId.isNullOrBlank()) {
+                            onNavigateToFieldDetail(fieldId, "booking")
+                        } else {
+                            onNavigateToBooking()
+                        }
                     }
                     else -> onNavigateToHome()
                 }

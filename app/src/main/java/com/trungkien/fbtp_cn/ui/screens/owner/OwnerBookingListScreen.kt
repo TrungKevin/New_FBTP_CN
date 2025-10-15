@@ -77,7 +77,7 @@ private enum class BookingStatusFilter(val label: String) {
     Finished("Đã kết thúc")
 }
 
-private enum class MainTab(val label: String) {
+enum class MainTab(val label: String) {
     Bookings("Đặt sân"),
     Matches("Trận đấu")
 }
@@ -105,6 +105,7 @@ private enum class RecentRangeFilter(val label: String, val days: Long?) {
 fun OwnerBookingListScreen(
     onBookingClick: (String) -> Unit,
     onMatchClick: (String) -> Unit = {},
+    initialTab: MainTab = MainTab.Bookings, // ✅ NEW: Cho phép mở tab cụ thể
     modifier: Modifier = Modifier
 ) {
     val authViewModel: AuthViewModel = viewModel()
@@ -117,7 +118,7 @@ fun OwnerBookingListScreen(
         }
     }
     val allBookings = ui.ownerBookings
-    var selectedTab by rememberSaveable { mutableStateOf(MainTab.Bookings) }
+    var selectedTab by rememberSaveable { mutableStateOf(initialTab) }
     var selectedFilter by rememberSaveable { mutableStateOf(BookingStatusFilter.All) }
     var selectedMatchFilter by rememberSaveable { mutableStateOf(MatchStatusFilter.All) }
     var showDatePicker by remember { mutableStateOf(false) }

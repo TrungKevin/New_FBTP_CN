@@ -8,6 +8,8 @@ import com.trungkien.fbtp_cn.model.Match
 import com.trungkien.fbtp_cn.model.MatchParticipant
 import com.trungkien.fbtp_cn.model.MatchResult
 import com.trungkien.fbtp_cn.service.NotificationHelper
+import com.trungkien.fbtp_cn.service.RenterNotificationHelper
+import com.trungkien.fbtp_cn.service.GlobalNotificationHelper
 import kotlinx.coroutines.tasks.await
 import java.util.*
 import com.trungkien.fbtp_cn.model.NotificationData
@@ -17,6 +19,7 @@ class BookingRepository(
 ) {
     private val firestore = FirebaseFirestore.getInstance()
     private val notificationRepository = NotificationRepository()
+    private val globalNotificationHelper = GlobalNotificationHelper(notificationRepository)
     
     companion object {
         private const val BOOKINGS_COLLECTION = "bookings"
@@ -45,6 +48,16 @@ class BookingRepository(
         createdWithOpponent: Boolean = false // ✅ CRITICAL FIX: immutable origin flag
     ): Result<String> {
         return try {
+            println("🔍 DEBUG: createBooking called:")
+            println("  - renterId: $renterId")
+            println("  - ownerId: $ownerId")
+            println("  - fieldId: $fieldId")
+            println("  - date: $date")
+            println("  - consecutiveSlots: $consecutiveSlots")
+            println("  - bookingType: $bookingType")
+            println("  - hasOpponent: $hasOpponent")
+            println("  - createdWithOpponent: $createdWithOpponent")
+            
             val bookingId = UUID.randomUUID().toString()
             
             // Tính toán thời gian bắt đầu và kết thúc
@@ -179,16 +192,24 @@ class BookingRepository(
         onChange: (List<Booking>) -> Unit,
         onError: (Exception) -> Unit
     ): ListenerRegistration {
+        println("🔍 DEBUG: listenBookingsByRenter called for renterId: $renterId")
         return firestore.collection(BOOKINGS_COLLECTION)
             .whereEqualTo("renterId", renterId)
             .addSnapshotListener { snapshot, e ->
                 if (e != null) {
+                    println("❌ ERROR: listenBookingsByRenter error: ${e.message}")
                     onError(e)
                     return@addSnapshotListener
                 }
                 val list = snapshot?.toObjects(Booking::class.java)
                     ?.sortedByDescending { it.createdAt }
                     ?: emptyList()
+                println("🔍 DEBUG: listenBookingsByRenter result:")
+                println("  - snapshot size: ${snapshot?.size() ?: 0}")
+                println("  - bookings found: ${list.size}")
+                list.forEachIndexed { index, booking ->
+                    println("  [$index] bookingId: ${booking.bookingId}, type: ${booking.bookingType}, status: ${booking.status}, date: ${booking.date}")
+                }
                 onChange(list)
             }
     }
@@ -255,6 +276,22 @@ class BookingRepository(
      */
     suspend fun updateMatchStatus(matchId: String, newStatus: String): Result<Unit> {
         return try {
+            // Lấy thông tin match trước khi cập nhật
+            val matchDoc = firestore.collection(MATCHES_COLLECTION)
+                .document(matchId)
+                .get()
+                .await()
+            
+            if (!matchDoc.exists()) {
+                return Result.failure(Exception("Match not found"))
+            }
+            
+            val match = matchDoc.toObject(Match::class.java)
+            if (match == null) {
+                return Result.failure(Exception("Failed to parse match"))
+            }
+            
+            // Cập nhật status
             firestore.collection(MATCHES_COLLECTION)
                 .document(matchId)
                 .update(mapOf(
@@ -262,6 +299,39 @@ class BookingRepository(
                     "updatedAt" to System.currentTimeMillis()
                 ))
                 .await()
+            
+            // Gửi notification cho renter khi match được xác nhận
+            if (newStatus == "CONFIRMED" && match.status != "CONFIRMED") {
+                try {
+                    // Lấy thông tin field để có tên sân
+                    val fieldDoc = firestore.collection("fields")
+                        .document(match.fieldId)
+                        .get()
+                        .await()
+                    
+                    val fieldName = fieldDoc.getString("name") ?: "Sân"
+                    
+                    // Gửi notification cho tất cả participants
+                    val notificationRepository = NotificationRepository()
+                    val renterNotificationHelper = RenterNotificationHelper(notificationRepository)
+                    
+                    match.participants.forEach { participant ->
+                        renterNotificationHelper.notifyBookingConfirmed(
+                            renterId = participant.renterId,
+                            fieldName = fieldName,
+                            date = match.date,
+                            time = match.startAt,
+                            bookingId = matchId,
+                            fieldId = match.fieldId
+                        )
+                    }
+                    
+                    println("🔔 DEBUG: Sent match confirmed notification to participants: ${match.participants.map { it.renterId }}")
+                } catch (e: Exception) {
+                    println("❌ ERROR: Failed to send match confirmed notification: ${e.message}")
+                }
+            }
+            
             println("✅ DEBUG: Match status updated: $matchId -> $newStatus")
             Result.success(Unit)
         } catch (e: Exception) {
@@ -391,6 +461,51 @@ class BookingRepository(
             println("✅ DEBUG: createWaitingOpponentBooking completed successfully")
             println("  - bookingId: $bookingId")
             println("  - matchId: $rangeKey")
+            
+            // ✅ NEW: Gửi notifications sau khi tạo booking thành công
+            try {
+                // Lấy thông tin renter và field để gửi notification
+                val renterDoc = firestore.collection("users").document(renterId).get().await()
+                val fieldDoc = firestore.collection("fields").document(fieldId).get().await()
+                
+                val renterName = renterDoc.getString("name") ?: "Người chơi"
+                val fieldName = fieldDoc.getString("name") ?: "Sân"
+                val ownerId = fieldDoc.getString("ownerId") ?: ""
+                
+                println("🔔 DEBUG: Sending notifications for waiting opponent booking:")
+                println("  - renterName: $renterName")
+                println("  - fieldName: $fieldName")
+                println("  - ownerId: $ownerId")
+                
+                // 1. Gửi thông báo cho Owner
+                if (ownerId.isNotBlank()) {
+                    globalNotificationHelper.notifyOwnerWaitingOpponent(
+                        ownerId = ownerId,
+                        renterName = renterName,
+                        fieldName = fieldName,
+                        date = date,
+                        time = startAt,
+                        bookingId = bookingId,
+                        fieldId = fieldId
+                    )
+                }
+                
+                // 2. Gửi thông báo cho tất cả Renter (trừ renter đã đặt)
+                globalNotificationHelper.notifyAllRentersOpponentAvailable(
+                    waitingRenterName = renterName,
+                    fieldName = fieldName,
+                    date = date,
+                    time = startAt,
+                    bookingId = bookingId,
+                    fieldId = fieldId,
+                    excludeRenterId = renterId
+                )
+                
+                println("🔔 DEBUG: All notifications sent successfully")
+            } catch (e: Exception) {
+                println("❌ ERROR: Failed to send notifications: ${e.message}")
+                e.printStackTrace()
+            }
             
             Result.success(bookingId)
         } catch (e: Exception) {
@@ -614,6 +729,22 @@ class BookingRepository(
      */
     suspend fun updateBookingStatus(bookingId: String, newStatus: String): Result<Unit> {
         return try {
+            // Lấy thông tin booking trước khi cập nhật
+            val bookingDoc = firestore.collection(BOOKINGS_COLLECTION)
+                .document(bookingId)
+                .get()
+                .await()
+            
+            if (!bookingDoc.exists()) {
+                return Result.failure(Exception("Booking not found"))
+            }
+            
+            val booking = bookingDoc.toObject(Booking::class.java)
+            if (booking == null) {
+                return Result.failure(Exception("Failed to parse booking"))
+            }
+            
+            // Cập nhật status
             firestore.collection(BOOKINGS_COLLECTION)
                 .document(bookingId)
                 .update(mapOf(
@@ -621,6 +752,70 @@ class BookingRepository(
                     "updatedAt" to System.currentTimeMillis()
                 ))
                 .await()
+            
+            // Gửi notification + đồng bộ match/slot khi booking được xác nhận hoặc bị hủy
+            if ((newStatus == "CONFIRMED" && booking.status != "CONFIRMED") || 
+                (newStatus == "CANCELLED" && booking.status != "CANCELLED")) {
+                try {
+                    // Lấy thông tin field để có tên sân
+                    val fieldDoc = firestore.collection("fields")
+                        .document(booking.fieldId)
+                        .get()
+                        .await()
+                    
+                    val fieldName = fieldDoc.getString("name") ?: "Sân"
+                    
+                    // Gửi notification cho renter
+                    val notificationRepository = NotificationRepository()
+                    val renterNotificationHelper = RenterNotificationHelper(notificationRepository)
+                    
+                    if (newStatus == "CONFIRMED") {
+                        renterNotificationHelper.notifyBookingConfirmed(
+                            renterId = booking.renterId,
+                            fieldName = fieldName,
+                            date = booking.date,
+                            time = booking.consecutiveSlots.firstOrNull() ?: "",
+                            bookingId = booking.bookingId,
+                            fieldId = booking.fieldId
+                        )
+                        println("🔔 DEBUG: Sent booking confirmed notification to renter: ${booking.renterId}")
+                    } else if (newStatus == "CANCELLED") {
+                        // ✅ Khôi phục trạng thái match/slot về bình thường
+                        try {
+                            val matchId = booking.matchId
+                            if (!matchId.isNullOrBlank()) {
+                                firestore.collection(MATCHES_COLLECTION)
+                                    .document(matchId)
+                                    .update(
+                                        mapOf(
+                                            "status" to "FREE",
+                                            "occupiedCount" to 0,
+                                            "participants" to emptyList<Any>(),
+                                            "updatedAt" to System.currentTimeMillis()
+                                        )
+                                    )
+                                    .await()
+                                println("🔄 DEBUG: Match reset to FREE due to booking cancel: $matchId")
+                            }
+                        } catch (e: Exception) {
+                            println("❌ ERROR: Failed to reset match after cancel: ${e.message}")
+                        }
+                        renterNotificationHelper.notifyBookingCancelledByOwner(
+                            renterId = booking.renterId,
+                            fieldName = fieldName,
+                            date = booking.date,
+                            time = booking.consecutiveSlots.firstOrNull() ?: "",
+                            reason = null, // Có thể thêm reason nếu cần
+                            bookingId = booking.bookingId,
+                            fieldId = booking.fieldId
+                        )
+                        println("🔔 DEBUG: Sent booking cancelled notification to renter: ${booking.renterId}")
+                    }
+                } catch (e: Exception) {
+                    println("❌ ERROR: Failed to send booking notification: ${e.message}")
+                }
+            }
+            
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -871,16 +1066,52 @@ class BookingRepository(
             
             println("✅ DEBUG: Match result saved: ${matchResult.resultId}")
             
-            // ✅ Gửi thông báo kết quả trận đấu cho cả hai renter
-            val resultText = "${matchResult.renterAScore} - ${matchResult.renterBScore}"
-            notificationHelper?.notifyMatchResult(
-                renterAId = "", // TODO: Lấy từ matchResult hoặc match
-                renterBId = "", // TODO: Lấy từ matchResult hoặc match
-                fieldName = "Sân", // TODO: Lấy từ match
-                result = resultText,
-                matchId = matchResult.matchId,
-                fieldId = null // TODO: Lấy từ match
-            )
+            // Gửi thông báo kết quả trận đấu cho renter
+            try {
+                // Lấy thông tin field để có tên sân
+                val fieldDoc = firestore.collection("fields")
+                    .document(matchResult.fieldId)
+                    .get()
+                    .await()
+                
+                val fieldName = fieldDoc.getString("name") ?: "Sân"
+                
+                // Gửi notification cho renter
+                val notificationRepository = NotificationRepository()
+                val renterNotificationHelper = RenterNotificationHelper(notificationRepository)
+                
+                // Gửi notification cho cả hai renter
+                val renterAId = matchResult.winnerRenterId ?: ""
+                val renterBId = matchResult.loserRenterId ?: ""
+                
+                if (renterAId.isNotBlank()) {
+                    val isWinner = matchResult.winnerSide == "A"
+                    renterNotificationHelper.notifyMatchResult(
+                        renterId = renterAId,
+                        fieldName = fieldName,
+                        result = "${matchResult.renterAScore} - ${matchResult.renterBScore}",
+                        isWinner = isWinner,
+                        matchId = matchResult.matchId,
+                        fieldId = matchResult.fieldId
+                    )
+                }
+                
+                if (renterBId.isNotBlank()) {
+                    val isWinner = matchResult.winnerSide == "B"
+                    renterNotificationHelper.notifyMatchResult(
+                        renterId = renterBId,
+                        fieldName = fieldName,
+                        result = "${matchResult.renterAScore} - ${matchResult.renterBScore}",
+                        isWinner = isWinner,
+                        matchId = matchResult.matchId,
+                        fieldId = matchResult.fieldId
+                    )
+                }
+                
+                println("🔔 DEBUG: Sent match result notifications to renters: $renterAId, $renterBId")
+            } catch (e: Exception) {
+                println("❌ ERROR: Failed to send match result notifications: ${e.message}")
+            }
             
             Result.success(Unit)
         } catch (e: Exception) {

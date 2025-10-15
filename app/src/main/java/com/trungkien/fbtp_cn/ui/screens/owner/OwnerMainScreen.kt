@@ -186,6 +186,16 @@ fun OwnerMainScreen(
                        currentScreen = OwnerNavScreen.Field
                        navController.navigate("owner_field_detail/$fieldId?tab=$initialTab")
                    },
+            onNavigateToMatches = {
+                // ✅ NEW: Navigate to Matches tab specifically
+                showNotificationScreen = false
+                showTopAppBar = true
+                showBottomNavBar = true
+                currentScreen = OwnerNavScreen.Booking
+                navController.navigate("owner_booking_list?tab=matches") {
+                    popUpTo("owner_home") { inclusive = true }
+                }
+            },
             userId = currentUser?.userId ?: ""
         )
     } else {
@@ -349,7 +359,14 @@ fun OwnerMainScreen(
                     }
 
                     // Màn hình danh sách đặt sân
-                    composable("owner_booking_list") {
+                    composable("owner_booking_list") { backStackEntry ->
+                        val tabParam = backStackEntry.arguments?.getString("tab")
+                        val initialTab = if (tabParam == "matches") {
+                            com.trungkien.fbtp_cn.ui.screens.owner.MainTab.Matches
+                        } else {
+                            com.trungkien.fbtp_cn.ui.screens.owner.MainTab.Bookings
+                        }
+                        
                         OwnerBookingListScreen(
                             onBookingClick = { bookingId ->
                                 navController.navigate("owner_booking_detail/$bookingId")
@@ -358,7 +375,8 @@ fun OwnerMainScreen(
                                 showTopAppBar = false
                                 showBottomNavBar = false
                                 navController.navigate("owner_match_detail/$matchId")
-                            }
+                            },
+                            initialTab = initialTab
                         )
                     }
 

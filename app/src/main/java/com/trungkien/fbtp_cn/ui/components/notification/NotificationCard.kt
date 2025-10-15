@@ -77,11 +77,17 @@ fun getNotificationStyle(type: String): NotificationStyle {
             iconBackgroundColor = Color(0xFFF44336).copy(alpha = 0.1f),
             indicatorColor = Color(0xFFF44336)
         )
-        "OPPONENT_JOINED", "OPPONENT_SEARCH" -> NotificationStyle(
+        "OPPONENT_JOINED", "OPPONENT_SEARCH", "OPPONENT_AVAILABLE" -> NotificationStyle(
             backgroundColor = Color(0xFFE3F2FD), // Xanh dương nhạt
             iconColor = Color(0xFF2196F3), // Xanh dương
             iconBackgroundColor = Color(0xFF2196F3).copy(alpha = 0.1f),
             indicatorColor = Color(0xFF2196F3)
+        )
+        "WAITING_OPPONENT_BOOKING" -> NotificationStyle(
+            backgroundColor = Color(0xFFFFF3E0), // Cam nhạt
+            iconColor = Color(0xFFFF9800), // Cam
+            iconBackgroundColor = Color(0xFFFF9800).copy(alpha = 0.1f),
+            indicatorColor = Color(0xFFFF9800)
         )
         "MATCH_RESULT" -> NotificationStyle(
             backgroundColor = Color(0xFFF3E5F5), // Tím nhạt

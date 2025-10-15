@@ -14,166 +14,160 @@ service cloud.firestore {
         get(/databases/$(db)/documents/fields/$(fieldId)).data.ownerId == request.auth.uid;
     }
 
-    // USERS: Cho phép đọc thông tin cơ bản, chỉ cho phép sửa thông tin của chính mình
+    // USERS
     match /users/{uid} {
       allow create: if isSelf(uid);
-      allow read: if true; // ✅ Cho phép đọc thông tin user cơ bản cho hiển thị
-      allow update, delete: if isSelf(uid); // Chỉ cho phép sửa/xóa thông tin của chính mình
+      allow read: if true;
+      allow update, delete: if isSelf(uid);
     }
 
-    // FIELDS: ai cũng đọc; chỉ owner của field được CRUD
+    // FIELDS
     match /fields/{fieldId} {
-      allow read: if true; // ✅ RenterBookingCard có thể đọc được
-      // CREATE: Kiểm tra ownerId trong data mới
-      allow create: if signedIn() && 
-        request.resource.data.ownerId == request.auth.uid;
-      // UPDATE: Kiểm tra ownerId trong data mới  
-      allow update: if signedIn() && 
-        request.resource.data.ownerId == request.auth.uid;
-      // DELETE: Kiểm tra ownerId trong document hiện tại
-      allow delete: if signedIn() && 
-        resource.data.ownerId == request.auth.uid;
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if signedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
     }
 
-    // PRICING_RULES - Xử lý riêng CREATE và UPDATE/DELETE
+    // PRICING_RULES
     match /pricing_rules/{ruleId} {
-      allow read: if true; // ✅ RenterBookingCard có thể đọc được
-      
-      // CREATE: Kiểm tra fieldId trong data mới
-      allow create: if signedIn() && 
+      allow read: if true;
+      allow create: if signedIn() &&
         request.resource.data.fieldId != null &&
         isFieldOwner(request.resource.data.fieldId);
-      
-      // UPDATE/DELETE: Kiểm tra fieldId trong document hiện tại
-      allow update, delete: if signedIn() && 
+      allow update, delete: if signedIn() &&
         resource.data.fieldId != null &&
         isFieldOwner(resource.data.fieldId);
     }
 
-    // FIELD_SERVICES - Xử lý riêng CREATE và UPDATE/DELETE  
+    // FIELD_SERVICES
     match /field_services/{fsId} {
-      allow read: if true; // ✅ RenterBookingCard có thể đọc được
-      
-      // CREATE: Kiểm tra fieldId trong data mới
-      allow create: if signedIn() && 
+      allow read: if true;
+      allow create: if signedIn() &&
         request.resource.data.fieldId != null &&
         isFieldOwner(request.resource.data.fieldId);
-      
-      // UPDATE/DELETE: Kiểm tra fieldId trong document hiện tại
-      allow update, delete: if signedIn() && 
+      allow update, delete: if signedIn() &&
         resource.data.fieldId != null &&
         isFieldOwner(resource.data.fieldId);
     }
 
-    // BOOKINGS - Quản lý đặt sân
-    match /bookings/{bookingId} {
-      allow read: if true;  // ✅ RenterBookingScreen có thể đọc được
-      
-      // CREATE: Chỉ user đã đăng nhập mới tạo được booking
-      allow create: if signedIn() && 
-        request.resource.data.renterId == request.auth.uid;
-      
-      // UPDATE/DELETE: Chỉ người đặt hoặc owner của sân mới sửa/xóa được
-      allow update, delete: if signedIn() && 
-        (resource.data.renterId == request.auth.uid || 
-         isFieldOwner(resource.data.fieldId));
-    }
-
-    // MATCHES - Quản lý trận đấu/khoảng thời gian
+    // MATCHES
     match /matches/{matchId} {
-      allow read: if true;  // ✅ Ai cũng đọc được matches để hiển thị trạng thái khung giờ
-      
-      // CREATE: Chỉ user đã đăng nhập mới tạo được match (renter A tạo)
-      allow create: if signedIn() && 
+      allow read: if true;
+
+      allow create: if signedIn() &&
         request.resource.data.participants != null &&
         request.resource.data.participants.size() > 0 &&
         request.resource.data.participants[0].renterId == request.auth.uid;
-      
-      // UPDATE: Cho phép nếu
-      //  - Người dùng hiện tại nằm trong participants hiện có (renter A/B), HOẶC
-      //  - Người dùng hiện tại là participant mới trong request (renter B được thêm), HOẶC
-      //  - Chủ sân
+
       allow update: if signedIn() && (
-        // Participant hiện có
         (resource.data.participants != null && (
           resource.data.participants[0].renterId == request.auth.uid ||
           (resource.data.participants.size() > 1 && resource.data.participants[1].renterId == request.auth.uid)
         )) ||
-        // Participant mới trong request (khi renter B join, nằm ở chỉ số 1)
         (request.resource.data.participants != null &&
           request.resource.data.participants.size() > 1 &&
           request.resource.data.participants[1].renterId == request.auth.uid) ||
-        // Chủ sân
         isFieldOwner(resource.data.fieldId)
       );
-      
-      // DELETE: Chỉ owner của sân mới xóa được match
-      allow delete: if signedIn() && 
-        isFieldOwner(resource.data.fieldId);
-    }
 
-    // SLOTS - Quản lý khe giờ
-    match /slots/{slotId} {
-      allow read: if true;  // ✅ Ai cũng đọc được slots
-      
-      // CREATE/UPDATE/DELETE: Chỉ owner của sân mới quản lý được slots
-      allow create, update, delete: if signedIn() && 
-        resource.data.fieldId != null &&
-        isFieldOwner(resource.data.fieldId);
+      allow delete: if signedIn() && isFieldOwner(resource.data.fieldId);
     }
-
-    // REVIEWS - Quản lý đánh giá sân
-    match /reviews/{reviewId} {
-      allow read: if true;  // ✅ Ai cũng đọc được reviews
       
-      // CREATE: Chỉ user đã đăng nhập mới tạo được review
-      allow create: if signedIn() && 
-        request.resource.data.renterId == request.auth.uid;
-      
-      // UPDATE/DELETE: Chỉ người tạo review hoặc owner của sân mới sửa/xóa được
-      allow update, delete: if signedIn() && 
-        (resource.data.renterId == request.auth.uid || 
-         isFieldOwner(resource.data.fieldId));
-    }
-
-    // REPLIES - Quản lý phản hồi trong reviews
-    match /reviews/{reviewId}/replies/{replyId} {
-      allow read: if true;  // ✅ Ai cũng đọc được replies
-      
-      // CREATE: Chỉ user đã đăng nhập mới tạo được reply
-      allow create: if signedIn() && 
-        request.resource.data.userId == request.auth.uid;
-      
-      // UPDATE/DELETE: Chỉ người tạo reply hoặc owner của sân mới sửa/xóa được
-      allow update, delete: if signedIn() && 
-        (resource.data.userId == request.auth.uid || 
-         isFieldOwner(get(/databases/$(db)/documents/reviews/$(reviewId)).data.fieldId));
-    }
-
-    // MATCH_RESULTS - Lưu kết quả trận đấu
+    // MATCH_RESULTS
     match /match_results/{resultId} {
       allow read: if true;
 
-      // CREATE: cho phép owner của field hoặc một trong các renter tham gia match
       allow create: if signedIn() &&
         request.resource.data.fieldId != null &&
         request.resource.data.matchId != null && (
-          // Chủ sân của field
           isFieldOwner(request.resource.data.fieldId) ||
-          // Người tham gia trận đấu (A/B)
           (
-            let m = get(/databases/$(db)/documents/matches/$(request.resource.data.matchId)).data;
-            m.participants.size() > 0 && (
-              m.participants[0].renterId == request.auth.uid ||
-              (m.participants.size() > 1 && m.participants[1].renterId == request.auth.uid)
+            get(/databases/$(db)/documents/matches/$(request.resource.data.matchId)).data.participants.size() > 0 &&
+            (
+              get(/databases/$(db)/documents/matches/$(request.resource.data.matchId)).data.participants[0].renterId == request.auth.uid ||
+              (
+                get(/databases/$(db)/documents/matches/$(request.resource.data.matchId)).data.participants.size() > 1 &&
+                get(/databases/$(db)/documents/matches/$(request.resource.data.matchId)).data.participants[1].renterId == request.auth.uid
+              )
             )
           )
         );
 
-      // UPDATE/DELETE: chỉ owner field
       allow update, delete: if signedIn() &&
         resource.data.fieldId != null &&
         isFieldOwner(resource.data.fieldId);
+    }
+
+    // BOOKINGS
+    match /bookings/{bookingId} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.renterId == request.auth.uid;
+      allow update, delete: if signedIn() &&
+        (resource.data.renterId == request.auth.uid || isFieldOwner(resource.data.fieldId));
+    }
+
+    // SLOTS
+    match /slots/{slotId} {
+      allow read: if true;
+      allow create: if signedIn() &&
+        request.resource.data.fieldId != null &&
+        isFieldOwner(request.resource.data.fieldId);
+      allow update, delete: if signedIn() &&
+        resource.data.fieldId != null &&
+        isFieldOwner(resource.data.fieldId);
+    }
+
+    // REVIEWS - ✅ SỬA LỖI INDEX
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.renterId == request.auth.uid;
+      allow update, delete: if signedIn() &&
+        (resource.data.renterId == request.auth.uid || isFieldOwner(resource.data.fieldId));
+    }
+
+    // REPLIES - ✅ SỬA LỖI INDEX (Đúng path structure)
+    match /reviews/{reviewId}/replies/{replyId} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if signedIn() &&
+        (resource.data.userId == request.auth.uid ||
+         isFieldOwner(get(/databases/$(db)/documents/reviews/$(reviewId)).data.fieldId));
+    }
+
+    // NOTIFICATIONS - ✅ HỖ TRỢ ĐẦY ĐỦ CHO OWNER VÀ RENTER
+    match /notifications/{notificationId} {
+      // Đọc/cập nhật/xóa: chỉ người nhận
+      allow read, update, delete: if signedIn() && resource.data.toUserId == request.auth.uid;
+
+      // Tạo: cho phép khi:
+      // 1. toUserId là owner của fieldId (renter→owner notifications)
+      // 2. Người tạo là owner của fieldId (owner→renter notifications)  
+      // 3. System notifications (không có fieldId) - cho phép tất cả user đã đăng nhập
+      allow create: if signedIn() && (
+        // Trường hợp có fieldId: kiểm tra ownership
+        (request.resource.data.data != null && 
+         request.resource.data.data.fieldId != null && (
+           // Renter gửi notification cho Owner
+           get(/databases/$(db)/documents/fields/$(request.resource.data.data.fieldId)).data.ownerId
+             == request.resource.data.toUserId ||
+           // Owner gửi notification cho Renter
+           get(/databases/$(db)/documents/fields/$(request.resource.data.data.fieldId)).data.ownerId
+             == request.auth.uid
+         )) ||
+        // Cho phép broadcast khi có người chờ đối thủ
+        (request.resource.data.type == "OPPONENT_AVAILABLE") ||
+        // Trường hợp không có fieldId: system notifications (OPPONENT_AVAILABLE)
+        (request.resource.data.data == null || 
+         request.resource.data.data.fieldId == null)
+      );
+    }
+
+    // USER_DEVICES
+    match /user_devices/{deviceId} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.userId == request.auth.uid;
     }
   }
 }

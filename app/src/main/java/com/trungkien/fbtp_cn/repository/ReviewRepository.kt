@@ -4,6 +4,8 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.trungkien.fbtp_cn.model.*
+import com.trungkien.fbtp_cn.service.ReviewNotificationHelper
+import com.trungkien.fbtp_cn.service.NotificationHelper
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -11,105 +13,78 @@ import kotlinx.coroutines.tasks.await
  */
 class ReviewRepository {
     private val firestore = FirebaseFirestore.getInstance()
-    private val notificationRepository = NotificationRepository()
-    
-    // Collection names
-    companion object {
-        private const val REVIEWS_COLLECTION = "reviews"
-        private const val REPLIES_COLLECTION = "replies"
-    }
+    private val notificationHelper = ReviewNotificationHelper(NotificationRepository())
     
     /**
-     * Lấy tất cả reviews của một sân
+     * Lấy tất cả reviews của một field
      */
     suspend fun getReviewsByFieldId(fieldId: String): Result<List<Review>> {
         return try {
-            val snapshot = firestore.collection(REVIEWS_COLLECTION)
+            val snapshot = firestore.collection("reviews")
                 .whereEqualTo("fieldId", fieldId)
-                .whereEqualTo("status", "ACTIVE")
-                // Bỏ .orderBy để tránh cần index
                 .get()
                 .await()
             
-            // Map base reviews
-            val baseReviews = snapshot.documents.mapNotNull { doc ->
-                doc.toObject(Review::class.java)?.copy(reviewId = doc.id)
-            }
-            
-            // Load replies subcollection for each review to ensure fresh data
-            val reviewsWithReplies = baseReviews.map { review ->
+            val reviews = snapshot.documents.mapNotNull { doc ->
                 try {
-                    val repliesSnap = firestore.collection(REVIEWS_COLLECTION)
-                        .document(review.reviewId)
-                        .collection(REPLIES_COLLECTION)
-                        .orderBy("createdAt", Query.Direction.ASCENDING)
-                        .get()
-                        .await()
-                    val replies = repliesSnap.documents.mapNotNull { repDoc ->
-                        repDoc.toObject(Reply::class.java)?.copy(replyId = repDoc.id)
-                    }
-                    review.copy(replies = replies)
+                    doc.toObject(Review::class.java)?.copy(reviewId = doc.id)
                 } catch (e: Exception) {
-                    review
+                    println("❌ DEBUG: Failed to parse review: ${e.message}")
+                    null
                 }
-            }
+            }.sortedByDescending { it.createdAt }
             
-            // Sort trong memory
-            val sortedReviews = reviewsWithReplies.sortedByDescending { it.createdAt }
-            
-            Result.success(sortedReviews)
+            Result.success(reviews)
         } catch (e: Exception) {
+            println("❌ DEBUG: Repository.getReviewsByFieldId error: ${e.message}")
             Result.failure(e)
         }
     }
     
     /**
-     * Lấy review summary (thống kê) của một sân
+     * Lấy review summary của một field
      */
     suspend fun getReviewSummary(fieldId: String): Result<ReviewSummary> {
         return try {
-            val snapshot = firestore.collection(REVIEWS_COLLECTION)
+            val snapshot = firestore.collection("reviews")
                 .whereEqualTo("fieldId", fieldId)
-                .whereEqualTo("status", "ACTIVE")
                 .get()
                 .await()
             
             val reviews = snapshot.documents.mapNotNull { doc ->
-                doc.toObject(Review::class.java)
-            }
-            
-            if (reviews.isEmpty()) {
-                return Result.success(ReviewSummary(fieldId = fieldId))
-            }
-            
-            // Tính điểm trung bình
-            val totalRating = reviews.sumOf { it.rating }
-            val averageRating = totalRating.toFloat() / reviews.size
-            
-            // Phân bố sao
-            val ratingDistribution = (1..5).associateWith { star ->
-                reviews.count { it.rating == star }
-            }
-            
-            // Thống kê tags
-            val tagStats = mutableMapOf<String, Int>()
-            reviews.forEach { review ->
-                review.tags.forEach { tag ->
-                    tagStats[tag] = (tagStats[tag] ?: 0) + 1
+                try {
+                    doc.toObject(Review::class.java)
+                } catch (e: Exception) {
+                    null
                 }
             }
             
-            val summary = ReviewSummary(
+            if (reviews.isEmpty()) {
+                return Result.success(ReviewSummary(
+                    fieldId = fieldId,
+                    averageRating = 0.0f,
+                    totalReviews = 0,
+                    ratingDistribution = mapOf()
+                ))
+            }
+            
+            val averageRating = reviews.sumOf { it.rating } / reviews.size.toFloat()
+            val totalReviews = reviews.size
+            
+            val ratingDistribution = reviews.groupBy { it.rating }
+                .mapValues { it.value.size }
+            
+            val recentReviews = reviews.sortedByDescending { it.createdAt }
+                .take(5)
+            
+            Result.success(ReviewSummary(
                 fieldId = fieldId,
                 averageRating = averageRating,
-                totalReviews = reviews.size,
-                ratingDistribution = ratingDistribution,
-                tagStats = tagStats,
-                lastUpdated = Timestamp.now()
-            )
-            
-            Result.success(summary)
+                totalReviews = totalReviews,
+                ratingDistribution = ratingDistribution
+            ))
         } catch (e: Exception) {
+            println("❌ DEBUG: Repository.getReviewSummary error: ${e.message}")
             Result.failure(e)
         }
     }
@@ -119,86 +94,102 @@ class ReviewRepository {
      */
     suspend fun addReview(review: Review): Result<String> {
         return try {
-            val reviewWithTimestamp = review.copy(
-                createdAt = Timestamp.now(),
-                updatedAt = Timestamp.now()
-            )
+            val docRef = firestore.collection("reviews").document()
+            val reviewWithId = review.copy(reviewId = docRef.id)
+            docRef.set(reviewWithId).await()
             
-            val docRef = firestore.collection(REVIEWS_COLLECTION).add(reviewWithTimestamp).await()
-
-            // ✅ Thông báo cho chủ sân (Client-side Approach A)
+            println("✅ DEBUG: Review added successfully: ${docRef.id}")
+            
+            // ✅ NEW: Gửi thông báo cho Owner khi có review mới
             try {
-                val fieldSnap = firestore.collection("fields").document(review.fieldId).get().await()
-                val ownerId = fieldSnap.getString("ownerId")
-                if (!ownerId.isNullOrBlank()) {
-                    val result = notificationRepository.createNotification(
-                        toUserId = ownerId,
-                        type = "REVIEW_ADDED",
-                        title = "Đánh giá mới!",
-                        body = "Bạn nhận được đánh giá ${review.rating} sao",
-                        data = NotificationData(
-                            reviewId = docRef.id,
-                            fieldId = review.fieldId,
-                            userId = review.renterId,
-                            customData = emptyMap()
-                        ),
-                        priority = "NORMAL"
+                // Lấy thông tin field để có tên sân và ownerId
+                val fieldDoc = firestore.collection("fields")
+                    .document(review.fieldId)
+                    .get()
+                    .await()
+                
+                val fieldName = fieldDoc.getString("name") ?: "Sân"
+                val ownerId = fieldDoc.getString("ownerId") ?: ""
+                
+                if (ownerId.isNotBlank()) {
+                    // Gửi notification cho Owner
+                    val notificationRepository = NotificationRepository()
+                    val notificationHelper = NotificationHelper(notificationRepository)
+                    
+                    notificationHelper.notifyReviewAdded(
+                        ownerId = ownerId,
+                        renterName = review.renterName,
+                        fieldName = fieldName,
+                        rating = review.rating,
+                        comment = review.comment,
+                        reviewId = docRef.id,
+                        fieldId = review.fieldId
                     )
-                    if (result.isSuccess) {
-                        println("🔔 DEBUG: Notification REVIEW_ADDED CREATED -> ownerId=$ownerId, reviewId=${docRef.id}")
-                    } else {
-                        println("❌ ERROR: Notification REVIEW_ADDED CREATE FAILED -> ${result.exceptionOrNull()?.message}")
-                    }
-                } else {
-                    println("⚠️ WARN: addReview - ownerId is null for fieldId=${review.fieldId}")
+                    
+                    println("🔔 DEBUG: Sent review notification to owner: $ownerId")
                 }
             } catch (e: Exception) {
-                println("❌ ERROR: Notification REVIEW_ADDED EXCEPTION -> ${e.message}")
+                println("❌ ERROR: Failed to send review notification: ${e.message}")
             }
             
             Result.success(docRef.id)
         } catch (e: Exception) {
+            println("❌ DEBUG: Repository.addReview error: ${e.message}")
             Result.failure(e)
         }
     }
     
     /**
-     * Thêm reply mới vào review
+     * Thêm reply cho review
      */
     suspend fun addReply(reviewId: String, reply: Reply): Result<String> {
         return try {
-            println("🔥 DEBUG: Repository.addReply - reviewId: $reviewId, reply: ${reply.comment}")
-            
-            val replyWithTimestamp = reply.copy(
-                replyId = "", // Để Firebase tự tạo
-                createdAt = Timestamp.now(),
-                updatedAt = Timestamp.now()
-            )
-            
-            println("🔥 DEBUG: Adding reply to subcollection...")
-            // Thêm reply vào subcollection
-            val replyRef = firestore.collection(REVIEWS_COLLECTION)
-                .document(reviewId)
-                .collection(REPLIES_COLLECTION)
-                .add(replyWithTimestamp)
-                .await()
-            
-            println("🔥 DEBUG: Reply added to subcollection with ID: ${replyRef.id}")
-            
-            // Cập nhật review để thêm reply mới
-            val reviewRef = firestore.collection(REVIEWS_COLLECTION).document(reviewId)
-            val review = reviewRef.get().await().toObject(Review::class.java)
-            
-            println("🔥 DEBUG: Review found: ${review != null}, current replies: ${review?.replies?.size ?: 0}")
+            val reviewRef = firestore.collection("reviews").document(reviewId)
+            val reviewDoc = reviewRef.get().await()
+            val review = reviewDoc.toObject(Review::class.java)
             
             if (review != null) {
+                val replyWithTimestamp = reply.copy(
+                    createdAt = Timestamp.now(),
+                    replyId = ""
+                )
+                // ✅ Lưu reply vào subcollection đúng cấu trúc rules: reviews/{reviewId}/replies/{replyId}
+                val replyRef = reviewRef.collection("replies").document()
+                replyRef.set(replyWithTimestamp.copy(replyId = replyRef.id)).await()
+
+                // Đồng bộ danh sách replies trong chính document review để hiển thị nhanh
                 val updatedReplies = review.replies + replyWithTimestamp.copy(replyId = replyRef.id)
-                println("🔥 DEBUG: Updating embedded array with ${updatedReplies.size} replies")
                 reviewRef.update("replies", updatedReplies).await()
-                println("🔥 DEBUG: Embedded array updated successfully")
+                
+                // Gửi notification cho renter khi owner phản hồi review
+                if (reply.isOwner) {
+                    try {
+                        // Lấy thông tin field để có tên sân
+                        val fieldDoc = firestore.collection("fields")
+                            .document(review.fieldId)
+                            .get()
+                            .await()
+                        
+                        val fieldName = fieldDoc.getString("name") ?: "Sân"
+                        
+                        // Gửi notification cho renter
+                        notificationHelper.notifyReviewReply(
+                            renterId = review.renterId,
+                            ownerName = reply.userName,
+                            fieldName = fieldName,
+                            replyContent = reply.comment,
+                            reviewId = reviewId,
+                            fieldId = review.fieldId
+                        )
+                        
+                        println("🔔 DEBUG: Sent review reply notification to renter: ${review.renterId}")
+                    } catch (e: Exception) {
+                        println("❌ ERROR: Failed to send review reply notification: ${e.message}")
+                    }
+                }
             }
             
-            Result.success(replyRef.id)
+            Result.success("")
         } catch (e: Exception) {
             println("❌ DEBUG: Repository.addReply error: ${e.message}")
             Result.failure(e)
@@ -206,69 +197,56 @@ class ReviewRepository {
     }
     
     /**
-     * Like/Unlike review
+     * Toggle like cho review
      */
-    suspend fun toggleLikeReview(reviewId: String, userId: String): Result<Unit> {
+    suspend fun toggleLikeReview(reviewId: String, userId: String): Result<Boolean> {
         return try {
-            val reviewRef = firestore.collection(REVIEWS_COLLECTION).document(reviewId)
-            val review = reviewRef.get().await().toObject(Review::class.java)
+            val reviewRef = firestore.collection("reviews").document(reviewId)
+            val reviewDoc = reviewRef.get().await()
+            val review = reviewDoc.toObject(Review::class.java)
             
             if (review != null) {
-                val isLiked = review.likedBy.contains(userId)
-                val updatedLikedBy = if (isLiked) {
-                    review.likedBy - userId
+                val likedBy = review.likedBy.toMutableList()
+                val isLiked = likedBy.contains(userId)
+                
+                if (isLiked) {
+                    likedBy.remove(userId)
                 } else {
-                    review.likedBy + userId
+                    likedBy.add(userId)
                 }
                 
-                val updatedLikes = if (isLiked) review.likes - 1 else review.likes + 1
-                
-                reviewRef.update(
-                    mapOf(
-                        "likes" to updatedLikes,
-                        "likedBy" to updatedLikedBy
-                    )
-                ).await()
+                reviewRef.update("likedBy", likedBy).await()
+                Result.success(!isLiked)
+            } else {
+                Result.failure(Exception("Review not found"))
             }
-            
-            Result.success(Unit)
         } catch (e: Exception) {
+            println("❌ DEBUG: Repository.toggleLikeReview error: ${e.message}")
             Result.failure(e)
         }
     }
     
     /**
-     * Xóa review (chỉ owner hoặc người tạo)
+     * Xóa review
      */
     suspend fun deleteReview(reviewId: String): Result<Unit> {
         return try {
-            firestore.collection(REVIEWS_COLLECTION)
-                .document(reviewId)
-                .update("status", "DELETED")
-                .await()
-            
+            firestore.collection("reviews").document(reviewId).delete().await()
             Result.success(Unit)
         } catch (e: Exception) {
+            println("❌ DEBUG: Repository.deleteReview error: ${e.message}")
             Result.failure(e)
         }
     }
     
     /**
-     * Xóa reply (chỉ owner hoặc người tạo)
+     * Xóa reply
      */
     suspend fun deleteReply(reviewId: String, replyId: String): Result<Unit> {
         return try {
-            // Xóa reply khỏi subcollection
-            firestore.collection(REVIEWS_COLLECTION)
-                .document(reviewId)
-                .collection(REPLIES_COLLECTION)
-                .document(replyId)
-                .delete()
-                .await()
-            
-            // Cập nhật review để xóa reply
-            val reviewRef = firestore.collection(REVIEWS_COLLECTION).document(reviewId)
-            val review = reviewRef.get().await().toObject(Review::class.java)
+            val reviewRef = firestore.collection("reviews").document(reviewId)
+            val reviewDoc = reviewRef.get().await()
+            val review = reviewDoc.toObject(Review::class.java)
             
             if (review != null) {
                 val updatedReplies = review.replies.filter { it.replyId != replyId }
@@ -277,6 +255,7 @@ class ReviewRepository {
             
             Result.success(Unit)
         } catch (e: Exception) {
+            println("❌ DEBUG: Repository.deleteReply error: ${e.message}")
             Result.failure(e)
         }
     }
@@ -284,42 +263,26 @@ class ReviewRepository {
     /**
      * Cập nhật reply
      */
-    suspend fun updateReply(reviewId: String, replyId: String, updates: Map<String, Any>): Result<Unit> {
+    suspend fun updateReply(reviewId: String, replyId: String, newContent: String): Result<Unit> {
         return try {
-            println("🔄 DEBUG: Repository.updateReply called - reviewId: $reviewId, replyId: $replyId, updates: $updates")
-            
-            // Update subcollection document
-            val replyRef = firestore.collection(REVIEWS_COLLECTION)
-                .document(reviewId)
-                .collection(REPLIES_COLLECTION)
-                .document(replyId)
-            val merged = updates + mapOf("updatedAt" to Timestamp.now())
-            println("🔄 DEBUG: Updating subcollection document...")
-            replyRef.update(merged).await()
-            println("🔄 DEBUG: Subcollection document updated successfully")
-            
-            // Also update embedded replies array in parent review
-            val reviewRef = firestore.collection(REVIEWS_COLLECTION).document(reviewId)
-            val review = reviewRef.get().await().toObject(Review::class.java)
-            println("🔄 DEBUG: Review found: ${review != null}, current replies: ${review?.replies?.size ?: 0}")
+            val reviewRef = firestore.collection("reviews").document(reviewId)
+            val reviewDoc = reviewRef.get().await()
+            val review = reviewDoc.toObject(Review::class.java)
             
             if (review != null) {
-                val newReplies = review.replies.map { r ->
-                    if (r.replyId == replyId) {
-                        r.copy(
-                            comment = (updates["comment"] as? String) ?: r.comment,
-                            images = (updates["images"] as? List<String>) ?: r.images,
-                            updatedAt = Timestamp.now()
-                        )
-                    } else r
+                val updatedReplies = review.replies.map { reply ->
+                    if (reply.replyId == replyId) {
+                        reply.copy(comment = newContent)
+                    } else {
+                        reply
+                    }
                 }
-                println("🔄 DEBUG: Updating embedded array with ${newReplies.size} replies")
-                reviewRef.update("replies", newReplies).await()
-                println("🔄 DEBUG: Embedded array updated successfully")
+                reviewRef.update("replies", updatedReplies).await()
             }
             
             Result.success(Unit)
         } catch (e: Exception) {
+            println("❌ DEBUG: Repository.updateReply error: ${e.message}")
             Result.failure(e)
         }
     }
@@ -329,16 +292,15 @@ class ReviewRepository {
      */
     suspend fun reportReview(reviewId: String, reason: String): Result<Unit> {
         return try {
-            val reviewRef = firestore.collection(REVIEWS_COLLECTION).document(reviewId)
-            reviewRef.update(
-                mapOf(
-                    "reportCount" to com.google.firebase.firestore.FieldValue.increment(1),
-                    "status" to "PENDING_REVIEW"
-                )
-            ).await()
-            
+            val reportData = mapOf(
+                "reviewId" to reviewId,
+                "reason" to reason,
+                "reportedAt" to Timestamp.now()
+            )
+            firestore.collection("reports").add(reportData).await()
             Result.success(Unit)
         } catch (e: Exception) {
+            println("❌ DEBUG: Repository.reportReview error: ${e.message}")
             Result.failure(e)
         }
     }
@@ -346,40 +308,12 @@ class ReviewRepository {
     /**
      * Cập nhật review
      */
-    suspend fun updateReview(reviewId: String, updates: Map<String, Any>): Result<Unit> {
+    suspend fun updateReview(reviewId: String, updatedReview: Review): Result<Unit> {
         return try {
-            val updatedData = updates.toMutableMap()
-            updatedData["updatedAt"] = Timestamp.now()
-            
-            firestore.collection(REVIEWS_COLLECTION)
-                .document(reviewId)
-                .update(updatedData)
-                .await()
-            
+            firestore.collection("reviews").document(reviewId).set(updatedReview).await()
             Result.success(Unit)
         } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-    
-    /**
-     * Lấy reviews theo user ID
-     */
-    suspend fun getReviewsByUserId(userId: String): Result<List<Review>> {
-        return try {
-            val snapshot = firestore.collection(REVIEWS_COLLECTION)
-                .whereEqualTo("renterId", userId)
-                .whereEqualTo("status", "ACTIVE")
-                .orderBy("createdAt", Query.Direction.DESCENDING)
-                .get()
-                .await()
-            
-            val reviews = snapshot.documents.mapNotNull { doc ->
-                doc.toObject(Review::class.java)?.copy(reviewId = doc.id)
-            }
-            
-            Result.success(reviews)
-        } catch (e: Exception) {
+            println("❌ DEBUG: Repository.updateReview error: ${e.message}")
             Result.failure(e)
         }
     }

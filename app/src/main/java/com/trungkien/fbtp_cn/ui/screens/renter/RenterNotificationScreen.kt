@@ -159,6 +159,14 @@ fun RenterNotificationScreen(
                             "FIELD_UPDATED" -> {
                                 onNavigateToField()
                             }
+                            "OPPONENT_AVAILABLE" -> {
+                                val fieldId = notification.data.fieldId
+                                if (!fieldId.isNullOrBlank()) {
+                                    onNavigateToFieldDetail(fieldId, "booking")
+                                } else {
+                                    onNavigateToBooking()
+                                }
+                            }
                             "REVIEW_ADDED", "REVIEW_REPLY" -> {
                                 val fieldId = notification.data.fieldId
                                 if (!fieldId.isNullOrBlank()) {

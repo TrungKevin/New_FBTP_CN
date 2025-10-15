@@ -409,42 +409,6 @@ class NotificationBuilder {// dùng để tạo các notification khác nhau tro
     }
     
     /**
-     * Tạo notification cho phản hồi đánh giá từ owner
-     */
-    fun buildReviewReplyNotification(
-        renterId: String,
-        ownerName: String,
-        fieldName: String,
-        replyContent: String,
-        reviewId: String,
-        fieldId: String
-    ): Notification {
-        return Notification(
-            notificationId = UUID.randomUUID().toString(),
-            toUserId = renterId,
-            type = "REVIEW_REPLY",
-            title = "Chủ sân đã phản hồi đánh giá",
-            body = "$ownerName đã phản hồi đánh giá của bạn về sân $fieldName: \"$replyContent\"",
-            data = NotificationData(
-                reviewId = reviewId,
-                fieldId = fieldId,
-                customData = mapOf(
-                    "ownerName" to ownerName,
-                    "fieldName" to fieldName,
-                    "replyContent" to replyContent
-                )
-            ),
-            priority = NotificationPriority.NORMAL.value,
-            channel = NotificationChannel.IN_APP.value,
-            relatedEntityId = reviewId,
-            relatedEntityType = "REVIEW",
-            category = "REVIEW",
-            tags = listOf("review", "reply"),
-            source = "USER"
-        )
-    }
-    
-    /**
      * Tạo notification cho kết quả trận đấu (customized cho renter)
      */
     fun buildMatchResultNotification(
@@ -511,6 +475,114 @@ class NotificationBuilder {// dùng để tạo các notification khác nhau tro
             relatedEntityType = "FIELD",
             category = "FIELD",
             tags = listOf("field", "update"),
+            source = "SYSTEM"
+        )
+    }
+    
+    /**
+     * Tạo notification cho owner phản hồi đánh giá của renter
+     */
+    fun buildReviewReplyNotification(
+        renterId: String,
+        ownerName: String,
+        fieldName: String,
+        replyContent: String,
+        reviewId: String,
+        fieldId: String
+    ): Notification {
+        return Notification(
+            notificationId = UUID.randomUUID().toString(),
+            toUserId = renterId,
+            type = "REVIEW_REPLY",
+            title = "Chủ sân đã phản hồi đánh giá",
+            body = "$ownerName đã phản hồi đánh giá của bạn về sân $fieldName: \"$replyContent\"",
+            data = NotificationData(
+                reviewId = reviewId,
+                fieldId = fieldId,
+                customData = mapOf(
+                    "ownerName" to ownerName,
+                    "fieldName" to fieldName,
+                    "replyContent" to replyContent
+                )
+            ),
+            priority = NotificationPriority.NORMAL.value,
+            channel = NotificationChannel.IN_APP.value,
+            relatedEntityId = reviewId,
+            relatedEntityType = "REVIEW",
+            category = "REVIEW",
+            tags = listOf("review", "reply"),
+            source = "SYSTEM"
+        )
+    }
+
+    // ✅ NEW: Thông báo cho Owner khi có renter đặt sân chờ đối thủ
+    fun buildWaitingOpponentBookingNotification(
+        ownerId: String,
+        renterName: String,
+        fieldName: String,
+        date: String,
+        time: String,
+        bookingId: String,
+        fieldId: String
+    ): Notification {
+        return Notification(
+            notificationId = UUID.randomUUID().toString(),
+            toUserId = ownerId,
+            type = "WAITING_OPPONENT_BOOKING",
+            title = "Có người đặt sân chờ đối thủ",
+            body = "$renterName đã đặt sân $fieldName vào $date lúc $time và đang chờ đối thủ",
+            data = NotificationData(
+                bookingId = bookingId,
+                fieldId = fieldId,
+                customData = mapOf(
+                    "renterName" to renterName,
+                    "fieldName" to fieldName,
+                    "date" to date,
+                    "time" to time
+                )
+            ),
+            priority = NotificationPriority.NORMAL.value,
+            channel = NotificationChannel.IN_APP.value,
+            relatedEntityId = bookingId,
+            relatedEntityType = "BOOKING",
+            category = "BOOKING",
+            tags = listOf("booking", "waiting_opponent"),
+            source = "SYSTEM"
+        )
+    }
+
+    // ✅ NEW: Thông báo cho tất cả Renter khi có người chờ đối thủ
+    fun buildOpponentAvailableNotification(
+        renterId: String,
+        waitingRenterName: String,
+        fieldName: String,
+        date: String,
+        time: String,
+        bookingId: String,
+        fieldId: String
+    ): Notification {
+        return Notification(
+            notificationId = UUID.randomUUID().toString(),
+            toUserId = renterId,
+            type = "OPPONENT_AVAILABLE",
+            title = "Có người chờ đối thủ",
+            body = "$waitingRenterName đã đặt sân $fieldName vào $date lúc $time và đang chờ đối thủ. Bạn có muốn tham gia không?",
+            data = NotificationData(
+                bookingId = bookingId,
+                fieldId = fieldId,
+                customData = mapOf(
+                    "waitingRenterName" to waitingRenterName,
+                    "fieldName" to fieldName,
+                    "date" to date,
+                    "time" to time
+                )
+            ),
+            priority = NotificationPriority.HIGH.value,
+            channel = NotificationChannel.IN_APP.value,
+            relatedEntityId = bookingId,
+            relatedEntityType = "BOOKING",
+            category = "OPPONENT_SEARCH",
+            tags = listOf("opponent", "available", "match"),
             source = "SYSTEM"
         )
     }
