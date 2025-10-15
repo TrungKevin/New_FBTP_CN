@@ -19,7 +19,8 @@ enum class NotificationType(val value: String) {
     BOOKING_CANCELLED_BY_OWNER("BOOKING_CANCELLED_BY_OWNER"),
     REVIEW_REPLY("REVIEW_REPLY"),
     WAITING_OPPONENT_BOOKING("WAITING_OPPONENT_BOOKING"), // ✅ NEW: Renter đặt sân chờ đối thủ
-    OPPONENT_AVAILABLE("OPPONENT_AVAILABLE") // ✅ NEW: Có renter chờ đối thủ
+    OPPONENT_AVAILABLE("OPPONENT_AVAILABLE"), // ✅ NEW: Có renter chờ đối thủ
+    OPPONENT_MATCHED("OPPONENT_MATCHED") // ✅ NEW: Renter B đã match làm đối thủ của bạn
 }
 
 // Enum để define priority

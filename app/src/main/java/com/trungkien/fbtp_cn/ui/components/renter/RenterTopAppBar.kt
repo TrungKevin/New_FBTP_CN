@@ -53,12 +53,22 @@ fun RenterTopAppBar(
                     .size(48.dp)
                     .padding(4.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Menu,
-                    contentDescription = "Menu",
-                    tint = Color(0xFF00C853),
-                    modifier = Modifier.size(24.dp)
-                )
+                androidx.compose.material3.BadgedBox(
+                    badge = {
+                        if (unreadNotificationCount > 0) {
+                            androidx.compose.material3.Badge(
+                                containerColor = Color.Red
+                            ) {}
+                        }
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Menu,
+                        contentDescription = "Menu",
+                        tint = Color(0xFF00C853),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
         },
         title = {

@@ -50,7 +50,7 @@ class NotificationHelper(
         fieldId: String? = null
     ) {
         CoroutineScope(Dispatchers.IO).launch {
-            val notification = notificationBuilder.buildOpponentJoinedNotification(
+            val notification = notificationBuilder.buildOpponentMatchedNotification(
                 renterAId = renterAId,
                 opponentName = opponentName,
                 fieldName = fieldName,

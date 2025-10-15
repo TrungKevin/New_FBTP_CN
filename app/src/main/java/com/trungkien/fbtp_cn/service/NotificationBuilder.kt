@@ -159,6 +159,44 @@ class NotificationBuilder {// dùng để tạo các notification khác nhau tro
     }
     
     /**
+     * Tạo notification riêng khi đối thủ đã match (tránh trùng card)
+     */
+    fun buildOpponentMatchedNotification(
+        renterAId: String,
+        opponentName: String,
+        fieldName: String,
+        date: String,
+        time: String,
+        matchId: String?,
+        fieldId: String?
+    ): Notification {
+        return Notification(
+            notificationId = UUID.randomUUID().toString(),
+            toUserId = renterAId,
+            type = NotificationType.OPPONENT_MATCHED.value,
+            title = "Bạn đã có đối thủ!",
+            body = "$opponentName đã ghép với bạn tại sân $fieldName vào lúc $time ngày $date.",
+            data = NotificationData(
+                matchId = matchId,
+                fieldId = fieldId,
+                customData = mapOf(
+                    "opponentName" to opponentName,
+                    "fieldName" to fieldName,
+                    "date" to date,
+                    "time" to time
+                )
+            ),
+            priority = NotificationPriority.HIGH.value,
+            channel = NotificationChannel.IN_APP.value,
+            relatedEntityId = matchId,
+            relatedEntityType = "MATCH",
+            category = "MATCH",
+            tags = listOf("match", "opponent", "matched"),
+            source = "SYSTEM"
+        )
+    }
+    
+    /**
      * Tạo notification cho kết quả trận đấu
      */
     fun buildMatchResultNotification(

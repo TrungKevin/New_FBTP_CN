@@ -105,7 +105,7 @@ fun SimpleNotificationScreen(
                             onNavigateToProfile()
                         }
                     }
-                    "OPPONENT_JOINED", "MATCH_RESULT", "WAITING_OPPONENT_BOOKING" -> {
+                    "OPPONENT_JOINED", "OPPONENT_MATCHED", "MATCH_RESULT", "WAITING_OPPONENT_BOOKING" -> {
                         // ✅ NEW: Chuyển đến tab "Trận đấu" trong quản lý đặt sân
                         if (notification.type == "WAITING_OPPONENT_BOOKING") {
                             onNavigateToMatches()

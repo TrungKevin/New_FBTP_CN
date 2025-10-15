@@ -291,14 +291,54 @@ class BookingRepository(
                 return Result.failure(Exception("Failed to parse match"))
             }
             
-            // Cập nhật status
-            firestore.collection(MATCHES_COLLECTION)
-                .document(matchId)
-                .update(mapOf(
-                    "status" to newStatus,
-                    "updatedAt" to System.currentTimeMillis()
-                ))
-                .await()
+            // Cập nhật theo trạng thái mới
+            if (newStatus == "CANCELLED") {
+                // Hủy tất cả bookings liên quan và reset match về FREE
+                try {
+                    val participantBookingIds = match.participants.mapNotNull { it.bookingId }
+                    participantBookingIds.forEach { bId ->
+                        try {
+                            firestore.collection(BOOKINGS_COLLECTION)
+                                .document(bId)
+                                .update(
+                                    mapOf(
+                                        "status" to "CANCELLED",
+                                        "updatedAt" to System.currentTimeMillis()
+                                    )
+                                )
+                                .await()
+                            println("🔄 DEBUG: Booking $bId set to CANCELLED due to match cancel")
+                        } catch (e: Exception) {
+                            println("❌ ERROR: Failed to cancel booking $bId on match cancel: ${e.message}")
+                        }
+                    }
+
+                    firestore.collection(MATCHES_COLLECTION)
+                        .document(matchId)
+                        .update(
+                            mapOf(
+                                "status" to "FREE",
+                                "occupiedCount" to 0,
+                                "participants" to emptyList<Any>(),
+                                "updatedAt" to System.currentTimeMillis()
+                            )
+                        )
+                        .await()
+                    println("🔄 DEBUG: Match $matchId reset to FREE after cancel")
+                } catch (e: Exception) {
+                    println("❌ ERROR: Failed to reset match/bookings on cancel: ${e.message}")
+                }
+            } else {
+                firestore.collection(MATCHES_COLLECTION)
+                    .document(matchId)
+                    .update(
+                        mapOf(
+                            "status" to newStatus,
+                            "updatedAt" to System.currentTimeMillis()
+                        )
+                    )
+                    .await()
+            }
             
             // Gửi notification cho renter khi match được xác nhận
             if (newStatus == "CONFIRMED" && match.status != "CONFIRMED") {
@@ -332,6 +372,45 @@ class BookingRepository(
                 }
             }
             
+            // Gửi thông báo cho renter khi match bị hủy bởi owner
+            if (newStatus == "CANCELLED") {
+                try {
+                    val fieldDoc = firestore.collection("fields")
+                        .document(match.fieldId)
+                        .get()
+                        .await()
+                    val fieldName = fieldDoc.getString("name") ?: "Sân"
+
+                    val notificationRepository = NotificationRepository()
+                    match.participants.forEach { participant ->
+                        try {
+                            val res = notificationRepository.createNotification(
+                                toUserId = participant.renterId,
+                                type = "BOOKING_CANCELLED_BY_OWNER",
+                                title = "Trận đấu đã bị chủ sân hủy",
+                                body = "Sân $fieldName - ${match.startAt} ngày ${match.date} đã bị hủy.",
+                                data = NotificationData(
+                                    bookingId = participant.bookingId ?: "",
+                                    fieldId = match.fieldId,
+                                    userId = null,
+                                    customData = emptyMap()
+                                ),
+                                priority = "HIGH"
+                            )
+                            if (res.isSuccess) {
+                                println("🔔 DEBUG: Notified renter about match cancel -> ${participant.renterId}")
+                            } else {
+                                println("❌ ERROR: Notify renter match cancel failed -> ${res.exceptionOrNull()?.message}")
+                            }
+                        } catch (e: Exception) {
+                            println("❌ ERROR: Create notification match cancel failed -> ${e.message}")
+                        }
+                    }
+                } catch (e: Exception) {
+                    println("❌ ERROR: Failed to send cancel notifications: ${e.message}")
+                }
+            }
+
             println("✅ DEBUG: Match status updated: $matchId -> $newStatus")
             Result.success(Unit)
         } catch (e: Exception) {
@@ -602,6 +681,32 @@ class BookingRepository(
                 }
             } catch (e: Exception) {
                 println("❌ ERROR: Notification OPPONENT_JOINED EXCEPTION -> ${e.message}")
+            }
+            
+            // ✅ Gửi thông báo cho Renter A: đã có đối thủ (card riêng OPONENT_MATCHED)
+            try {
+                // Xác định renter A từ participants của match (tránh nhầm sang renter B)
+                val renterAId = match.participants.firstOrNull()?.renterId
+                if (!renterAId.isNullOrBlank()) {
+                    val renterDoc = firestore.collection("users").document(renterId).get().await()
+                    val opponentName = renterDoc.getString("name") ?: "Đối thủ"
+                    val fieldSnap = firestore.collection("fields").document(match.fieldId).get().await()
+                    val fieldName = fieldSnap.getString("name") ?: "Sân"
+                    NotificationHelper(notificationRepository).notifyOpponentJoined(
+                        renterAId = renterAId,
+                        opponentName = opponentName,
+                        fieldName = fieldName,
+                        date = match.date,
+                        time = match.startAt,
+                        matchId = matchId,
+                        fieldId = match.fieldId
+                    )
+                    println("🔔 DEBUG: Notified renter A about opponent joined: $renterAId")
+                } else {
+                    println("⚠️ WARN: Cannot detect renter A from match participants")
+                }
+            } catch (e: Exception) {
+                println("❌ ERROR: Failed to notify renter A opponent joined: ${e.message}")
             }
             
             Result.success(bookingId)
@@ -963,6 +1068,47 @@ class BookingRepository(
                 }
             } catch (e: Exception) {
                 println("❌ ERROR: Notification CANCEL EXCEPTION -> ${e.message}")
+            }
+
+            // ✅ NEW: Nếu là trận đã có đối thủ, thông báo cho cả renter A và B về việc owner hủy
+            try {
+                if (current != null && !current.matchId.isNullOrBlank()) {
+                    val matchRef = firestore.collection(MATCHES_COLLECTION).document(current.matchId!!)
+                    val matchSnap = matchRef.get().await()
+                    if (matchSnap.exists()) {
+                        val match = matchSnap.toObject(Match::class.java)
+                        val participantIds = match?.participants?.mapNotNull { it.renterId } ?: emptyList()
+                        val fieldSnap = firestore.collection("fields").document(current.fieldId).get().await()
+                        val fieldName = fieldSnap.getString("name") ?: "Sân"
+
+                        participantIds.forEach { renterId ->
+                            try {
+                                val notifyRes = notificationRepository.createNotification(
+                                    toUserId = renterId,
+                                    type = "BOOKING_CANCELLED_BY_OWNER",
+                                    title = "Trận đấu đã bị chủ sân hủy",
+                                    body = "Sân $fieldName - ${current.startAt} ngày ${current.date} đã bị hủy.",
+                                    data = NotificationData(
+                                        bookingId = bookingId,
+                                        fieldId = current.fieldId,
+                                        userId = current.ownerId,
+                                        customData = emptyMap()
+                                    ),
+                                    priority = "HIGH"
+                                )
+                                if (notifyRes.isSuccess) {
+                                    println("🔔 DEBUG: Notify renters cancel by owner -> renterId=$renterId")
+                                } else {
+                                    println("❌ ERROR: Notify renter cancel failed -> ${notifyRes.exceptionOrNull()?.message}")
+                                }
+                            } catch (e: Exception) {
+                                println("❌ ERROR: Create notification to renter failed -> ${e.message}")
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                println("❌ ERROR: Cancel notify to participants failed: ${e.message}")
             }
             
             Result.success(Unit)

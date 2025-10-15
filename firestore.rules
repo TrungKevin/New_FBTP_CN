@@ -155,6 +155,24 @@ service cloud.firestore {
            get(/databases/$(db)/documents/fields/$(request.resource.data.data.fieldId)).data.ownerId
              == request.auth.uid
          )) ||
+        // Cho phép renter gửi notification cho renter khác khi đã ghép đối thủ (OPPONENT_MATCHED)
+        (
+          request.resource.data.type == "OPPONENT_MATCHED" &&
+          request.resource.data.data != null && request.resource.data.data.matchId != null &&
+          (
+            // Người tạo phải là 1 trong 2 participants của match
+            (
+              get(/databases/$(db)/documents/matches/$(request.resource.data.data.matchId)).data.participants.size() > 0 &&
+              (
+                get(/databases/$(db)/documents/matches/$(request.resource.data.data.matchId)).data.participants[0].renterId == request.auth.uid ||
+                (
+                  get(/databases/$(db)/documents/matches/$(request.resource.data.data.matchId)).data.participants.size() > 1 &&
+                  get(/databases/$(db)/documents/matches/$(request.resource.data.data.matchId)).data.participants[1].renterId == request.auth.uid
+                )
+              )
+            )
+          )
+        ) ||
         // Cho phép broadcast khi có người chờ đối thủ
         (request.resource.data.type == "OPPONENT_AVAILABLE") ||
         // Trường hợp không có fieldId: system notifications (OPPONENT_AVAILABLE)

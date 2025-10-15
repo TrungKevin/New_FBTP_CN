@@ -52,19 +52,30 @@ fun OwnerTopAppBar(
     }
     CenterAlignedTopAppBar( // Thanh ứng dụng căn giữa
         modifier = modifier, // Modifier tùy chỉnh
-        navigationIcon = { // Icon điều hướng (menu)
-                   IconButton(
-                       onClick = onMenuClick,
+        navigationIcon = {
+            IconButton(
+                onClick = onMenuClick,
                 modifier = Modifier
                     .size(48.dp)
                     .padding(4.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Menu,
-                    contentDescription = "Menu",
-                    tint = Color(0xFF00C853),
-                    modifier = Modifier.size(24.dp)
-                )
+                // Hiển thị chấm đỏ khi có thông báo chưa đọc
+                androidx.compose.material3.BadgedBox(
+                    badge = {
+                        if (unreadNotificationCount > 0) {
+                            androidx.compose.material3.Badge(
+                                containerColor = Color.Red
+                            ) {}
+                        }
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Menu,
+                        contentDescription = "Menu",
+                        tint = Color(0xFF00C853),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
         },
         title = { // Tiêu đề (logo)

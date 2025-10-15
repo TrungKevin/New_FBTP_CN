@@ -153,7 +153,7 @@ fun RenterNotificationScreen(
 
                         // Điều hướng theo loại
                         when (notification.type) {
-                            "BOOKING_CREATED", "BOOKING_SUCCESS", "BOOKING_CANCELLED", "BOOKING_CONFIRMED", "BOOKING_CANCELLED_BY_OWNER", "OPPONENT_JOINED", "MATCH_RESULT" -> {
+                            "BOOKING_CREATED", "BOOKING_SUCCESS", "BOOKING_CANCELLED", "BOOKING_CONFIRMED", "BOOKING_CANCELLED_BY_OWNER", "OPPONENT_JOINED", "OPPONENT_MATCHED", "MATCH_RESULT" -> {
                                 onNavigateToBooking()
                             }
                             "FIELD_UPDATED" -> {
