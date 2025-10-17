@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.delay
 import com.trungkien.fbtp_cn.repository.AuthRepository
 import com.google.firebase.auth.FirebaseAuth
@@ -75,6 +76,8 @@ class FieldViewModel(
     
     private val _uiState = MutableStateFlow(FieldUiState())
     val uiState: StateFlow<FieldUiState> = _uiState.asStateFlow()
+    private val bookingRepo = com.trungkien.fbtp_cn.repository.BookingRepository()
+    private var dayMatchesListener: ListenerRegistration? = null
     
     fun handleEvent(event: FieldEvent) {
         when (event) {
@@ -465,6 +468,21 @@ class FieldViewModel(
                 println("Error loading slots by field ID and date: ${e.message}")
             }
         }
+    }
+
+    // ✅ NEW: Realtime theo ngày để grid cập nhật khi owner hủy/xác nhận
+    fun startRealtimeSlotsForDate(fieldId: String, date: String) {
+        dayMatchesListener?.remove()
+        dayMatchesListener = bookingRepo.listenMatchesByFieldDate(
+            fieldId = fieldId,
+            date = date,
+            onChange = {
+                // khi matches thay đổi, reload các nguồn màu
+                loadBookedStartTimes(fieldId, date)
+                loadOpponentTimes(fieldId, date)
+            },
+            onError = { e -> println("❌ ERROR: startRealtimeSlotsForDate: ${e.message}") }
+        )
     }
 
     private fun loadBookedStartTimes(fieldId: String, date: String) {

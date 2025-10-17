@@ -101,6 +101,8 @@ fun TimeSlots(
         println("🔄 DEBUG: Loading data for date: ${selectedDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))}")
         loadSlotsForDate(field.fieldId, selectedDate, fieldViewModel)
         loadPricingRules(field.fieldId, fieldViewModel)
+        // ✅ NEW: bật realtime cập nhật set màu khi matches thay đổi trong ngày này
+        fieldViewModel.startRealtimeSlotsForDate(field.fieldId, selectedDate.toString())
     }
     
     // Cập nhật slots và pricing rules từ Firebase

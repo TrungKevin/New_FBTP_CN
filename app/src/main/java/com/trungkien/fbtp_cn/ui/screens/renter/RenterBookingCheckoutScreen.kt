@@ -555,6 +555,8 @@ fun RenterBookingCheckoutScreen(
         if (fieldId.isNotEmpty()) {
             println("🔄 DEBUG: LaunchedEffect triggered - Loading slots for field: $fieldId, date: ${selectedDate.toString()}")
             fieldViewModel.handleEvent(FieldEvent.LoadSlotsByFieldIdAndDate(fieldId, selectedDate.toString()))
+            // ✅ NEW: bật realtime cập nhật set màu theo ngày
+            fieldViewModel.startRealtimeSlotsForDate(fieldId, selectedDate.toString())
         } else {
             println("⚠️ DEBUG: LaunchedEffect triggered but fieldId is empty: '$fieldId'")
         }

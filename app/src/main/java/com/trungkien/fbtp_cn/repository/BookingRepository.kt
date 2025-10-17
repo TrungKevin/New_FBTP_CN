@@ -20,6 +20,37 @@ class BookingRepository(
     private val firestore = FirebaseFirestore.getInstance()
     private val notificationRepository = NotificationRepository()
     private val globalNotificationHelper = GlobalNotificationHelper(notificationRepository)
+    private val SLOTS_COLLECTION = "slots"
+
+    /**
+     * ✅ Helper: Reset trạng thái các documents `slots` liên quan tới một booking.
+     * Đặt isBooked=false và xoá bookingId để UI trở lại trạng thái bình thường.
+     */
+    private suspend fun resetSlotsForBooking(booking: Booking) {
+        try {
+            val batch = firestore.batch()
+            booking.consecutiveSlots.forEach { startAt ->
+                val q = firestore.collection(SLOTS_COLLECTION)
+                    .whereEqualTo("fieldId", booking.fieldId)
+                    .whereEqualTo("date", booking.date)
+                    .whereEqualTo("startAt", startAt)
+                    .limit(1)
+                    .get()
+                    .await()
+                val doc = q.documents.firstOrNull()
+                if (doc != null) {
+                    batch.update(doc.reference, mapOf(
+                        "isBooked" to false,
+                        "bookingId" to null
+                    ))
+                }
+            }
+            batch.commit().await()
+            println("🔄 DEBUG: Slots reset for booking ${booking.bookingId} -> ${booking.consecutiveSlots}")
+        } catch (e: Exception) {
+            println("❌ ERROR: resetSlotsForBooking failed: ${e.message}")
+        }
+    }
     
     companion object {
         private const val BOOKINGS_COLLECTION = "bookings"
@@ -293,7 +324,8 @@ class BookingRepository(
             
             // Cập nhật theo trạng thái mới
             if (newStatus == "CANCELLED") {
-                // Hủy tất cả bookings liên quan và reset match về FREE
+                // ✅ FIX: Giữ match với status CANCELLED để hiển thị ở tab "Trận đấu" > "Đã hủy"
+                // Hủy tất cả bookings liên quan nhưng giữ match để tracking
                 try {
                     val participantBookingIds = match.participants.mapNotNull { it.bookingId }
                     participantBookingIds.forEach { bId ->
@@ -308,23 +340,36 @@ class BookingRepository(
                                 )
                                 .await()
                             println("🔄 DEBUG: Booking $bId set to CANCELLED due to match cancel")
+
+                            // ✅ NEW: Đặt lại các khe giờ về trạng thái trống cho booking này
+                            try {
+                                val bSnap = firestore.collection(BOOKINGS_COLLECTION)
+                                    .document(bId)
+                                    .get()
+                                    .await()
+                                val booking = bSnap.toObject(com.trungkien.fbtp_cn.model.Booking::class.java)
+                                if (booking != null) {
+                                    resetSlotsForBooking(booking)
+                                }
+                            } catch (e: Exception) {
+                                println("❌ ERROR: Failed to reset slots for booking $bId: ${e.message}")
+                            }
                         } catch (e: Exception) {
                             println("❌ ERROR: Failed to cancel booking $bId on match cancel: ${e.message}")
                         }
                     }
 
+                    // ✅ FIX: Giữ match với status CANCELLED thay vì reset về FREE
                     firestore.collection(MATCHES_COLLECTION)
                         .document(matchId)
                         .update(
                             mapOf(
-                                "status" to "FREE",
-                                "occupiedCount" to 0,
-                                "participants" to emptyList<Any>(),
+                                "status" to "CANCELLED",
                                 "updatedAt" to System.currentTimeMillis()
                             )
                         )
                         .await()
-                    println("🔄 DEBUG: Match $matchId reset to FREE after cancel")
+                    println("🔄 DEBUG: Match $matchId set to CANCELLED (kept for tracking)")
                 } catch (e: Exception) {
                     println("❌ ERROR: Failed to reset match/bookings on cancel: ${e.message}")
                 }
@@ -801,24 +846,36 @@ class BookingRepository(
      */
     suspend fun getBookedStartTimes(fieldId: String, date: String): Result<Set<String>> {
         return try {
-            val snapshot = firestore.collection(BOOKINGS_COLLECTION)
+            // Chỉ lấy các booking còn hiệu lực (không CANCELLED)
+            val bookingsSnap = firestore.collection(BOOKINGS_COLLECTION)
+                .whereEqualTo("fieldId", fieldId)
+                .whereEqualTo("date", date)
+                .whereIn("status", listOf("PENDING", "PAID", "CONFIRMED"))
+                .get()
+                .await()
+
+            // Lấy danh sách match còn hiệu lực (FULL/CONFIRMED) để khóa màu đúng
+            val activeMatchesSnap = firestore.collection(MATCHES_COLLECTION)
                 .whereEqualTo("fieldId", fieldId)
                 .whereEqualTo("date", date)
                 .get()
                 .await()
+            val activeMatchIds = activeMatchesSnap.toObjects(Match::class.java)
+                .filter { it.status == "FULL" || it.status == "CONFIRMED" }
+                .map { it.rangeKey }
+                .toSet()
 
-            // Chỉ coi là "đỏ" (đã đặt hoàn toàn) khi không phải SOLO đang chờ đối thủ
-            // - DUO hoặc hasOpponent = true
-            // - Hoặc các trạng thái đã xác nhận/thanh toán
-            val times = snapshot.toObjects(Booking::class.java)
+            val times = bookingsSnap.toObjects(Booking::class.java)
                 .asSequence()
                 .filter { booking ->
-                    val isWaitingSolo = (booking.bookingType == "SOLO" && booking.hasOpponent == false)
-                    val isConfirmed = booking.status.equals("CONFIRMED", ignoreCase = true) ||
-                            booking.status.equals("PAID", ignoreCase = true)
-                    val isDuoOrHasOpponent = (booking.bookingType == "DUO" || booking.hasOpponent == true)
-                    // Đỏ khi không phải SOLO chờ, hoặc đã confirmed/paid
-                    (!isWaitingSolo) || isConfirmed || isDuoOrHasOpponent
+                    // Bỏ SOLO đang chờ đối thủ
+                    val isWaitingSolo = booking.bookingType == "SOLO" && booking.hasOpponent == false
+                    if (isWaitingSolo) return@filter false
+
+                    // Với DUO/hasOpponent: chỉ khóa khi match còn hiệu lực hoặc booking đã CONFIRMED/PAID
+                    val isConfirmedOrPaid = booking.status.equals("CONFIRMED", true) || booking.status.equals("PAID", true)
+                    val belongsToActiveMatch = !booking.matchId.isNullOrBlank() && activeMatchIds.contains(booking.matchId)
+                    isConfirmedOrPaid || belongsToActiveMatch
                 }
                 .flatMap { it.consecutiveSlots }
                 .toSet()
@@ -941,13 +998,14 @@ class BookingRepository(
                 .whereEqualTo("date", date)
                 .whereEqualTo("bookingType", "SOLO")
                 .whereEqualTo("hasOpponent", false)
+                .whereIn("status", listOf("PENDING", "CONFIRMED")) // ✅ FIX: Chỉ lấy bookings chưa bị hủy
                 .get()
                 .await()
             
             val bookings = snapshot.toObjects(Booking::class.java)
-            println("✅ DEBUG: Found ${bookings.size} waiting opponent bookings")
+            println("✅ DEBUG: Found ${bookings.size} waiting opponent bookings (PENDING/CONFIRMED only)")
             bookings.forEachIndexed { index, booking ->
-                println("  [$index] bookingId: ${booking.bookingId}, slots: ${booking.consecutiveSlots}")
+                println("  [$index] bookingId: ${booking.bookingId}, status: ${booking.status}, slots: ${booking.consecutiveSlots}")
             }
             
             Result.success(bookings)
@@ -962,17 +1020,40 @@ class BookingRepository(
      */
     suspend fun getLockedBookings(fieldId: String, date: String): Result<List<Booking>> {
         return try {
+            // ✅ NEW: Chỉ coi là "đỏ" khi match còn hiệu lực (FULL/CONFIRMED)
+            val activeMatchesSnap = firestore.collection(MATCHES_COLLECTION)
+                .whereEqualTo("fieldId", fieldId)
+                .whereEqualTo("date", date)
+                .get()
+                .await()
+
+            val activeMatchIds = activeMatchesSnap.toObjects(Match::class.java)
+                .filter { it.status == "FULL" || it.status == "CONFIRMED" }
+                .map { it.rangeKey }
+                .toSet()
+
+            if (activeMatchIds.isEmpty()) {
+                println("✅ DEBUG: No active matches (FULL/CONFIRMED) => locked bookings = 0")
+                return Result.success(emptyList())
+            }
+
             val snapshot = firestore.collection(BOOKINGS_COLLECTION)
                 .whereEqualTo("fieldId", fieldId)
                 .whereEqualTo("date", date)
                 .whereEqualTo("bookingType", "DUO")
                 .whereEqualTo("hasOpponent", true)
+                .whereIn("status", listOf("PENDING", "CONFIRMED"))
                 .get()
                 .await()
-            
+
             val bookings = snapshot.toObjects(Booking::class.java)
-            println("✅ DEBUG: Found ${bookings.size} locked bookings")
-            
+                .filter { !it.matchId.isNullOrBlank() && activeMatchIds.contains(it.matchId) }
+
+            println("✅ DEBUG: Found ${bookings.size} locked bookings filtered by active matches")
+            bookings.forEachIndexed { index, booking ->
+                println("  [$index] bookingId: ${booking.bookingId}, matchId: ${booking.matchId}, status: ${booking.status}, slots: ${booking.consecutiveSlots}")
+            }
+
             Result.success(bookings)
         } catch (e: Exception) {
             println("❌ ERROR: Failed to get locked bookings: ${e.message}")
@@ -1043,7 +1124,55 @@ class BookingRepository(
             .await()
             
             println("✅ DEBUG: Booking cancelled: $bookingId")
+
+            // ✅ NEW: Đặt lại các khe giờ về trạng thái trống cho booking vừa hủy
+            try {
+                current?.let { resetSlotsForBooking(it) }
+            } catch (e: Exception) {
+                println("❌ ERROR: Failed to reset slots for cancelled booking $bookingId: ${e.message}")
+            }
             
+            // ✅ NEW: Xử lý match khi renter hủy booking
+            try {
+                if (current != null && !current.matchId.isNullOrBlank()) {
+                    val matchRef = firestore.collection(MATCHES_COLLECTION).document(current.matchId!!)
+                    val matchSnap = matchRef.get().await()
+                    if (matchSnap.exists()) {
+                        val match = matchSnap.toObject(Match::class.java)
+                        if (match != null) {
+                            // Xóa renter đã hủy khỏi participants
+                            val remainingParticipants = match.participants.filter { it.bookingId != bookingId }
+                            
+                            if (remainingParticipants.isEmpty()) {
+                                // Nếu không còn participant nào, reset match về FREE
+                                matchRef.update(
+                                    mapOf(
+                                        "status" to "FREE",
+                                        "occupiedCount" to 0,
+                                        "participants" to emptyList<Any>(),
+                                        "updatedAt" to System.currentTimeMillis()
+                                    )
+                                ).await()
+                                println("🔄 DEBUG: Match ${current.matchId} reset to FREE (no participants left)")
+                            } else {
+                                // Nếu còn 1 participant, chuyển về WAITING_OPPONENT
+                                matchRef.update(
+                                    mapOf(
+                                        "status" to "WAITING_OPPONENT",
+                                        "occupiedCount" to 1,
+                                        "participants" to remainingParticipants,
+                                        "updatedAt" to System.currentTimeMillis()
+                                    )
+                                ).await()
+                                println("🔄 DEBUG: Match ${current.matchId} changed to WAITING_OPPONENT (1 participant left)")
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                println("❌ ERROR: Failed to update match on booking cancel: ${e.message}")
+            }
+
             // ✅ Thông báo cho owner (Client-side Approach A)
             try {
                 if (current != null) {
