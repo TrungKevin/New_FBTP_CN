@@ -52,6 +52,8 @@ import com.trungkien.fbtp_cn.viewmodel.FieldEvent
 import androidx.compose.runtime.LaunchedEffect
 import com.trungkien.fbtp_cn.viewmodel.BookingViewModel
 import com.trungkien.fbtp_cn.viewmodel.BookingEvent
+import com.trungkien.fbtp_cn.viewmodel.OwnerStatsViewModel
+import com.trungkien.fbtp_cn.viewmodel.TimeRange
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,14 +72,17 @@ fun OwnerHomeScreen(
     val bookingViewModel: BookingViewModel = viewModel()
     val bookingUi = bookingViewModel.uiState.collectAsState().value
     val uiState by localFieldViewModel.uiState.collectAsState()
+    val statsVm: OwnerStatsViewModel = viewModel()
     
     LaunchedEffect(Unit) {
         if (user == null) authViewModel.fetchProfile()
     }
-    // Load bookings for owner to drive today's summary
+    // Load bookings for owner to drive today's summary & sync stats (Today)
     LaunchedEffect(user?.userId) {
         user?.userId?.let { ownerId ->
             bookingViewModel.handle(BookingEvent.LoadByOwner(ownerId))
+            statsVm.setRange(TimeRange.Today)
+            statsVm.load(ownerId)
         }
     }
     
@@ -98,21 +103,14 @@ fun OwnerHomeScreen(
         }
     }
     
-    // Tạo summary động dựa trên dữ liệu thực từ Firebase
-    val summary by remember(fields, bookings) { 
-        val today = java.time.LocalDate.now()
-        fun toLocalDateFromCreated(millis: Long): java.time.LocalDate =
-            java.time.Instant.ofEpochMilli(millis).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-
-        val todayStr = today.toString()
-        val todayBookings = bookings.filter { b ->
-            // Match either stored date string or createdAt's local date to be robust
-            b.date == todayStr || runCatching { toLocalDateFromCreated(b.createdAt) == today }.getOrDefault(false)
-        }
-        val newCount = todayBookings.count { it.status == "PENDING" }
-        val confirmedCount = todayBookings.count { it.status == "PAID" }
-        val canceledCount = todayBookings.count { it.status == "CANCELLED" }
-        val revenue = todayBookings.filter { it.status == "PAID" }.sumOf { it.totalPrice }
+    // Đồng bộ "Tổng quan hôm nay" theo cùng công thức thống kê (nguồn duy nhất)
+    val statsUi = statsVm.ui.collectAsState().value
+    val summary by remember(fields, statsUi.stats) {
+        val s = statsUi.stats
+        val newCount = bookingUi.ownerBookings.count { it.date == java.time.LocalDate.now().toString() && it.status == "PENDING" }
+        val confirmedCount = bookingUi.ownerBookings.count { it.date == java.time.LocalDate.now().toString() && (it.status == "CONFIRMED" || it.status == "PAID") }
+        val canceledCount = bookingUi.ownerBookings.count { it.date == java.time.LocalDate.now().toString() && it.status == "CANCELLED" }
+        val revenue = s?.totalRevenue ?: 0L
         mutableStateOf(
             HomeSummary(
                 newBookings = newCount,

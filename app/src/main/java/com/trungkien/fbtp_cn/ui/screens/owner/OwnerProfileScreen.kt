@@ -55,15 +55,7 @@ fun OwnerProfileScreen(
                     avatarUrl = user?.avatarUrl
                 )
             }
-            
-            item {
-                ProfileStats(
-                    totalFields = 2,
-                    totalBookings = 15,
-                    totalRevenue = 2500000,
-                    onViewDetails = { /* TODO: Navigate to detailed stats */ }
-                )
-            }
+
             
             item {
                 ProfileMenuSection(
