@@ -53,15 +53,6 @@ fun RenterProfileScreen(
             }
 
             item {
-                RenterProfileStats(
-                    totalBookings = 12,
-                    favoriteCount = 4,
-                    reviewsCount = 7,
-                    onViewDetails = {}
-                )
-            }
-
-            item {
                 RenterProfileMenuSection(
                     onMyBookings = {},
                     onFavorites = {},

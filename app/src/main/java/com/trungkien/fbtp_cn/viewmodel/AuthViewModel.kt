@@ -158,6 +158,10 @@ class AuthViewModel(
 
         // Optimistic UI update for avatar to make UI reflect immediately
         val previousUser = _currentUser.value
+        // Optimistic UI update for name so ProfileHeader updates immediately
+        if (!name.isNullOrBlank() && previousUser != null) {
+            _currentUser.value = previousUser.copy(name = name)
+        }
         val normalizedAvatar: String? = avatarUrl?.let { raw ->
             when {
                 raw.isBlank() -> ""
