@@ -77,14 +77,14 @@ object MockData {
             openHours = OpenHours(
                 start = "05:00",
                 end = "23:00",
-                isOpen24h = false
+                open24h = false
             ),
             amenities = listOf("PARKING", "SHOWER", "EQUIPMENT", "LIGHTING"),
             description = "Sân tennis chất lượng cao với mặt sân cứng, có đèn chiếu sáng ban đêm",
             contactPhone = "0123456789",
             averageRating = 4.5f,
             totalReviews = 128,
-            isActive = true
+            active = true
         ),
         Field(
             fieldId = "field_002",
@@ -107,14 +107,14 @@ object MockData {
             openHours = OpenHours(
                 start = "06:00",
                 end = "22:00",
-                isOpen24h = false
+                open24h = false
             ),
             amenities = listOf("PARKING", "AIR_CONDITIONING", "EQUIPMENT"),
             description = "Sân cầu lông chuyên nghiệp với sàn gỗ cao cấp",
             contactPhone = "0987654321",
             averageRating = 4.2f,
             totalReviews = 89,
-            isActive = true
+            active = true
         ),
         Field(
             fieldId = "field_003",
@@ -137,14 +137,14 @@ object MockData {
             openHours = OpenHours(
                 start = "05:00",
                 end = "24:00",
-                isOpen24h = false
+                open24h = false
             ),
             amenities = listOf("PREMIUM_PARKING", "LOCKER_ROOM", "PRO_SHOP", "RESTAURANT", "LIGHTING"),
             description = "Sân tennis cao cấp với mặt sân đất nện, có phòng thay đồ riêng biệt",
             contactPhone = "0555666777",
             averageRating = 4.8f,
             totalReviews = 256,
-            isActive = true
+            active = true
         ),
         Field(
             fieldId = "field_004",
@@ -167,14 +167,14 @@ object MockData {
             openHours = OpenHours(
                 start = "06:00",
                 end = "23:00",
-                isOpen24h = false
+                open24h = false
             ),
             amenities = listOf("PARKING", "EQUIPMENT", "CHANGING_ROOM"),
             description = "Sân đa năng có thể chuyển đổi giữa tennis, badminton và pickleball",
             contactPhone = "0333444555",
             averageRating = 4.0f,
             totalReviews = 67,
-            isActive = true
+            active = true
         )
     )
     
@@ -187,7 +187,7 @@ object MockData {
             defaultAllowQuantity = true,
             description = "Vợt tennis chuyên nghiệp Wilson",
             category = "EQUIPMENT",
-            isActive = true
+            active = true
         ),
         Service(
             serviceId = "service_002",
@@ -196,7 +196,7 @@ object MockData {
             defaultAllowQuantity = true,
             description = "Vợt cầu lông Yonex chất lượng cao",
             category = "EQUIPMENT",
-            isActive = true
+            active = true
         ),
         Service(
             serviceId = "service_003",
@@ -205,7 +205,7 @@ object MockData {
             defaultAllowQuantity = true,
             description = "Banh tennis Wilson chính hãng",
             category = "EQUIPMENT",
-            isActive = true
+            active = true
         ),
         Service(
             serviceId = "service_004",
@@ -214,7 +214,7 @@ object MockData {
             defaultAllowQuantity = true,
             description = "Nước suối tinh khiết 500ml",
             category = "BEVERAGE",
-            isActive = true
+            active = true
         ),
         Service(
             serviceId = "service_005",
@@ -223,7 +223,7 @@ object MockData {
             defaultAllowQuantity = true,
             description = "Nước tăng lực Red Bull 250ml",
             category = "BEVERAGE",
-            isActive = true
+            active = true
         ),
         Service(
             serviceId = "service_006",
@@ -232,7 +232,7 @@ object MockData {
             defaultAllowQuantity = false,
             description = "HLV chuyên nghiệp 1-1",
             category = "TRAINING",
-            isActive = true
+            active = true
         )
     )
     
@@ -328,7 +328,7 @@ object MockData {
             price = 120000,
             calcMode = "CEIL_TO_RULE",
             description = "Giá ngày thường - 1 giờ",
-            isActive = true
+            active = true
         ),
         PricingRule(
             ruleId = "rule_002",
@@ -339,7 +339,7 @@ object MockData {
             price = 220000,
             calcMode = "CEIL_TO_RULE",
             description = "Giá ngày thường - 2 giờ",
-            isActive = true
+            active = true
         ),
         PricingRule(
             ruleId = "rule_003",
@@ -350,7 +350,7 @@ object MockData {
             price = 170000,
             calcMode = "CEIL_TO_RULE",
             description = "Giá cuối tuần - 1 giờ",
-            isActive = true
+            active = true
         ),
         PricingRule(
             ruleId = "rule_004",
@@ -361,7 +361,7 @@ object MockData {
             price = 80000,
             calcMode = "CEIL_TO_RULE",
             description = "Giá ngày thường - 1 giờ",
-            isActive = true
+            active = true
         ),
         PricingRule(
             ruleId = "rule_005",
@@ -372,7 +372,7 @@ object MockData {
             price = 120000,
             calcMode = "CEIL_TO_RULE",
             description = "Giá cuối tuần - 1 giờ",
-            isActive = true
+            active = true
         )
     )
     
@@ -536,7 +536,7 @@ object MockData {
                     images = emptyList(),
                     likes = 5,
                     likedBy = listOf("user_001"),
-                    isOwner = true
+                    owner = true
                 )
             ),
             tags = listOf("CHẤT LƯỢNG", "DỊCH VỤ"),
@@ -570,7 +570,7 @@ object MockData {
                     images = emptyList(),
                     likes = 3,
                     likedBy = listOf("user_001"),
-                    isOwner = true
+                    owner = true
                 )
             ),
             tags = listOf("CHẤT LƯỢNG", "GIÁ CẢ"),
@@ -594,7 +594,7 @@ object MockData {
                 bookingId = "booking_001",
                 fieldId = "field_001"
             ),
-            isRead = false,
+            read = false,
             channel = "IN_APP",
             priority = "NORMAL"
         ),
@@ -609,7 +609,7 @@ object MockData {
                 fieldId = "field_001",
                 matchId = "field_0012024011518001900"
             ),
-            isRead = true,
+            read = true,
             channel = "IN_APP",
             priority = "HIGH"
         )
@@ -625,7 +625,7 @@ object MockData {
             lastSeenAt = System.currentTimeMillis() - (2 * 60 * 60 * 1000),
             deviceModel = "Samsung Galaxy S21",
             appVersion = "1.0.0",
-            isActive = true
+            active = true
         ),
         UserDevice(
             deviceId = "device_002",
@@ -635,7 +635,7 @@ object MockData {
             lastSeenAt = System.currentTimeMillis() - (1 * 60 * 60 * 1000),
             deviceModel = "iPhone 13",
             appVersion = "1.0.0",
-            isActive = true
+            active = true
         )
     )
     

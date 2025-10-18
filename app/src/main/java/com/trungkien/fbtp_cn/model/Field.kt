@@ -18,7 +18,7 @@ data class Field(
     val openHours: OpenHours = OpenHours(),
     val amenities: List<String> = emptyList(), // ["PARKING", "SHOWER", "EQUIPMENT"]
     val createdAt: Long = System.currentTimeMillis(),
-    val isActive: Boolean = true,
+    val active: Boolean = true, // ✅ FIX: Firebase expects 'active' field, not 'active'
     
     // Thông tin bổ sung
     val description: String = "",
@@ -49,7 +49,7 @@ data class FieldImages(
 data class OpenHours(
     val start: String = "06:00", // Giờ mở cửa
     val end: String = "23:00", // Giờ đóng cửa
-    val isOpen24h: Boolean = false // Có mở 24/24 không
+    val open24h: Boolean = false // ✅ FIX: Firebase expects 'open24h' field, not 'open24h'
 )
 
 // Giữ lại các class cũ để tương thích ngược

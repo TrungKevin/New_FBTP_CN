@@ -13,5 +13,5 @@ data class UserDevice(
     // Thông tin bổ sung
     val deviceModel: String = "",
     val appVersion: String = "",
-    val isActive: Boolean = true
+    val active: Boolean = true
 )

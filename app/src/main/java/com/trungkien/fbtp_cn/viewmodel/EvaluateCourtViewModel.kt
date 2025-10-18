@@ -39,7 +39,7 @@ class EvaluateCourtViewModel(
             is EvaluateCourtEvent.UpdateReply -> updateReply(event.reviewId, event.replyId, event.updates)
             is EvaluateCourtEvent.ReportReview -> reportReview(event.reviewId, event.reason)
             is EvaluateCourtEvent.UpdateReview -> updateReview(event.reviewId, event.updates)
-            is EvaluateCourtEvent.SetCurrentUser -> setCurrentUser(event.user, event.isOwner)
+            is EvaluateCourtEvent.SetCurrentUser -> setCurrentUser(event.user, event.owner)
             is EvaluateCourtEvent.SelectReview -> selectReview(event.review)
             is EvaluateCourtEvent.ShowReplyDialog -> showReplyDialog(event.show)
             is EvaluateCourtEvent.ClearError -> clearError()
@@ -436,12 +436,12 @@ class EvaluateCourtViewModel(
     /**
      * Set current user và quyền hạn
      */
-    fun setCurrentUser(user: User, isOwner: Boolean) {
+    fun setCurrentUser(user: User, owner: Boolean) {
         _uiState.value = _uiState.value.copy(
             currentUser = user,
-            isOwner = isOwner
+            owner = owner
         )
-        println("✅ DEBUG: Đã set current user: ${user.name}, isOwner: $isOwner")
+        println("✅ DEBUG: Đã set current user: ${user.name}, owner: $owner")
     }
     
     /**

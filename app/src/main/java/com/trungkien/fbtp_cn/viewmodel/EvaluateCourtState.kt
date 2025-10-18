@@ -14,7 +14,7 @@ data class EvaluateCourtState(
     
     // User và quyền hạn
     val currentUser: User? = null,                     // User hiện tại
-    val isOwner: Boolean = false,                      // Có phải owner không
+    val owner: Boolean = false,                      // Có phải owner không
     
     // UI State
     val isLoading: Boolean = false,                    // Đang load dữ liệu
@@ -49,7 +49,7 @@ sealed class EvaluateCourtEvent {
     data class ReportReview(val reviewId: String, val reason: String) : EvaluateCourtEvent()
     
     // UI Control
-    data class SetCurrentUser(val user: User, val isOwner: Boolean) : EvaluateCourtEvent()
+    data class SetCurrentUser(val user: User, val owner: Boolean) : EvaluateCourtEvent()
     data class SelectReview(val review: Review?) : EvaluateCourtEvent()
     data class ShowReplyDialog(val show: Boolean) : EvaluateCourtEvent()
     

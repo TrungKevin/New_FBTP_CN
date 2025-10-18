@@ -87,7 +87,7 @@ fun AddFieldScreen(
     // Operating hours
     var startTime by remember { mutableStateOf("06:00") }
     var endTime by remember { mutableStateOf("23:00") }
-    var isOpen24h by remember { mutableStateOf(false) }
+    var open24h by remember { mutableStateOf(false) }
     
     // Amenities
     var selectedAmenities by remember { mutableStateOf(listOf<String>()) }
@@ -153,14 +153,14 @@ fun AddFieldScreen(
             openHours = OpenHours(
                 start = startTime,
                 end = endTime,
-                isOpen24h = isOpen24h
+                open24h = open24h
             ),
             amenities = selectedAmenities,
             description = fieldDescription,
             contactPhone = currentUser?.phone ?: contactPhone, // Use current user's phone
             averageRating = 0f,
             totalReviews = 0,
-            isActive = true,
+            active = true,
             // ✅ FIX: Thêm footballFieldType nếu có chọn FOOTBALL
             footballFieldType = if (selectedSports.contains("FOOTBALL")) selectedFootballFieldType else null
         )
@@ -302,8 +302,8 @@ fun AddFieldScreen(
                             onStartTimeChange = { startTime = it },
                             endTime = endTime,
                             onEndTimeChange = { endTime = it },
-                            isOpen24h = isOpen24h,
-                            onOpen24hChange = { isOpen24h = it },
+                            open24h = open24h,
+                            onOpen24hChange = { open24h = it },
                             selectedAmenities = selectedAmenities,
                             onAmenitiesChange = { selectedAmenities = it }
                         )
@@ -762,7 +762,7 @@ private fun OperatingHoursStep(
     onStartTimeChange: (String) -> Unit,
     endTime: String,
     onEndTimeChange: (String) -> Unit,
-    isOpen24h: Boolean,
+    open24h: Boolean,
     onOpen24hChange: (Boolean) -> Unit,
     selectedAmenities: List<String>,
     onAmenitiesChange: (List<String>) -> Unit
@@ -789,7 +789,7 @@ private fun OperatingHoursStep(
                 onValueChange = onStartTimeChange,
                 label = { Text("Giờ mở cửa") },
                 modifier = Modifier.weight(1f),
-                enabled = !isOpen24h,
+                enabled = !open24h,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Color(0xFF00C853),
                     unfocusedBorderColor = Color(0xFFE0E0E0)
@@ -801,7 +801,7 @@ private fun OperatingHoursStep(
                 onValueChange = onEndTimeChange,
                 label = { Text("Giờ đóng cửa") },
                 modifier = Modifier.weight(1f),
-                enabled = !isOpen24h,
+                enabled = !open24h,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Color(0xFF00C853),
                     unfocusedBorderColor = Color(0xFFE0E0E0)
@@ -813,7 +813,7 @@ private fun OperatingHoursStep(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Checkbox(
-                checked = isOpen24h,
+                checked = open24h,
                 onCheckedChange = onOpen24hChange
             )
             Text("Mở cửa 24/24")

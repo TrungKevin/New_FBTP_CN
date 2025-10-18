@@ -276,13 +276,13 @@ fun DetailInfoCourt(
             icon = Icons.Default.Circle
         ) {
             InfoRowItem(
-                icon = if (field.isActive) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                icon = if (field.active) Icons.Default.CheckCircle else Icons.Default.Cancel,
                 label = "Trạng thái hoạt động",
-                value = if (field.isActive) "Đang hoạt động" else "Tạm ngưng",
-                valueColor = if (field.isActive) Color(0xFF4CAF50) else Color(0xFFF44336)
+                value = if (field.active) "Đang hoạt động" else "Tạm ngưng",
+                valueColor = if (field.active) Color(0xFF4CAF50) else Color(0xFFF44336)
             )
             
-            if (field.isActive) {
+            if (field.active) {
                 InfoRowItem(
                     icon = Icons.Default.Visibility,
                     label = "Hiển thị công khai",
@@ -593,13 +593,13 @@ fun DetailInfoCourtPreview() {
                 sports = listOf("FOOTBALL", "BADMINTON"),
                 images = com.trungkien.fbtp_cn.model.FieldImages(),
                 slotMinutes = 30,
-                openHours = OpenHours(start = "08:00", end = "22:00", isOpen24h = false),
+                openHours = OpenHours(start = "08:00", end = "22:00", open24h = false),
                 amenities = listOf("PARKING", "SHOWER", "EQUIPMENT", "WIFI"),
                 description = "Sân bóng đá mini chất lượng cao với đầy đủ tiện ích hiện đại, phù hợp cho các trận đấu giao hữu và tập luyện.",
                 contactPhone = "0123456789",
                 averageRating = 4.5f,
                 totalReviews = 128,
-                isActive = true,
+                active = true,
                 // ✅ FIX: Thêm footballFieldType cho preview
                 footballFieldType = "5_PLAYERS"
             ),

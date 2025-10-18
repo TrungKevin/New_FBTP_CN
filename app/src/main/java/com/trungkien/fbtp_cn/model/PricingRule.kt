@@ -35,5 +35,5 @@ data class PricingRule(
     // Thông tin bổ sung
     val description: String = "",          // Mô tả quy tắc giá
     @PropertyName("active")
-    val isActive: Boolean = true           // Trạng thái hoạt động
+    val active: Boolean = true           // Trạng thái hoạt động
 )

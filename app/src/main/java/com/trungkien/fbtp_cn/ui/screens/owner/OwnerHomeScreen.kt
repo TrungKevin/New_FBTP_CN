@@ -192,14 +192,14 @@ private fun mockFields(): List<Field> = listOf(
         openHours = OpenHours(
             start = "05:00",
             end = "23:00",
-            isOpen24h = false
+            open24h = false
         ),
         amenities = listOf("PARKING", "EQUIPMENT"),
         description = "Sân Pickleball chất lượng cao",
         contactPhone = "0926666357",
         averageRating = 4.5f,
         totalReviews = 12,
-        isActive = true
+        active = true
     ),
     Field(
         fieldId = "2",
@@ -218,14 +218,14 @@ private fun mockFields(): List<Field> = listOf(
         openHours = OpenHours(
             start = "06:00",
             end = "22:00",
-            isOpen24h = false
+            open24h = false
         ),
         amenities = listOf("PARKING", "SHOWER"),
         description = "Sân cầu lông chuyên nghiệp",
         contactPhone = "0901234567",
         averageRating = 4.2f,
         totalReviews = 8,
-        isActive = false
+        active = false
     )
 )
 

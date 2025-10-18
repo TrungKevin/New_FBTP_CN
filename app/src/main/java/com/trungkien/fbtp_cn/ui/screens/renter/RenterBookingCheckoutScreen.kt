@@ -467,8 +467,9 @@ fun RenterBookingCheckoutScreen(
                     println("  - generated slots: $slots")
                     
                     when {
-                        // Chỉ hiển thị màu vàng khi booking còn hiệu lực
+                        // ✅ FIXED: Kiểm tra cả booking status và match status
                         booking.status.equals("PENDING", true) && booking.opponentMode == "WAITING_OPPONENT" -> {
+                            // Trường hợp solo booking đang chờ đối thủ
                             waiting.addAll(slots)
                             slots.forEach { slot ->
                                 slotToOwner[slot] = booking.renterId
@@ -476,7 +477,13 @@ fun RenterBookingCheckoutScreen(
                             }
                         }
                         booking.status.equals("CONFIRMED", true) || booking.status.equals("PAID", true) -> {
+                            // Trường hợp booking đã được xác nhận/thanh toán
                             locked.addAll(slots)
+                        }
+                        booking.status.equals("PENDING", true) && booking.hasOpponent == true -> {
+                            // ✅ NEW: Trường hợp booking có đối thủ (match FULL) - chuyển sang màu đỏ
+                            locked.addAll(slots)
+                            println("  - Added to LOCKED (hasOpponent=true): $slots")
                         }
                     }
                 }
@@ -1087,34 +1094,63 @@ fun RenterBookingCheckoutScreen(
                             val currentWaitingSlots = waitingOpponentSlotsByDate[currentDateKey] ?: emptySet()
                             val currentLockedSlots = lockedSlotsByDate[currentDateKey] ?: emptySet()
                             
-                            if (bookingMode == "HAS_OPPONENT") {
-                                // Trường hợp join làm đối thủ → chuyển đỏ
-                                val newWaitingSlots = currentWaitingSlots - selectedSlots
-                                val newLockedSlots = currentLockedSlots + selectedSlots
-                                waitingOpponentSlotsByDate = waitingOpponentSlotsByDate + (currentDateKey to newWaitingSlots)
-                                lockedSlotsByDate = lockedSlotsByDate + (currentDateKey to newLockedSlots)
-                            } else if (bookingMode == "FIND_OPPONENT") {
-                                // Trường hợp tìm đối thủ → giữ vàng, đảm bảo không bị chuyển đỏ
-                                val newWaitingSlots = currentWaitingSlots + selectedSlots
-                                val newLockedSlots = currentLockedSlots - selectedSlots
-                                waitingOpponentSlotsByDate = waitingOpponentSlotsByDate + (currentDateKey to newWaitingSlots)
-                                lockedSlotsByDate = lockedSlotsByDate + (currentDateKey to newLockedSlots)
-                            } else {
-                                // Mặc định an toàn: không đổi màu
-                                waitingOpponentSlotsByDate = waitingOpponentSlotsByDate + (currentDateKey to currentWaitingSlots)
-                                lockedSlotsByDate = lockedSlotsByDate + (currentDateKey to currentLockedSlots)
+                            // ✅ FIXED LOGIC: Chỉ chuyển đổi trạng thái khi thực sự cần thiết
+                            // 
+                            // 🎯 LOGIC TRẠNG THÁI MÀU SẮC KHE GIỜ:
+                            // 
+                            // 1. 🟦 TRẮNG (FREE): Khe giờ trống, có thể đặt
+                            // 2. 🟨 VÀNG (WAITING_OPPONENT): Renter A đặt solo, đang chờ đối thủ  
+                            // 3. 🟥 ĐỎ (LOCKED_FULL): Renter A + Renter B đã match, đã đặt đầy đủ
+                            //
+                            // 🔄 CHUYỂN ĐỔI TRẠNG THÁI:
+                            // - Renter A chọn "Chưa có đối thủ" → Chuyển từ TRẮNG sang VÀNG
+                            // - Renter B join vào slot VÀNG → Chuyển từ VÀNG sang ĐỎ
+                            // - Sau khi xác nhận đặt → GIỮ NGUYÊN màu sắc hiện tại
+                            // - Chỉ thay đổi màu khi có hành động hủy sân:
+                            //   + Renter A hủy solo → VÀNG về TRẮNG
+                            //   + Renter A hoặc B hủy trong match FULL → ĐỎ về VÀNG  
+                            //   + Owner hủy cả match → ĐỎ về TRẮNG
+                            when (bookingMode) {
+                                "HAS_OPPONENT" -> {
+                                    // Trường hợp renter B join vào slot vàng của renter A → chuyển đỏ
+                                    val newWaitingSlots = currentWaitingSlots - selectedSlots
+                                    val newLockedSlots = currentLockedSlots + selectedSlots
+                                    waitingOpponentSlotsByDate = waitingOpponentSlotsByDate + (currentDateKey to newWaitingSlots)
+                                    lockedSlotsByDate = lockedSlotsByDate + (currentDateKey to newLockedSlots)
+                                    println("🔄 STATE CHANGE: HAS_OPPONENT - Moved $selectedSlots from YELLOW to RED")
+                                }
+                                "FIND_OPPONENT" -> {
+                                    // Trường hợp renter A đặt solo → chuyển vàng và GIỮ NGUYÊN sau khi confirm
+                                    val newWaitingSlots = currentWaitingSlots + selectedSlots
+                                    val newLockedSlots = currentLockedSlots - selectedSlots
+                                    waitingOpponentSlotsByDate = waitingOpponentSlotsByDate + (currentDateKey to newWaitingSlots)
+                                    lockedSlotsByDate = lockedSlotsByDate + (currentDateKey to newLockedSlots)
+                                    println("🔄 STATE CHANGE: FIND_OPPONENT - Moved $selectedSlots to YELLOW and KEEP IT")
+                                }
+                                else -> {
+                                    // Mặc định: KHÔNG thay đổi trạng thái màu
+                                    waitingOpponentSlotsByDate = waitingOpponentSlotsByDate + (currentDateKey to currentWaitingSlots)
+                                    lockedSlotsByDate = lockedSlotsByDate + (currentDateKey to currentLockedSlots)
+                                    println("🔄 STATE CHANGE: DEFAULT - NO COLOR CHANGE for $selectedSlots")
+                                }
                             }
                             
-                            // ✅ NEW: Lưu lại lựa chọn vừa xác nhận để tiếp tục hiển thị tổng
+                            // ✅ FIXED LOGIC: Sau khi xác nhận đặt, GIỮ NGUYÊN trạng thái màu sắc
+                            // Không cần thay đổi trạng thái màu sau khi confirm, chỉ cần lưu lại để hiển thị tổng
                             recentConfirmedSlotsByDate = recentConfirmedSlotsByDate + (currentDateKey to selectedSlots)
-                            // Không cần giữ border xanh nữa: UI có thể xóa selection nếu muốn,
-                            // nhưng tổng vẫn dựa vào recentConfirmedSlotsByDate
                             
-                            // Reload field data để cập nhật UI
-                            fieldViewModel.handleEvent(FieldEvent.LoadFieldById(fieldId))
+                            // ✅ CRITICAL: KHÔNG thay đổi trạng thái màu sắc sau khi xác nhận
+                            // Trạng thái màu sẽ được giữ nguyên:
+                            // - FIND_OPPONENT: Giữ màu vàng (WAITING_OPPONENT)
+                            // - HAS_OPPONENT: Giữ màu đỏ (LOCKED_FULL)
+                            // - Chỉ thay đổi màu khi có hành động hủy sân
+                            println("✅ CONFIRMATION: Keeping color state unchanged after confirmation")
+                            println("✅ CONFIRMATION: FIND_OPPONENT slots remain YELLOW")
+                            println("✅ CONFIRMATION: HAS_OPPONENT slots remain RED")
                             
-                            println("✅ DEBUG: Match completed - only consecutive slots with same userId updated: $selectedSlots")
-                            println("✅ DEBUG: Moved from WAITING_OPPONENT to FULL: $selectedSlots")
+                            // ✅ CRITICAL: KHÔNG reload field data sau khi join để giữ nguyên trạng thái màu
+                            // fieldViewModel.handleEvent(FieldEvent.LoadFieldById(fieldId)) // ❌ REMOVED: Gây reset trạng thái màu
+                            println("✅ CONFIRMATION: NOT reloading field data to preserve color state")
                         }
                     }
                 }

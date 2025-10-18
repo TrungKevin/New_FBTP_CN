@@ -19,7 +19,8 @@ data class Match(
     val notes: String? = null, // Notes chung của trận đấu
     val noteA: String? = null, // Notes riêng của renter A
     val noteB: String? = null, // Notes riêng của renter B
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis() // ✅ FIX: Thêm updatedAt field
 )
 
 @Keep

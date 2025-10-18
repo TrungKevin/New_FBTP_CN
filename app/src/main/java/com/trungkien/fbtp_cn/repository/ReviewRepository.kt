@@ -162,7 +162,7 @@ class ReviewRepository {
                 reviewRef.update("replies", updatedReplies).await()
                 
                 // Gửi notification cho renter khi owner phản hồi review
-                if (reply.isOwner) {
+                if (reply.owner) {
                     try {
                         // Lấy thông tin field để có tên sân
                         val fieldDoc = firestore.collection("fields")

@@ -310,7 +310,7 @@ fun RenterOrderDetailScreen(
                                 slotMinutes = currentField.slotMinutes,
                                 latitude = currentField.geo.lat,
                                 longitude = currentField.geo.lng,
-                                isActive = currentField.isActive
+                                active = currentField.active
                             )
                         }
                     }

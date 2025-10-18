@@ -132,7 +132,7 @@ fun RenterHomeScreen(
                     location = f.address,
                     rating = rating,
                     distance = "",
-                    isAvailable = f.isActive,
+                    isAvailable = f.active,
                     imageUrl = f.images.mainImage.ifEmpty { null },
                     ownerName = owner?.name ?: "Chủ sân",
                     ownerAvatarUrl = owner?.avatarUrl,

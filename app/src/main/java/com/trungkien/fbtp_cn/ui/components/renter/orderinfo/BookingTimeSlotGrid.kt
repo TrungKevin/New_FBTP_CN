@@ -44,16 +44,16 @@ fun BookingTimeSlotGrid(
     lockedOpponentTimes: Set<String> = emptySet() // ✅ NEW: từ bookings (DUO)
 ) {
     // ✅ FIX: Sử dụng field data thật nếu có
-    val (actualStartHour, actualEndHour, isOpen24h) = if (field != null) {
+    val (actualStartHour, actualEndHour, open24h) = if (field != null) {
         val start = field.openHours.start.split(":")[0].toInt()
         val end = field.openHours.end.split(":")[0].toInt()
-        Triple(start, end, field.openHours.isOpen24h)
+        Triple(start, end, field.openHours.open24h)
     } else {
         Triple(startHour, endHour, false)
     }
     
     // ✅ FIX: Tạo slots dựa trên giờ hoạt động thật
-    val slots = if (isOpen24h) {
+    val slots = if (open24h) {
         // Nếu mở 24h, tạo slots từ 00:00 đến 23:30
         (0..23).flatMap { hour ->
             listOf(0, 30).map { minute ->

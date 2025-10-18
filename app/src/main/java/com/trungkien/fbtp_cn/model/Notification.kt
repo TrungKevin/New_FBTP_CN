@@ -47,7 +47,7 @@ data class Notification(
     val title: String = "",
     val body: String = "",
     val data: NotificationData = NotificationData(),
-    val isRead: Boolean = false,
+    val read: Boolean = false, // ✅ FIX: Firebase expects 'read' field, not 'read'
     val readAt: Long? = null,
     val createdAt: Long = System.currentTimeMillis(),
     
@@ -116,7 +116,7 @@ data class CreateNotificationRequest(
 data class NotificationFilter(
     val userId: String,
     val type: NotificationType? = null,
-    val isRead: Boolean? = null,
+    val read: Boolean? = null,
     val priority: NotificationPriority? = null,
     val channel: NotificationChannel? = null,
     val category: String? = null,

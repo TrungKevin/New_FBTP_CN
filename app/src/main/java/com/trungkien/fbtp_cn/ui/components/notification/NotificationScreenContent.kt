@@ -36,7 +36,7 @@ fun NotificationScreen(
     onMarkAllAsRead: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val unreadCount = notifications.count { !it.isRead }
+    val unreadCount = notifications.count { !it.read }
     
     Scaffold(
         topBar = {
@@ -68,7 +68,7 @@ fun NotificationScreenPreview() {
                 title = "Đặt sân mới!",
                 body = "Nguyễn Văn A đã đặt sân Toan-SPort vào lúc 18:00 ngày 15/01/2024.",
                 data = NotificationData(bookingId = "booking1", fieldId = "field1"),
-                isRead = false,
+                read = false,
                 createdAt = System.currentTimeMillis() - 3600000
             ),
             Notification(
@@ -78,7 +78,7 @@ fun NotificationScreenPreview() {
                 title = "Đánh giá mới!",
                 body = "Bạn nhận được đánh giá 5 sao từ Nguyễn Văn B cho sân Toan-SPort.",
                 data = NotificationData(fieldId = "field1"),
-                isRead = true,
+                read = true,
                 createdAt = System.currentTimeMillis() - 7200000
             ),
             Notification(
@@ -88,7 +88,7 @@ fun NotificationScreenPreview() {
                 title = "Có đối thủ tham gia!",
                 body = "Nguyễn Văn D đã tham gia trận đấu tại sân Toan-SPort vào lúc 19:00 ngày 17/01/2024.",
                 data = NotificationData(matchId = "match1", fieldId = "field1"),
-                isRead = false,
+                read = false,
                 createdAt = System.currentTimeMillis() - 10800000
             )
         )
@@ -114,7 +114,7 @@ fun NotificationScreenContentPreview() {
                 title = "Đặt sân mới!",
                 body = "Nguyễn Văn A đã đặt sân Toan-SPort vào lúc 18:00 ngày 15/01/2024.",
                 data = NotificationData(bookingId = "booking1", fieldId = "field1"),
-                isRead = false,
+                read = false,
                 createdAt = System.currentTimeMillis() - 3600000
             ),
             Notification(
@@ -124,7 +124,7 @@ fun NotificationScreenContentPreview() {
                 title = "Đặt sân bị hủy!",
                 body = "Nguyễn Văn C đã hủy đặt sân Toan-SPort vào lúc 20:00 ngày 16/01/2024.",
                 data = NotificationData(bookingId = "booking3", fieldId = "field1"),
-                isRead = false,
+                read = false,
                 createdAt = System.currentTimeMillis() - 7200000
             )
         )

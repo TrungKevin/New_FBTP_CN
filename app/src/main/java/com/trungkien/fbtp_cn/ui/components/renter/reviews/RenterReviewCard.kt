@@ -240,7 +240,7 @@ fun RenterReviewCard(
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(text = rep.userName.ifBlank { "Người dùng" }, fontWeight = FontWeight.Medium)
-                                if (rep.isOwner) {
+                                if (rep.owner) {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.primary) {
                                         Text(

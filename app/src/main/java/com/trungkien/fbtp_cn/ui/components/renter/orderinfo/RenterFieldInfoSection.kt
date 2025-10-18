@@ -35,7 +35,7 @@ fun RenterFieldInfoSection(
     slotMinutes: Int = 30,
     latitude: Double = 0.0,
     longitude: Double = 0.0,
-    isActive: Boolean = true,
+    active: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -150,13 +150,13 @@ fun RenterFieldInfoSection(
             icon = Icons.Default.Circle
         ) {
             InfoRowItem(
-                icon = if (isActive) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                icon = if (active) Icons.Default.CheckCircle else Icons.Default.Cancel,
                 label = "Trạng thái hoạt động",
-                value = if (isActive) "Đang hoạt động" else "Tạm ngưng",
-                valueColor = if (isActive) Color(0xFF4CAF50) else Color(0xFFF44336)
+                value = if (active) "Đang hoạt động" else "Tạm ngưng",
+                valueColor = if (active) Color(0xFF4CAF50) else Color(0xFFF44336)
             )
             
-            if (isActive) {
+            if (active) {
                 InfoRowItem(
                     icon = Icons.Default.Visibility,
                     label = "Hiển thị công khai",
@@ -319,7 +319,7 @@ private fun RenterFieldInfoSectionPreview() {
             slotMinutes = 30,
             latitude = 10.7829,
             longitude = 106.6992,
-            isActive = true
+            active = true
         )
     }
 }

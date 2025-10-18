@@ -198,7 +198,7 @@ fun RenterFieldSearchScreen(
                     location = f.address,
                     rating = avgRating,
                     distance = "", // TODO: tính theo geo nếu cần
-                    isAvailable = f.isActive,
+                    isAvailable = f.active,
                     imageUrl = f.images.mainImage.ifEmpty { null },
                     ownerName = owner?.name ?: "Chủ sân",
                     ownerAvatarUrl = owner?.avatarUrl,

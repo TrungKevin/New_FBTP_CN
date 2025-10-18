@@ -25,7 +25,7 @@ data class Service(
     val defaultAllowQuantity: Boolean,     // Cho phép chọn số lượng mặc định
     val description: String = "",          // Mô tả dịch vụ
     val category: String = "",             // Phân loại: ["EQUIPMENT", "BEVERAGE", "TRAINING"] (THIẾT BỊ, NƯỚC UỐNG, HUẤN LUYỆN)
-    val isActive: Boolean = true           // Trạng thái hoạt động
+    val active: Boolean = true           // Trạng thái hoạt động
 )
 
 @Keep

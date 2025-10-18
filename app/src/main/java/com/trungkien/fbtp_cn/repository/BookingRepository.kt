@@ -25,9 +25,15 @@ class BookingRepository(
     /**
      * ✅ Helper: Reset trạng thái các documents `slots` liên quan tới một booking.
      * Đặt isBooked=false và xoá bookingId để UI trở lại trạng thái bình thường.
+     * 
+     * ✅ FIXED LOGIC: Xử lý chuyển đổi trạng thái màu sắc khi hủy sân:
+     * - SOLO (vàng) → FREE (trắng)
+     * - FULL (đỏ) → WAITING_OPPONENT (vàng) khi 1 renter hủy
+     * - FULL (đỏ) → FREE (trắng) khi owner hủy cả match
      */
     private suspend fun resetSlotsForBooking(booking: Booking) {
         try {
+            // ✅ STEP 1: Reset slots collection (giữ nguyên logic cũ)
             val batch = firestore.batch()
             booking.consecutiveSlots.forEach { startAt ->
                 val q = firestore.collection(SLOTS_COLLECTION)
@@ -47,6 +53,71 @@ class BookingRepository(
             }
             batch.commit().await()
             println("🔄 DEBUG: Slots reset for booking ${booking.bookingId} -> ${booking.consecutiveSlots}")
+            
+            // ✅ STEP 2: Xử lý chuyển đổi trạng thái màu sắc trong matches collection
+            val matchId = booking.matchId
+            if (!matchId.isNullOrBlank()) {
+                val matchDoc = firestore.collection(MATCHES_COLLECTION)
+                    .document(matchId)
+                    .get()
+                    .await()
+                
+                if (matchDoc.exists()) {
+                    val match = matchDoc.toObject(Match::class.java)
+                    if (match != null) {
+                        when {
+                            // Trường hợp 1: Renter A hủy solo booking (WAITING_OPPONENT) → chuyển về trắng
+                            booking.bookingType == "SOLO" && !booking.hasOpponent -> {
+                                firestore.collection(MATCHES_COLLECTION)
+                                    .document(matchId)
+                                    .update(
+                                        mapOf(
+                                            "status" to "FREE",
+                                            "occupiedCount" to 0,
+                                            "participants" to emptyList<Any>(),
+                                            "updatedAt" to System.currentTimeMillis()
+                                        )
+                                    )
+                                    .await()
+                                println("🔄 CANCELLATION: SOLO booking cancelled - Reset to WHITE (FREE)")
+                            }
+                            
+                            // Trường hợp 2: Renter A hoặc B hủy trong match FULL → chuyển về vàng
+                            match.status == "FULL" && match.participants.size == 2 -> {
+                                val remainingParticipants = match.participants.filter { it.bookingId != booking.bookingId }
+                                firestore.collection(MATCHES_COLLECTION)
+                                    .document(matchId)
+                                    .update(
+                                        mapOf(
+                                            "status" to "WAITING_OPPONENT",
+                                            "occupiedCount" to 1,
+                                            "participants" to remainingParticipants,
+                                            "updatedAt" to System.currentTimeMillis()
+                                        )
+                                    )
+                                    .await()
+                                println("🔄 CANCELLATION: FULL match cancelled by one renter - Reset to YELLOW (WAITING_OPPONENT)")
+                            }
+                            
+                            // Trường hợp 3: Owner hủy cả match (cả A và B) → chuyển về trắng
+                            else -> {
+                                firestore.collection(MATCHES_COLLECTION)
+                                    .document(matchId)
+                                    .update(
+                                        mapOf(
+                                            "status" to "FREE",
+                                            "occupiedCount" to 0,
+                                            "participants" to emptyList<Any>(),
+                                            "updatedAt" to System.currentTimeMillis()
+                                        )
+                                    )
+                                    .await()
+                                println("🔄 CANCELLATION: Owner cancelled entire match - Reset to WHITE (FREE)")
+                            }
+                        }
+                    }
+                }
+            }
         } catch (e: Exception) {
             println("❌ ERROR: resetSlotsForBooking failed: ${e.message}")
         }

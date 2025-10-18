@@ -26,7 +26,7 @@ data class FieldServiceItem(
     val name: String = "",
     val price: String = "",
     val category: String = "",
-    val isActive: Boolean = true
+    val active: Boolean = true
 )
 
 /**
@@ -325,7 +325,7 @@ private fun AddServiceRow(
                                             name = newName,
                                             price = "",
                                             category = category,
-                                            isActive = true
+                                            active = true
                                         )
                                         onServiceAdded(newService)
                                         newServiceName = "" // Reset sau khi thêm
@@ -432,7 +432,7 @@ private fun mapFirebaseServicesToUI(firebaseServices: List<FieldService>): List<
             name = service.name,
             price = service.price.toString(),
             category = mappedCategory,
-            isActive = service.isAvailable
+            active = service.isAvailable
         )
     }
     
@@ -454,35 +454,35 @@ private fun createEmptyServiceTemplate(): List<FieldServiceItem> {
         name = "Sting", 
         price = "12000", 
         category = "Nước đóng chai",
-        isActive = true
+        active = true
     ))
     templateServices.add(FieldServiceItem(
         id = "2", 
         name = "Revie", 
         price = "15000", 
         category = "Nước đóng chai",
-        isActive = true
+        active = true
     ))
     templateServices.add(FieldServiceItem(
         id = "3", 
         name = "RedBull", 
         price = "25000", 
         category = "Nước đóng chai",
-        isActive = true
+        active = true
     ))
     templateServices.add(FieldServiceItem(
         id = "4", 
         name = "Coca Cola", 
         price = "18000", 
         category = "Nước đóng chai",
-        isActive = true
+        active = true
     ))
     templateServices.add(FieldServiceItem(
         id = "5", 
         name = "", 
         price = "", 
         category = "Nước đóng chai",
-        isActive = true
+        active = true
     ))
     
     // Thuê dụng cụ - Mẫu trống để owner điền
@@ -491,14 +491,14 @@ private fun createEmptyServiceTemplate(): List<FieldServiceItem> {
         name = "", 
         price = "", 
         category = "Thuê dụng cụ",
-        isActive = true
+        active = true
     ))
     templateServices.add(FieldServiceItem(
         id = "7", 
         name = "", 
         price = "", 
         category = "Thuê dụng cụ",
-        isActive = true
+        active = true
     ))
     
     // Dịch vụ khác - Mẫu trống để owner điền
@@ -507,14 +507,14 @@ private fun createEmptyServiceTemplate(): List<FieldServiceItem> {
         name = "", 
         price = "", 
         category = "Dịch vụ khác",
-        isActive = true
+        active = true
     ))
     templateServices.add(FieldServiceItem(
         id = "9", 
         name = "", 
         price = "", 
         category = "Dịch vụ khác",
-        isActive = true
+        active = true
     ))
     
     println("🔧 DEBUG: FieldServiceManager - Đã tạo ${templateServices.size} template services:")
@@ -539,7 +539,7 @@ private fun saveFieldServices(
     
     // Lọc chỉ những service có tên và giá
     val servicesToSave = services.filter { 
-        it.name.isNotEmpty() && it.price.isNotEmpty() && it.isActive 
+        it.name.isNotEmpty() && it.price.isNotEmpty() && it.active 
     }
     
     println("💾 DEBUG: FieldServiceManager - Services sẽ lưu: ${servicesToSave.size} items")
@@ -559,7 +559,7 @@ private fun saveFieldServices(
             }.toString(),
             allowQuantity = true,
             description = "Dịch vụ: ${service.name} - Danh mục: ${service.category}", // Lưu danh mục vào description
-            isAvailable = service.isActive
+            isAvailable = service.active
         )
     }
     
@@ -587,7 +587,7 @@ private fun validateServices(services: List<FieldServiceItem>): List<String> {
     val errors = mutableListOf<String>()
     
     // Validate chỉ những service có tên và đang active
-    val servicesWithName = services.filter { it.name.isNotEmpty() && it.isActive }
+    val servicesWithName = services.filter { it.name.isNotEmpty() && it.active }
     
     servicesWithName.forEach { service ->
         if (service.price.isEmpty()) {

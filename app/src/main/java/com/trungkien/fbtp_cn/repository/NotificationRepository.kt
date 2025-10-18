@@ -67,7 +67,7 @@ class NotificationRepository {
                     return@addSnapshotListener
                 }
                 val count = snapshot?.documents?.count { doc ->
-                    !(doc.getBoolean("isRead") ?: false)
+                    !(doc.getBoolean("read") ?: false)
                 } ?: 0
                 println("🔔 DEBUG: NotificationRepository.listenUnreadNotificationCount - User $userId has $count unread notifications")
                 trySend(count)
@@ -109,7 +109,7 @@ class NotificationRepository {
     suspend fun markAsRead(notificationId: String): Result<Unit> {
         return try {
             notificationsCollection.document(notificationId)
-                .update("isRead", true, "readAt", System.currentTimeMillis())
+                .update("read", true, "readAt", System.currentTimeMillis())
                 .await()
             
             println("✅ DEBUG: NotificationRepository.markAsRead - Marked notification $notificationId as read")
@@ -131,9 +131,9 @@ class NotificationRepository {
                 .get()
                 .await()
 
-            notifications.documents.filter { (it.getBoolean("isRead") ?: false).not() }
+            notifications.documents.filter { (it.getBoolean("read") ?: false).not() }
                 .forEach { doc ->
-                batch.update(doc.reference, "isRead", true, "readAt", System.currentTimeMillis())
+                batch.update(doc.reference, "read", true, "readAt", System.currentTimeMillis())
             }
 
             batch.commit().await()
@@ -218,7 +218,7 @@ class NotificationRepository {
                 lastSeenAt = System.currentTimeMillis(),
                 deviceModel = deviceModel,
                 appVersion = appVersion,
-                isActive = true
+                active = true
             )
 
             userDevicesCollection.document(deviceId)
@@ -240,7 +240,7 @@ class NotificationRepository {
         return try {
             val devices = userDevicesCollection
                 .whereEqualTo("userId", userId)
-                .whereEqualTo("isActive", true)
+                .whereEqualTo("active", true)
                 .get()
                 .await()
 

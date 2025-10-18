@@ -64,7 +64,7 @@ data class Reply(
     val images: List<String> = emptyList(),       // Ảnh phản hồi (nếu có)
     val likes: Int = 0,                           // Số lượt thích phản hồi
     val likedBy: List<String> = emptyList(),      // Danh sách userId đã like phản hồi
-    val isOwner: Boolean = false,                 // Có phải chủ sân không
+    val owner: Boolean = false,                   // ✅ FIX: Firebase expects 'owner' field, not 'owner'
     val createdAt: Timestamp? = null,             // Thời điểm phản hồi
     val updatedAt: Timestamp? = null              // Thời điểm cập nhật
 )

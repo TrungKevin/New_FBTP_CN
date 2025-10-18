@@ -681,7 +681,7 @@ class FieldViewModel(
                 price = weekdayPrice.toLong(),
                 calcMode = "CEIL_TO_RULE",
                 description = "Giá ngày thường - 1 giờ",
-                isActive = true
+                active = true
             ),
             PricingRule(
                 ruleId = "",
@@ -692,7 +692,7 @@ class FieldViewModel(
                 price = weekendPrice.toLong(),
                 calcMode = "CEIL_TO_RULE",
                 description = "Giá cuối tuần - 1 giờ",
-                isActive = true
+                active = true
             )
         )
     }

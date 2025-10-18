@@ -31,7 +31,7 @@ import com.trungkien.fbtp_cn.viewmodel.EvaluateCourtViewModel
 fun EvaluateCourt(
     fieldId: String,
     currentUser: User?,
-    isOwner: Boolean,
+    owner: Boolean,
     viewModel: EvaluateCourtViewModel,
     modifier: Modifier = Modifier
 ) {
@@ -39,10 +39,10 @@ fun EvaluateCourt(
     val focusManager = LocalFocusManager.current
     
     // LaunchedEffect để load data khi component được tạo
-    LaunchedEffect(fieldId, currentUser, isOwner) {
+    LaunchedEffect(fieldId, currentUser, owner) {
         // Set current user và quyền hạn
         if (currentUser != null) {
-            viewModel.handleEvent(EvaluateCourtEvent.SetCurrentUser(currentUser, isOwner))
+            viewModel.handleEvent(EvaluateCourtEvent.SetCurrentUser(currentUser, owner))
         }
         
         // Load reviews và summary
@@ -50,7 +50,7 @@ fun EvaluateCourt(
         viewModel.handleEvent(EvaluateCourtEvent.LoadReviewSummary(fieldId))
         
         println("🚀 DEBUG: EvaluateCourt - Bắt đầu load data cho sân: $fieldId")
-        println("👤 DEBUG: Current user: ${currentUser?.name}, isOwner: $isOwner")
+        println("👤 DEBUG: Current user: ${currentUser?.name}, owner: $owner")
     }
     
     // LaunchedEffect để refresh reviews khi user thay đổi avatar
@@ -72,7 +72,7 @@ fun EvaluateCourt(
         EvaluateCourtHeader(
             fieldId = fieldId,
             currentUser = currentUser,
-            isOwner = isOwner,
+            owner = owner,
             onAddReview = {
                 // TODO: Show add review dialog
                 println("✅ DEBUG: User muốn thêm review mới")
@@ -119,7 +119,7 @@ fun EvaluateCourt(
                         ReviewItem(
                             review = review,
                             currentUser = currentUser,
-                            isOwner = isOwner,
+                            owner = owner,
                             onLike = {
                                 currentUser?.let { user ->
                                     viewModel.handleEvent(
@@ -134,7 +134,7 @@ fun EvaluateCourt(
                                     println("❌ DEBUG: currentUser is null, cannot create reply")
                                 } else {
                                     currentUser?.let { user ->
-                                        println("🎯 DEBUG: Current user: ${user.name}, isOwner: $isOwner")
+                                        println("🎯 DEBUG: Current user: ${user.name}, owner: $owner")
                                         viewModel.handleEvent(
                                             EvaluateCourtEvent.AddReply(
                                                 reviewId = review.reviewId,
@@ -142,9 +142,9 @@ fun EvaluateCourt(
                                                     userId = user.userId,
                                                     userName = user.name,
                                                     userAvatar = user.avatarUrl,
-                                                    userRole = if (isOwner) com.trungkien.fbtp_cn.model.UserRole.OWNER.name else com.trungkien.fbtp_cn.model.UserRole.RENTER.name,
+                                                    userRole = if (owner) com.trungkien.fbtp_cn.model.UserRole.OWNER.name else com.trungkien.fbtp_cn.model.UserRole.RENTER.name,
                                                     comment = text,
-                                                    isOwner = isOwner
+                                                    owner = owner
                                                 )
                                             )
                                         )
@@ -217,7 +217,7 @@ fun EvaluateCourt(
 private fun EvaluateCourtHeader(
     fieldId: String,
     currentUser: User?,
-    isOwner: Boolean,
+    owner: Boolean,
     onAddReview: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -250,7 +250,7 @@ private fun EvaluateCourtHeader(
             }
             
             // Add Review button (chỉ hiển thị cho renter, không phải owner)
-            if (currentUser != null && !isOwner) {
+            if (currentUser != null && !owner) {
                 Button(
                     onClick = onAddReview,
                     colors = ButtonDefaults.buttonColors(

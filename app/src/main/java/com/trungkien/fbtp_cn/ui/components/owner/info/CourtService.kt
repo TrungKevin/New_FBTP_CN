@@ -519,7 +519,7 @@ data class CourtPricingRule(
     val minutes: Int = 30,                 // Thời gian mỗi khe (phút)
     val calcMode: String = "CEIL_TO_RULE", // Cách tính giá
     val description: String = "",          // Mô tả quy tắc giá
-    val isActive: Boolean = true           // Trạng thái hoạt động
+    val active: Boolean = true           // Trạng thái hoạt động
 )
 
 /**
@@ -641,7 +641,7 @@ private fun mapFirebaseRuleToUI(rule: PricingRule): CourtPricingRule {
         minutes = rule.minutes,
         calcMode = rule.calcMode,
         description = rule.description,
-        isActive = rule.isActive
+        active = rule.active
     )
 }
 
@@ -663,7 +663,7 @@ private fun createEmptyPricingRules(): List<CourtPricingRule> {
             minutes = 30,
             calcMode = "CEIL_TO_RULE",
             description = "Giá T2 - T6 - 5h - 12h",
-            isActive = true
+            active = true
         ),
         CourtPricingRule(
             id = "2", 
@@ -675,7 +675,7 @@ private fun createEmptyPricingRules(): List<CourtPricingRule> {
             minutes = 30,
             calcMode = "CEIL_TO_RULE",
             description = "Giá T2 - T6 - 12h - 18h",
-            isActive = true
+            active = true
         ),
         CourtPricingRule(
             id = "3", 
@@ -687,7 +687,7 @@ private fun createEmptyPricingRules(): List<CourtPricingRule> {
             minutes = 30,
             calcMode = "CEIL_TO_RULE",
             description = "Giá T2 - T6 - 18h - 24h",
-            isActive = true
+            active = true
         ),
         
         // T7 - CN (Thứ 7 và Chủ nhật)
@@ -701,7 +701,7 @@ private fun createEmptyPricingRules(): List<CourtPricingRule> {
             minutes = 30,
             calcMode = "CEIL_TO_RULE",
             description = "Giá T7 - CN - 5h - 12h",
-            isActive = true
+            active = true
         ),
         CourtPricingRule(
             id = "5", 
@@ -713,7 +713,7 @@ private fun createEmptyPricingRules(): List<CourtPricingRule> {
             minutes = 30,
             calcMode = "CEIL_TO_RULE",
             description = "Giá T7 - CN - 12h - 18h",
-            isActive = true
+            active = true
         ),
         CourtPricingRule(
             id = "6", 
@@ -725,7 +725,7 @@ private fun createEmptyPricingRules(): List<CourtPricingRule> {
             minutes = 30,
             calcMode = "CEIL_TO_RULE",
             description = "Giá T7 - CN - 18h - 24h",
-            isActive = true
+            active = true
         )
     )
     
@@ -814,7 +814,7 @@ private fun saveData(
             effectiveFrom = null, // Có thể thêm sau
             effectiveTo = null,   // Có thể thêm sau
             description = description,
-            isActive = rule.isActive
+            active = rule.active
         )
     }
     

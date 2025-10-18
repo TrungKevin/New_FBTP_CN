@@ -349,10 +349,10 @@ fun OwnerFieldDetailScreen(
                             .align(Alignment.TopEnd)
                             .padding(16.dp),
                         shape = RoundedCornerShape(20.dp),
-                        color = if (field.isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                        color = if (field.active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
                     ) {
                         Text(
-                            text = if (field.isActive) "Hoạt động" else "Không hoạt động",
+                            text = if (field.active) "Hoạt động" else "Không hoạt động",
                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
                             color = Color.White,
                             fontSize = 13.sp,
@@ -441,7 +441,7 @@ fun OwnerFieldDetailScreen(
                             EvaluateCourt(
                                 fieldId = field.fieldId,
                                 currentUser = currentUser,
-                                isOwner = true,
+                                owner = true,
                                 viewModel = evalVm
                             )
                         }// Hiển thị đánh giá sân

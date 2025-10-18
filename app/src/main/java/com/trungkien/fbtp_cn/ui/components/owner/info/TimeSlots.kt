@@ -47,12 +47,12 @@ fun TimeSlots(
     // ✅ FIX: Lấy giờ hoạt động từ Field.openHours
     val startHour = field.openHours.start.split(":")[0].toInt()
     val endHour = field.openHours.end.split(":")[0].toInt()
-    val isOpen24h = field.openHours.isOpen24h
+    val open24h = field.openHours.open24h
     
     println("🕐 DEBUG: TimeSlots - Field operating hours:")
     println("  - start: ${field.openHours.start} (hour: $startHour)")
     println("  - end: ${field.openHours.end} (hour: $endHour)")
-    println("  - isOpen24h: $isOpen24h")
+    println("  - open24h: $open24h")
     
     // ✅ FIX: Tạo danh sách ngày (7 ngày từ hôm nay)
     val dates = remember {
@@ -60,10 +60,10 @@ fun TimeSlots(
     }
     
     // ✅ FIX: Tạo time slots dựa trên giờ hoạt động thực tế
-    val timeSlots = remember(startHour, endHour, isOpen24h) {
+    val timeSlots = remember(startHour, endHour, open24h) {
         val slots = mutableListOf<String>()
         
-        if (isOpen24h) {
+        if (open24h) {
             // Nếu mở 24h, tạo slots từ 00:00 đến 23:30
             for (hour in 0..23) {
                 for (minute in listOf(0, 30)) {
@@ -171,7 +171,7 @@ fun TimeSlots(
                         modifier = Modifier.padding(bottom = 4.dp)
                     )
                     
-                    if (isOpen24h) {
+                    if (open24h) {
                         Text(
                             text = "• Mở cửa 24/24",
                             style = MaterialTheme.typography.bodyMedium,
@@ -230,7 +230,7 @@ fun TimeSlots(
                     selectedDate = selectedDate,
                     startHour = startHour,
                     endHour = endHour,
-                    isOpen24h = isOpen24h
+                    open24h = open24h
                 )
             }
         }
@@ -297,7 +297,7 @@ private fun TimeGrid(
     selectedDate: LocalDate,
     startHour: Int,
     endHour: Int,
-    isOpen24h: Boolean,
+    open24h: Boolean,
     modifier: Modifier = Modifier
 ) {
     // ✅ FIX: Sử dụng LazyVerticalGrid với chiều cao phù hợp để hiển thị đầy đủ
@@ -325,7 +325,7 @@ private fun TimeGrid(
             
             TimeSlotItem(
                 time = timeSlot,
-                isAvailable = isTimeSlotAvailable(timeSlot, startHour, endHour, isOpen24h),
+                isAvailable = isTimeSlotAvailable(timeSlot, startHour, endHour, open24h),
                 isBooked = slotFromFirebase?.isBooked == true,
                 price = price
             )
@@ -389,8 +389,8 @@ private fun TimeSlotItem(
     }
 }
 
-private fun isTimeSlotAvailable(timeSlot: String, startHour: Int, endHour: Int, isOpen24h: Boolean): Boolean {
-    if (isOpen24h) return true
+private fun isTimeSlotAvailable(timeSlot: String, startHour: Int, endHour: Int, open24h: Boolean): Boolean {
+    if (open24h) return true
     
     val hour = timeSlot.split(":")[0].toInt()
     return hour in startHour until endHour
@@ -462,7 +462,7 @@ fun TimeSlotsPreview() {
             openHours = com.trungkien.fbtp_cn.model.OpenHours(
                 start = "08:00",
                 end = "22:00",
-                isOpen24h = false
+                open24h = false
             )
         )
         

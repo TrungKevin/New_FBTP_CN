@@ -48,7 +48,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 fun ReviewItem(
     review: Review,
     currentUser: User?,
-    isOwner: Boolean,
+    owner: Boolean,
     onLike: () -> Unit,
     onReply: (String) -> Unit,
     onReport: () -> Unit,
@@ -83,7 +83,7 @@ fun ReviewItem(
             ReviewHeader(
                 review = review,
                 currentUser = currentUser,
-                isOwner = isOwner,
+                owner = owner,
                 onMoreOptions = { showMoreOptions = true },
                 onDelete = onDelete
             )
@@ -134,7 +134,7 @@ fun ReviewItem(
                 ReplyList(
                     replies = review.replies,
                     currentUser = currentUser,
-                    isOwner = isOwner,
+                    owner = owner,
                     onDeleteReply = onDeleteReply,
                     onUpdateReply = onUpdateReply
                 )
@@ -149,7 +149,7 @@ fun ReviewItem(
         MoreOptionsDialog(
             review = review,
             currentUser = currentUser,
-            isOwner = isOwner,
+            owner = owner,
             onDismiss = { showMoreOptions = false },
             onDelete = {
                 onDelete()
@@ -170,7 +170,7 @@ fun ReviewItem(
 private fun ReviewHeader(
     review: Review,
     currentUser: User?,
-    isOwner: Boolean,
+    owner: Boolean,
     onMoreOptions: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -253,7 +253,7 @@ private fun ReviewHeader(
         }
         
         // More options button
-        if (currentUser != null && (isOwner || currentUser.userId == review.renterId)) {
+        if (currentUser != null && (owner || currentUser.userId == review.renterId)) {
             IconButton(onClick = onMoreOptions) {
                 Icon(
                     imageVector = Icons.Default.MoreVert,
@@ -491,7 +491,7 @@ private fun ReviewActions(
 private fun ReplyList(
     replies: List<Reply>,
     currentUser: User?,
-    isOwner: Boolean,
+    owner: Boolean,
     onDeleteReply: (String) -> Unit,
     onUpdateReply: (String, String) -> Unit
 ) {
@@ -507,7 +507,7 @@ private fun ReplyList(
             ReplyItem(
                 reply = reply,
                 currentUser = currentUser,
-                isOwner = isOwner,
+                owner = owner,
                 onDelete = { onDeleteReply(reply.replyId) },
                 onUpdate = { newText -> onUpdateReply(reply.replyId, newText) }
             )
@@ -526,7 +526,7 @@ private fun ReplyList(
 private fun ReplyItem(
     reply: Reply,
     currentUser: User?,
-    isOwner: Boolean,
+    owner: Boolean,
     onDelete: () -> Unit,
     onUpdate: (String) -> Unit
 ) {
@@ -602,7 +602,7 @@ private fun ReplyItem(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 
-                if (reply.isOwner) {
+                if (reply.owner) {
                     Spacer(modifier = Modifier.width(6.dp))
                     Surface(
                         shape = RoundedCornerShape(8.dp),
@@ -619,7 +619,7 @@ private fun ReplyItem(
                 
                 // Dropdown actions
                 var menu by remember { mutableStateOf(false) }
-                if (currentUser != null && (isOwner || currentUser.userId == reply.userId)) {
+                if (currentUser != null && (owner || currentUser.userId == reply.userId)) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Box {
                         IconButton(onClick = { menu = true }, modifier = Modifier.size(20.dp)) {
@@ -716,7 +716,7 @@ private fun ReplyItem(
 private fun MoreOptionsDialog(
     review: Review,
     currentUser: User?,
-    isOwner: Boolean,
+    owner: Boolean,
     onDismiss: () -> Unit,
     onDelete: () -> Unit,
     onReport: () -> Unit
@@ -729,7 +729,7 @@ private fun MoreOptionsDialog(
         text = {
             Column {
                 // Delete option (chỉ owner hoặc người tạo)
-                if (currentUser != null && (isOwner || currentUser.userId == review.renterId)) {
+                if (currentUser != null && (owner || currentUser.userId == review.renterId)) {
                     TextButton(
                         onClick = onDelete,
                         modifier = Modifier.fillMaxWidth()

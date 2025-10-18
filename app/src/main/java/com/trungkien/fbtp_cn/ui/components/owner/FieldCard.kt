@@ -288,7 +288,7 @@ fun FieldCard(
                             shadowElevation = CommonShadows.Badge
                         ) {
                             Text(
-                                text = if (field.isActive) "Đang hoạt động" else "Tạm ngưng",
+                                text = if (field.active) "Đang hoạt động" else "Tạm ngưng",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
@@ -418,14 +418,14 @@ fun FieldCard(
                                     // Status indicator
                                     Surface(
                                         shape = CircleShape,
-                                        color = if (field.isActive) GreenAccent else RedAccent,
+                                        color = if (field.active) GreenAccent else RedAccent,
                                         modifier = Modifier.size(8.dp)
                                     ) {}
                                     
                                     Text(
-                                        text = if (field.isActive) "Hoạt động" else "Tạm ngưng",
+                                        text = if (field.active) "Hoạt động" else "Tạm ngưng",
                                         fontSize = 11.sp,
-                                        color = if (field.isActive) GreenAccent else RedAccent,
+                                        color = if (field.active) GreenAccent else RedAccent,
                                         fontWeight = FontWeight.Medium
                                     )
                                 }
@@ -684,13 +684,13 @@ fun EnhancedFieldCardPreview() {
                         image3 = ""
                     ),
                     slotMinutes = 30,
-                    openHours = OpenHours(start = "05:00", end = "23:00", isOpen24h = false),
+                    openHours = OpenHours(start = "05:00", end = "23:00", open24h = false),
                     amenities = listOf("PARKING", "SHOWER"),
                     description = "Sân Pickleball chất lượng cao",
                     contactPhone = "0926666357",
                     averageRating = 4.8f,
                     totalReviews = 128,
-                    isActive = true
+                    active = true
                 ),
                 ownerAvatar = R.drawable.avta1,
                 isFavorite = true
@@ -711,13 +711,13 @@ fun EnhancedFieldCardPreview() {
                         image3 = ""
                     ),
                     slotMinutes = 30,
-                    openHours = OpenHours(start = "06:00", end = "22:00", isOpen24h = false),
+                    openHours = OpenHours(start = "06:00", end = "22:00", open24h = false),
                     amenities = listOf("PARKING", "EQUIPMENT"),
                     description = "Sân Tennis chuyên nghiệp",
                     contactPhone = "0901234567",
                     averageRating = 4.5f,
                     totalReviews = 89,
-                    isActive = true
+                    active = true
                 ),
                 ownerAvatar = R.drawable.avta2,
                 isFavorite = false

@@ -307,7 +307,7 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
                         Spacer(modifier = Modifier.height(8.dp))
                         // Chỉ tính trên các sân thuộc account hiện tại
                         val statsFields = fields.filter { it.ownerId == currentUser?.userId }
-                        val activeFields = statsFields.count { it.isActive }
+                        val activeFields = statsFields.count { it.active }
                         val totalSports = statsFields.flatMap { it.sports }.distinct()
                         // Tổng sao = tổng tất cả điểm sao của mọi review trên các sân của account
                         val totalStars = statsFields.sumOf { field ->
@@ -413,13 +413,13 @@ private fun getMockFields(): List<Field> { // Tạo danh sách sân mẫu để 
                 image3 = ""
             ),
             slotMinutes = 30,
-            openHours = OpenHours(start = "05:00", end = "23:00", isOpen24h = false), // Giờ mở cửa
+            openHours = OpenHours(start = "05:00", end = "23:00", open24h = false), // Giờ mở cửa
             amenities = listOf("PARKING", "EQUIPMENT"),
             description = "Sân Pickleball chất lượng cao",
             contactPhone = "0926666357", // SĐT liên hệ
             averageRating = 4.5f, // Điểm đánh giá
             totalReviews = 128, // Số đánh giá
-            isActive = true
+            active = true
         ),
         Field( // Phần tử 2
             fieldId = "2",
@@ -435,13 +435,13 @@ private fun getMockFields(): List<Field> { // Tạo danh sách sân mẫu để 
                 image3 = ""
             ),
             slotMinutes = 30,
-            openHours = OpenHours(start = "06:00", end = "22:00", isOpen24h = false),
+            openHours = OpenHours(start = "06:00", end = "22:00", open24h = false),
             amenities = listOf("PARKING", "SHOWER"),
             description = "Sân cầu lông chuyên nghiệp",
             contactPhone = "0901234567",
             averageRating = 4.2f,
             totalReviews = 89,
-            isActive = true
+            active = true
         ),
         Field( // Phần tử 3
             fieldId = "3",
@@ -457,13 +457,13 @@ private fun getMockFields(): List<Field> { // Tạo danh sách sân mẫu để 
                 image3 = ""
             ),
             slotMinutes = 30,
-            openHours = OpenHours(start = "07:00", end = "23:00", isOpen24h = false),
+            openHours = OpenHours(start = "07:00", end = "23:00", open24h = false),
             amenities = listOf("PARKING", "EQUIPMENT"),
             description = "Sân bóng đá mini chất lượng cao",
             contactPhone = "0987654321",
             averageRating = 4.0f,
             totalReviews = 67,
-            isActive = true
+            active = true
         )
     )
 }

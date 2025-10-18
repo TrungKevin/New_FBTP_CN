@@ -66,7 +66,7 @@ fun SimpleNotificationScreen(
         topBar = {
             NotificationHeader(
                 onBackClick = onBackClick,
-                unreadCount = notifications.count { !it.isRead },
+                unreadCount = notifications.count { !it.read },
                 onMarkAllAsRead = {
                     if (userId.isNotBlank()) {
                         scope.launch { repo.markAllAsRead(userId) }

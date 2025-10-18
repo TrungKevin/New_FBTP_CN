@@ -109,13 +109,13 @@ fun PreviewHomeMyFieldsSection() {
                         image3 = ""
                     ),
                     slotMinutes = 30,
-                    openHours = OpenHours(start = "05:00", end = "23:00", isOpen24h = false),
+                    openHours = OpenHours(start = "05:00", end = "23:00", open24h = false),
                     amenities = listOf("PARKING", "SHOWER"),
                     description = "Sân Pickleball chất lượng cao",
                     contactPhone = "0926666357",
                     averageRating = 4.5f,
                     totalReviews = 128,
-                    isActive = true
+                    active = true
                 ),
                 Field(
                     fieldId = "2",

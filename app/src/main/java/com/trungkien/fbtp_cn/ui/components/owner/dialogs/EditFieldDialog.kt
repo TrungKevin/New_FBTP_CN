@@ -44,7 +44,7 @@ fun EditFieldDialog(
     var contactPhone by remember { mutableStateOf(field.contactPhone) }
     var openStart by remember { mutableStateOf(field.openHours.start) }
     var openEnd by remember { mutableStateOf(field.openHours.end) }
-    var isActive by remember { mutableStateOf(field.isActive) }
+    var active by remember { mutableStateOf(field.active) }
     
     // Cập nhật state khi field thay đổi
     LaunchedEffect(field) {
@@ -54,7 +54,7 @@ fun EditFieldDialog(
         contactPhone = field.contactPhone
         openStart = field.openHours.start
         openEnd = field.openHours.end
-        isActive = field.isActive
+        active = field.active
     }
     
     AlertDialog(
@@ -185,8 +185,8 @@ fun EditFieldDialog(
                         fontWeight = FontWeight.Medium
                     )
                     Switch(
-                        checked = isActive,
-                        onCheckedChange = { isActive = it },
+                        checked = active,
+                        onCheckedChange = { active = it },
                         enabled = !uiState.isLoading
                     )
                 }
@@ -214,9 +214,9 @@ fun EditFieldDialog(
                         openHours = OpenHours(
                             start = openStart.trim(),
                             end = openEnd.trim(),
-                            isOpen24h = false
+                            open24h = false
                         ),
-                        isActive = isActive
+                        active = active
                     )
                     
                     // Lưu thay đổi

@@ -116,8 +116,8 @@ fun NotificationCard(
     onItemClick: (Notification) -> Unit
 ) {
     val notificationStyle = getNotificationStyle(notification.type)
-    val backgroundColor = if (notification.isRead) Color.White else notificationStyle.backgroundColor
-    val textColor = if (notification.isRead) Color.Gray else Color.Black
+    val backgroundColor = if (notification.read) Color.White else notificationStyle.backgroundColor
+    val textColor = if (notification.read) Color.Gray else Color.Black
 
     // Fallback tiêu đề/nội dung theo type nếu backend chưa cung cấp
     val displayTitle = when {
@@ -189,7 +189,7 @@ fun NotificationCard(
             }
             
             // Unread indicator với color phù hợp
-            if (!notification.isRead) {
+            if (!notification.read) {
                 Spacer(modifier = Modifier.width(8.dp))
                 UnreadIndicator(color = notificationStyle.indicatorColor)
             }
@@ -463,7 +463,7 @@ fun NotificationCardPreview() {
                     title = "Đặt sân thành công",
                     body = "Bạn đã đặt sân Court 1 - Tennis vào lúc 18:00 ngày 15/01/2024.",
                     data = NotificationData(bookingId = "booking1"),
-                    isRead = false,
+                    read = false,
                     createdAt = System.currentTimeMillis() - 3600000
                 )
             ) {}
@@ -476,7 +476,7 @@ fun NotificationCardPreview() {
                     title = "Có đối thủ tham gia",
                     body = "Renter B đã tham gia trận đấu của bạn tại sân Court 2 - Tennis.",
                     data = NotificationData(matchId = "match1"),
-                    isRead = true,
+                    read = true,
                     createdAt = System.currentTimeMillis() - 7200000
                 )
             ) {}

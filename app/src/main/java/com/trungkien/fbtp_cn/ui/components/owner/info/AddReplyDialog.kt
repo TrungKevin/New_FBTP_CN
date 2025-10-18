@@ -25,7 +25,7 @@ import com.trungkien.fbtp_cn.model.User
 fun AddReplyDialog(
     reviewId: String,
     currentUser: User?,
-    isOwner: Boolean,
+    owner: Boolean,
     onDismiss: () -> Unit,
     onAddReply: (Reply) -> Unit,
     modifier: Modifier = Modifier
@@ -67,7 +67,7 @@ fun AddReplyDialog(
                 )
                 
                 // Owner badge info
-                if (isOwner) {
+                if (owner) {
                     Spacer(modifier = Modifier.height(16.dp))
                     
                     Surface(
@@ -110,9 +110,9 @@ fun AddReplyDialog(
                             userId = currentUser.userId,
                             userName = if (isAnonymous) "Người dùng ẩn danh" else currentUser.name,
                             userAvatar = if (isAnonymous) "" else currentUser.avatarUrl,
-                            userRole = if (isOwner) "OWNER" else "RENTER",
+                            userRole = if (owner) "OWNER" else "RENTER",
                             comment = comment.trim(),
-                            isOwner = isOwner
+                            owner = owner
                         )
                         
                         onAddReply(newReply)
