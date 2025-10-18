@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -25,8 +26,7 @@ import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 @Composable
 fun RenterProfileSettingsSection(
     onAccountSettings: () -> Unit,
-    onPrivacySettings: () -> Unit,
-    onHelpSupport: () -> Unit,
+
     onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -37,15 +37,12 @@ fun RenterProfileSettingsSection(
         shape = RoundedCornerShape(16.dp)
     ) {
         Column(Modifier.fillMaxWidth().padding(20.dp)) {
-            Text(text = "Cài đặt & Hỗ trợ", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF263238))
+            Text(text = "Cài đặt ", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF263238))
             Spacer(Modifier.height(16.dp))
 
             SettingsItem(Icons.Default.Settings, "Cài đặt tài khoản", "Thay đổi thông tin cá nhân", onAccountSettings, Color(0xFF607D8B), isVectorIcon = true)
             Divider(Modifier.padding(vertical = 8.dp), color = Color(0xFFE0E0E0))
-            SettingsItem(painterResource(id = R.drawable.privaci), "Quyền riêng tư", "Cài đặt bảo mật", onPrivacySettings, Color(0xFF795548))
-            Divider(Modifier.padding(vertical = 8.dp), color = Color(0xFFE0E0E0))
-            SettingsItem(painterResource(id = R.drawable.help), "Trợ giúp & Hỗ trợ", "Liên hệ hỗ trợ", onHelpSupport, Color(0xFF607D8B))
-            Divider(Modifier.padding(vertical = 8.dp), color = Color(0xFFE0E0E0))
+
             SettingsItem(painterResource(id = R.drawable.logout), "Đăng xuất", "Thoát khỏi tài khoản", onLogout, Color(0xFFF44336), isLogout = true)
         }
     }
@@ -88,7 +85,7 @@ private fun SettingsItem(
 @Composable
 private fun RenterProfileSettingsSectionPreview() {
     FBTP_CNTheme {
-        RenterProfileSettingsSection(onAccountSettings = {}, onPrivacySettings = {}, onHelpSupport = {}, onLogout = {})
+        RenterProfileSettingsSection(onAccountSettings = {},onLogout = {})
     }
 }
 

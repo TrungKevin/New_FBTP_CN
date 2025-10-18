@@ -25,7 +25,6 @@ import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 @Composable
 fun RenterProfileMenuSection(
     onMyBookings: () -> Unit,
-    onFavorites: () -> Unit,
     onNotifications: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -47,17 +46,6 @@ fun RenterProfileMenuSection(
                 subtitle = "Xem các đặt sân đã lên lịch",
                 onClick = onMyBookings,
                 color = Color(0xFF2196F3),
-                isVectorIcon = false
-            )
-
-            Divider(Modifier.padding(vertical = 8.dp), color = Color(0xFFE0E0E0))
-
-            MenuItem(
-                icon = painterResource(id = R.drawable.hoso),
-                title = "Yêu thích",
-                subtitle = "Các sân đã lưu",
-                onClick = onFavorites,
-                color = Color(0xFFFF9800),
                 isVectorIcon = false
             )
 
@@ -112,7 +100,7 @@ private fun MenuItem(
 @Composable
 private fun RenterProfileMenuSectionPreview() {
     FBTP_CNTheme {
-        RenterProfileMenuSection(onMyBookings = {}, onFavorites = {}, onNotifications = {})
+        RenterProfileMenuSection(onMyBookings = {}, onNotifications = {})
     }
 }
 

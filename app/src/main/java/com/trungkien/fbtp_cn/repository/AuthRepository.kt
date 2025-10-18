@@ -126,6 +126,36 @@ class AuthRepository(
             .addOnSuccessListener { onSuccess() }
             .addOnFailureListener { e -> onError(e) }
     }
+
+    /**
+     * Deletes current Firebase Auth user and its user document in Firestore.
+     * Note: Firebase may require recent login to delete; caller should handle error message.
+     */
+    fun deleteAccount(
+        onSuccess: () -> Unit,
+        onError: (Throwable) -> Unit
+    ) {
+        val user = firebaseAuth.currentUser
+        val uid = user?.uid
+        if (user == null || uid.isNullOrBlank()) {
+            onError(IllegalStateException("Chưa đăng nhập"))
+            return
+        }
+        // First delete Firestore profile, then Auth user
+        firestore.collection("users").document(uid)
+            .delete()
+            .addOnSuccessListener {
+                user.delete()
+                    .addOnSuccessListener { onSuccess() }
+                    .addOnFailureListener { e -> onError(e) }
+            }
+            .addOnFailureListener { e ->
+                // Even if Firestore delete fails, attempt to delete auth user to avoid being stuck
+                user.delete()
+                    .addOnSuccessListener { onSuccess() }
+                    .addOnFailureListener { ee -> onError(ee) }
+            }
+    }
 }
 
 

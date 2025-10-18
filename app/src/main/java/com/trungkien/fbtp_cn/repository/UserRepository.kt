@@ -215,6 +215,42 @@ class UserRepository(
             }
             .addOnFailureListener { e -> onError(e) }
     }
+
+    fun getCurrentUserPreferences(
+        onSuccess: (Map<String, Any>) -> Unit,
+        onError: (Throwable) -> Unit
+    ) {
+        val uid = auth.currentUser?.uid
+        if (uid.isNullOrEmpty()) {
+            onError(IllegalStateException("Chưa đăng nhập"))
+            return
+        }
+        firestore.collection("users").document(uid).get()
+            .addOnSuccessListener { doc ->
+                val prefs = (doc.get("preferences") as? Map<*, *>)?.mapNotNull { (k, v) ->
+                    (k as? String)?.let { it to (v as Any) }
+                }?.toMap() ?: emptyMap()
+                onSuccess(prefs)
+            }
+            .addOnFailureListener { e -> onError(e) }
+    }
+
+    fun updateCurrentUserPreferences(
+        preferences: Map<String, Any>,
+        onSuccess: () -> Unit,
+        onError: (Throwable) -> Unit
+    ) {
+        val uid = auth.currentUser?.uid
+        if (uid.isNullOrEmpty()) {
+            onError(IllegalStateException("Chưa đăng nhập"))
+            return
+        }
+        val update = mapOf("preferences" to preferences, "updatedAt" to System.currentTimeMillis())
+        firestore.collection("users").document(uid)
+            .set(update, SetOptions.merge())
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { e -> onError(e) }
+    }
 }
 
 

@@ -223,4 +223,19 @@ class AuthViewModel(
             )
         }
     }
+
+    fun deleteAccount(onDone: (Boolean, String?) -> Unit) {
+        _authState.value = _authState.value.copy(isLoading = true, error = null, isSuccess = false)
+        authRepository.deleteAccount(
+            onSuccess = {
+                _currentUser.value = null
+                _authState.value = AuthState(isSuccess = true)
+                onDone(true, null)
+            },
+            onError = { e ->
+                _authState.value = _authState.value.copy(isLoading = false, error = e.message ?: "Xóa tài khoản thất bại")
+                onDone(false, e.message)
+            }
+        )
+    }
 }

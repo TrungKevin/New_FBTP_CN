@@ -25,8 +25,6 @@ import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 @Composable
 fun ProfileSettingsSection(
     onAccountSettings: () -> Unit,
-    onPrivacySettings: () -> Unit,
-    onHelpSupport: () -> Unit,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -48,7 +46,7 @@ fun ProfileSettingsSection(
                 .padding(20.dp)
         ) {
             Text(
-                text = "Cài đặt & Hỗ trợ",
+                text = "Cài đặt ",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF263238)
@@ -70,30 +68,7 @@ fun ProfileSettingsSection(
                 modifier = Modifier.padding(vertical = 8.dp),
                 color = Color(0xFFE0E0E0)
             )
-            
-            SettingsItem(
-                icon = painterResource(id = R.drawable.privaci),
-                title = "Quyền riêng tư",
-                subtitle = "Cài đặt bảo mật",
-                onClick = onPrivacySettings,
-                color = Color(0xFF795548),
-                isVectorIcon = false
-            )
-            
-            Divider(
-                modifier = Modifier.padding(vertical = 8.dp),
-                color = Color(0xFFE0E0E0)
-            )
-            
-            SettingsItem(
-                icon = painterResource(id = R.drawable.help),
-                title = "Trợ giúp & Hỗ trợ",
-                subtitle = "Liên hệ hỗ trợ khách hàng",
-                onClick = onHelpSupport,
-                color = Color(0xFF607D8B),
-                isVectorIcon = false
-            )
-            
+
             Divider(
                 modifier = Modifier.padding(vertical = 8.dp),
                 color = Color(0xFFE0E0E0)
@@ -215,8 +190,6 @@ fun ProfileSettingsSectionPreview() {
     FBTP_CNTheme {
         ProfileSettingsSection(
             onAccountSettings = {},
-            onPrivacySettings = {},
-            onHelpSupport = {},
             onLogout = {}
         )
     }
