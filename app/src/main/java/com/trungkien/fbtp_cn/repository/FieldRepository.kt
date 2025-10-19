@@ -36,14 +36,9 @@ class FieldRepository {
                 .await()
             val fields = snapshot.documents.mapNotNull { it.toObject(Field::class.java) }
             
-            // Debug logs
-            println("🔄 DEBUG: FieldRepository.getAllFields() - Found ${fields.size} fields")
-            fields.forEach { field ->
-                println("🔄 DEBUG: - Field: ${field.name}")
-                println("🔄 DEBUG:   - fieldId: ${field.fieldId}")
-                println("🔄 DEBUG:   - ownerId: ${field.ownerId}")
-                println("🔄 DEBUG:   - ownerId.isBlank(): ${field.ownerId.isBlank()}")
-                println("🔄 DEBUG:   - ownerId.length: ${field.ownerId.length}")
+            // ✅ Simplified debug logs - chỉ log khi cần thiết
+            if (fields.size > 5) {
+                println("🔄 DEBUG: FieldRepository.getAllFields() - Found ${fields.size} fields")
             }
             
             Result.success(fields)

@@ -47,7 +47,7 @@ data class Notification(
     val title: String = "",
     val body: String = "",
     val data: NotificationData = NotificationData(),
-    val read: Boolean = false, // ✅ FIX: Firebase expects 'read' field, not 'read'
+    val read: Boolean = false, // ✅ Firebase expects 'read' field
     val readAt: Long? = null,
     val createdAt: Long = System.currentTimeMillis(),
     

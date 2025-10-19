@@ -214,7 +214,8 @@ fun OwnerBookingListScreen(
             booking = booking,
             onConfirm = {
                 booking.bookingId.let { id ->
-                    bookingViewModel.handle(BookingEvent.UpdateStatus(id, "PAID"))
+                    println("🔔 DEBUG: BookingDetailManage - About to confirm booking: $id")
+                    bookingViewModel.handle(BookingEvent.UpdateStatus(id, "CONFIRMED"))
                 }
                 selectedBooking = null
             },
@@ -362,9 +363,11 @@ fun OwnerBookingListScreen(
                                     onActionClick = { action ->
                                         when (action) {
                                             "approve" -> {
-                                                bookingViewModel.handle(BookingEvent.UpdateStatus(booking.bookingId, "PAID"))
+                                                println("🔔 DEBUG: EnhancedBookingListItem - About to confirm booking: ${booking.bookingId}")
+                                                bookingViewModel.handle(BookingEvent.UpdateStatus(booking.bookingId, "CONFIRMED"))
                                             }
                                             "reject" -> {
+                                                println("🔔 DEBUG: EnhancedBookingListItem - About to cancel booking: ${booking.bookingId}")
                                                 bookingViewModel.handle(BookingEvent.UpdateStatus(booking.bookingId, "CANCELLED"))
                                             }
                                         }
@@ -702,7 +705,10 @@ private fun OwnerMatchesContent(
                                 // Đánh dấu loại bỏ để UI không crash trong quá trình đo của LazyList
                                 removedWaitingIds = removedWaitingIds + booking.bookingId
                                 // Thực hiện cập nhật thật lên server
-                                scope.launch { bookingRepo.updateBookingStatus(booking.bookingId, "PAID") }
+                                scope.launch { 
+                                    println("🔔 DEBUG: OwnerBookingListScreen - About to confirm booking: ${booking.bookingId}")
+                                    bookingRepo.updateBookingStatus(booking.bookingId, "CONFIRMED") 
+                                }
                             }
                         } else null,
                         onCancel = if (booking.status != "CANCELLED" && !finished) {

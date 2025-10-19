@@ -20,7 +20,7 @@ data class Booking(
     val serviceLines: List<ServiceLine> = emptyList(),
     val servicePrice: Long = 0,
     val totalPrice: Long = 0,
-    val status: String = "PENDING", // "PENDING" | "PAID" | "CANCELLED" | "DONE"
+    val status: String = "PENDING", // "PENDING" | "CONFIRMED" | "CANCELLED" | "DONE"
     val notes: String? = null,
     val paymentStatus: String? = "PENDING", // "PENDING" | "PAID" | "REFUNDED"
     val paymentMethod: String? = null, // "CASH" | "BANK_TRANSFER" | "MOMO" | "VNPAY"

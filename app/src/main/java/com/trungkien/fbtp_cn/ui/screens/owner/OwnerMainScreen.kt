@@ -75,18 +75,13 @@ fun OwnerMainScreen(
         }
     }
 
-    // Debug logs để kiểm tra currentUser
+    // ✅ Simplified debug logs - chỉ log khi cần thiết
     LaunchedEffect(currentUser) {
-        println("🔄 DEBUG: OwnerMainScreen - currentUser changed")
-        println("🔄 DEBUG: - currentUser: ${currentUser?.name}")
-        println("🔄 DEBUG: - avatarUrl: ${currentUser?.avatarUrl?.take(50)}...")
-        println("🔄 DEBUG: - avatarUrl length: ${currentUser?.avatarUrl?.length}")
-        println("🔄 DEBUG: - authViewModel instance: ${authViewModel.hashCode()}")
-    }
-
-    // Debug logs để kiểm tra AuthViewModel instance
-    LaunchedEffect(authViewModel) {
-        println("🔄 DEBUG: OwnerMainScreen - AuthViewModel instance: ${authViewModel.hashCode()}")
+        currentUser?.let { user ->
+            if (user.name.isNotEmpty()) {
+                println("🔄 DEBUG: OwnerMainScreen - currentUser: ${user.name}")
+            }
+        }
     }
 
     // Refresh profile on resume to ensure latest avatar

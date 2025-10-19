@@ -27,6 +27,14 @@ class RenterNotificationHelper(
         fieldId: String? = null
     ) {
         CoroutineScope(Dispatchers.IO).launch {
+            println("🔔 DEBUG: RenterNotificationHelper.notifyBookingConfirmed called:")
+            println("  - renterId: $renterId")
+            println("  - fieldName: $fieldName")
+            println("  - date: $date")
+            println("  - time: $time")
+            println("  - bookingId: $bookingId")
+            println("  - fieldId: $fieldId")
+            
             val notification = notificationBuilder.buildBookingConfirmedNotification(
                 renterId = renterId,
                 fieldName = fieldName,
@@ -35,7 +43,20 @@ class RenterNotificationHelper(
                 bookingId = bookingId ?: "",
                 fieldId = fieldId ?: ""
             )
-            notificationRepository.createNotification(notification)
+            
+            println("🔔 DEBUG: Notification created, about to save to Firebase:")
+            println("  - notificationId: ${notification.notificationId}")
+            println("  - toUserId: ${notification.toUserId}")
+            println("  - type: ${notification.type}")
+            println("  - title: ${notification.title}")
+            println("  - body: ${notification.body}")
+            
+            val result = notificationRepository.createNotification(notification)
+            if (result.isSuccess) {
+                println("✅ DEBUG: Notification saved successfully: ${notification.notificationId}")
+            } else {
+                println("❌ ERROR: Failed to save notification: ${result.exceptionOrNull()?.message}")
+            }
         }
     }
     

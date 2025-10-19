@@ -34,6 +34,8 @@ import com.trungkien.fbtp_cn.model.ReviewSummary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 
 @SuppressLint("ContextCastToActivity")
 @OptIn(ExperimentalMaterial3Api::class) // Cho phép dùng API experimental của Material3
@@ -75,14 +77,25 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
     // Tải ReviewSummary theo từng sân để luôn cập nhật điểm trung bình thực
     var reviewSummaryMap by remember { mutableStateOf<Map<String, ReviewSummary>>(emptyMap()) }
     val reviewRepository = remember { ReviewRepository() }
+    // ✅ Optimized: Load review summaries on background thread
     LaunchedEffect(fields) {
         if (fields.isNotEmpty()) {
             val summaries = mutableMapOf<String, ReviewSummary>()
-            fields.forEach { field ->
-                try {
-                    val result = withContext(Dispatchers.IO) { reviewRepository.getReviewSummary(field.fieldId) }
-                    result.getOrNull()?.let { summary -> summaries[field.fieldId] = summary }
-                } catch (_: Exception) { }
+            // ✅ Process in parallel on background thread
+            val results = fields.map { field ->
+                async(Dispatchers.IO) {
+                    try {
+                        reviewRepository.getReviewSummary(field.fieldId)
+                    } catch (_: Exception) { 
+                        Result.failure<ReviewSummary>(Exception("Failed to load review summary"))
+                    }
+                }
+            }.awaitAll()
+            
+            results.forEachIndexed { index, result ->
+                result.getOrNull()?.let { summary -> 
+                    summaries[fields[index].fieldId] = summary 
+                }
             }
             reviewSummaryMap = summaries
         } else {
@@ -90,49 +103,15 @@ fun OwnerFieldManagementScreen( // Màn hình quản lý sân của chủ sở h
         }
     }
     
-    // Debug để kiểm tra ViewModel được sử dụng
+    // ✅ Simplified debug - chỉ log khi cần thiết
     LaunchedEffect(Unit) {
-        println("DEBUG: 🔍 OwnerFieldManagementScreen - fieldViewModel from parent: ${fieldViewModel != null}")
-        println("DEBUG: 🔍 OwnerFieldManagementScreen - localFieldViewModel: ${localFieldViewModel.hashCode()}")
-        println("DEBUG: 🔍 OwnerFieldManagementScreen - uiState.fields count: ${uiState.fields.size}")
+        if (uiState.fields.size > 3) {
+            println("DEBUG: 🔍 OwnerFieldManagementScreen - fields count: ${uiState.fields.size}")
+        }
     }
     
     // 🔥 KHÔNG CẦN LOAD DỮ LIỆU TẠI ĐÂY NỮA - ĐÃ ĐƯỢC XỬ LÝ TẠI OWNERMAINSCREEN
     // Chỉ sử dụng dữ liệu từ parent ViewModel
-    
-
-    
-    // Debug logging chi tiết để theo dõi việc load dữ liệu từ Firebase
-    LaunchedEffect(uiState, fields) {
-        println("=== 🔥 FIREBASE DIRECT LOADING DEBUG ===")
-        println("DEBUG: 🚀 Test mode: $testMode")
-        println("DEBUG: 👤 Current user: ${currentUser?.userId}")
-        println("DEBUG: 📊 UI State - isLoading: ${uiState.isLoading}, fields count: ${uiState.fields.size}")
-        println("DEBUG: 🎯 Display fields count: ${fields.size}")
-        
-        if (uiState.error != null) {
-            println("DEBUG: ❌ Firebase Error: ${uiState.error}")
-        }
-        
-        if (uiState.fields.isNotEmpty()) {
-            println("DEBUG: ✅ Firebase fields loaded: ${uiState.fields.map { "${it.name} (${it.fieldId})" }}")
-            println("DEBUG: 🎯 Using Firebase data for display")
-        } else {
-            println("DEBUG: ⚠️ No Firebase fields loaded yet")
-        }
-        
-        if (fields.isNotEmpty()) {
-            println("DEBUG: 🎉 Display fields ready: ${fields.map { "${it.name} (${it.fieldId})" }}")
-        } else {
-            println("DEBUG: 🔍 No display fields - waiting for Firebase data...")
-        }
-        println("=== END DEBUG ===")
-    }
-    
-    // Debug currentUser
-    LaunchedEffect(currentUser) {
-        println("DEBUG: Current user updated - userId: ${currentUser?.userId}, name: ${currentUser?.name}")
-    }
 
     var searchQuery by remember { mutableStateOf("") }
     Column(modifier = modifier) {

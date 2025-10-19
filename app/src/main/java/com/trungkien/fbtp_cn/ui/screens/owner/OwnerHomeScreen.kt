@@ -92,14 +92,13 @@ fun OwnerHomeScreen(
     val fields = uiState.fields // Sử dụng dữ liệu thực từ Firebase
     val bookings = bookingUi.ownerBookings
     
-    // Debug logging để kiểm tra việc load dữ liệu
+    // ✅ Simplified debug logging - chỉ log khi cần thiết
     LaunchedEffect(fields, uiState.isLoading, uiState.error) {
-        println("DEBUG: 🏠 OwnerHomeScreen - fields count: ${fields.size}")
-        println("DEBUG: 🏠 OwnerHomeScreen - isLoading: ${uiState.isLoading}")
-        println("DEBUG: 🏠 OwnerHomeScreen - error: ${uiState.error}")
-        println("DEBUG: 🏠 OwnerHomeScreen - fieldViewModel from parent: ${fieldViewModel != null}")
-        if (fields.isNotEmpty()) {
-            println("DEBUG: 🏠 OwnerHomeScreen - first field: ${fields.first().name}")
+        if (fields.size > 3 || uiState.error != null) {
+            println("DEBUG: 🏠 OwnerHomeScreen - fields count: ${fields.size}")
+            println("DEBUG: 🏠 OwnerHomeScreen - isLoading: ${uiState.isLoading}")
+            println("DEBUG: 🏠 OwnerHomeScreen - error: ${uiState.error}")
+            println("DEBUG: 🏠 OwnerHomeScreen - fieldViewModel from parent: ${fieldViewModel != null}")
         }
     }
     

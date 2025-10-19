@@ -157,8 +157,20 @@ class BookingViewModel(
 
     private fun updateStatus(bookingId: String, newStatus: String) {
         viewModelScope.launch {
+            println("🔔 DEBUG: BookingViewModel.updateStatus called:")
+            println("  - bookingId: $bookingId")
+            println("  - newStatus: $newStatus")
+            
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             val res = repository.updateBookingStatus(bookingId, newStatus)
+            
+            println("🔔 DEBUG: BookingViewModel.updateStatus result:")
+            println("  - isSuccess: ${res.isSuccess}")
+            println("  - isFailure: ${res.isFailure}")
+            if (res.isFailure) {
+                println("  - error: ${res.exceptionOrNull()?.message}")
+            }
+            
             _uiState.value = res.fold(
                 onSuccess = { _uiState.value.copy(isLoading = false) },
                 onFailure = { ex -> _uiState.value.copy(isLoading = false, error = ex.message) }

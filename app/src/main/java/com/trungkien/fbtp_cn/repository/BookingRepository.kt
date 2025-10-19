@@ -1003,15 +1003,91 @@ class BookingRepository(
                     val renterNotificationHelper = RenterNotificationHelper(notificationRepository)
                     
                     if (newStatus == "CONFIRMED") {
-                        renterNotificationHelper.notifyBookingConfirmed(
-                            renterId = booking.renterId,
-                            fieldName = fieldName,
-                            date = booking.date,
-                            time = booking.consecutiveSlots.firstOrNull() ?: "",
-                            bookingId = booking.bookingId,
-                            fieldId = booking.fieldId
-                        )
-                        println("🔔 DEBUG: Sent booking confirmed notification to renter: ${booking.renterId}")
+                        println("🔔 DEBUG: About to send booking confirmed notification:")
+                        println("  - renterId: ${booking.renterId}")
+                        println("  - fieldName: $fieldName")
+                        println("  - bookingId: ${booking.bookingId}")
+                        println("  - fieldId: ${booking.fieldId}")
+                        println("  - bookingType: ${booking.bookingType}")
+                        println("  - hasOpponent: ${booking.hasOpponent}")
+                        println("  - matchId: ${booking.matchId}")
+                        
+                        // ✅ FIX: Xử lý notification cho cả 2 flow
+                        if (booking.bookingType == "SOLO" && !booking.hasOpponent && !booking.matchId.isNullOrBlank()) {
+                            // Flow 2: WAITING_OPPONENT - Gửi notification cho cả 2 renter trong match
+                            println("🔔 DEBUG: WAITING_OPPONENT flow - sending notifications to both renters")
+                            
+                            try {
+                                val matchDoc = firestore.collection(MATCHES_COLLECTION)
+                                    .document(booking.matchId)
+                                    .get()
+                                    .await()
+                                
+                                if (matchDoc.exists()) {
+                                    val match = matchDoc.toObject(Match::class.java)
+                                    if (match != null && match.participants.size >= 2) {
+                                        // Gửi notification cho cả 2 participants
+                                        match.participants.forEach { participant ->
+                                            renterNotificationHelper.notifyBookingConfirmed(
+                                                renterId = participant.renterId,
+                                                fieldName = fieldName,
+                                                date = booking.date,
+                                                time = booking.consecutiveSlots.firstOrNull() ?: "",
+                                                bookingId = booking.bookingId,
+                                                fieldId = booking.fieldId
+                                            )
+                                            println("🔔 DEBUG: Sent booking confirmed notification to renter: ${participant.renterId}")
+                                        }
+                                    } else {
+                                        // Fallback: chỉ gửi cho renter hiện tại
+                                        renterNotificationHelper.notifyBookingConfirmed(
+                                            renterId = booking.renterId,
+                                            fieldName = fieldName,
+                                            date = booking.date,
+                                            time = booking.consecutiveSlots.firstOrNull() ?: "",
+                                            bookingId = booking.bookingId,
+                                            fieldId = booking.fieldId
+                                        )
+                                        println("🔔 DEBUG: Fallback - sent booking confirmed notification to renter: ${booking.renterId}")
+                                    }
+                                } else {
+                                    // Fallback: chỉ gửi cho renter hiện tại
+                                    renterNotificationHelper.notifyBookingConfirmed(
+                                        renterId = booking.renterId,
+                                        fieldName = fieldName,
+                                        date = booking.date,
+                                        time = booking.consecutiveSlots.firstOrNull() ?: "",
+                                        bookingId = booking.bookingId,
+                                        fieldId = booking.fieldId
+                                    )
+                                    println("🔔 DEBUG: Fallback - sent booking confirmed notification to renter: ${booking.renterId}")
+                                }
+                            } catch (e: Exception) {
+                                println("❌ ERROR: Failed to get match info, sending to single renter: ${e.message}")
+                                // Fallback: chỉ gửi cho renter hiện tại
+                                renterNotificationHelper.notifyBookingConfirmed(
+                                    renterId = booking.renterId,
+                                    fieldName = fieldName,
+                                    date = booking.date,
+                                    time = booking.consecutiveSlots.firstOrNull() ?: "",
+                                    bookingId = booking.bookingId,
+                                    fieldId = booking.fieldId
+                                )
+                                println("🔔 DEBUG: Fallback - sent booking confirmed notification to renter: ${booking.renterId}")
+                            }
+                        } else {
+                            // Flow 1: HAS_OPPONENT - Gửi notification cho 1 renter
+                            println("🔔 DEBUG: HAS_OPPONENT flow - sending notification to single renter")
+                            renterNotificationHelper.notifyBookingConfirmed(
+                                renterId = booking.renterId,
+                                fieldName = fieldName,
+                                date = booking.date,
+                                time = booking.consecutiveSlots.firstOrNull() ?: "",
+                                bookingId = booking.bookingId,
+                                fieldId = booking.fieldId
+                            )
+                            println("🔔 DEBUG: Sent booking confirmed notification to renter: ${booking.renterId}")
+                        }
                     } else if (newStatus == "CANCELLED") {
                         // ✅ Khôi phục trạng thái match/slot về bình thường
                         try {
@@ -1033,16 +1109,87 @@ class BookingRepository(
                         } catch (e: Exception) {
                             println("❌ ERROR: Failed to reset match after cancel: ${e.message}")
                         }
-                        renterNotificationHelper.notifyBookingCancelledByOwner(
-                            renterId = booking.renterId,
-                            fieldName = fieldName,
-                            date = booking.date,
-                            time = booking.consecutiveSlots.firstOrNull() ?: "",
-                            reason = null, // Có thể thêm reason nếu cần
-                            bookingId = booking.bookingId,
-                            fieldId = booking.fieldId
-                        )
-                        println("🔔 DEBUG: Sent booking cancelled notification to renter: ${booking.renterId}")
+                        // ✅ FIX: Xử lý cancellation notification cho cả 2 flow
+                        if (booking.bookingType == "SOLO" && !booking.hasOpponent && !booking.matchId.isNullOrBlank()) {
+                            // Flow 2: WAITING_OPPONENT - Gửi notification cho cả 2 renter trong match
+                            println("🔔 DEBUG: WAITING_OPPONENT flow - sending cancellation notifications to both renters")
+                            
+                            try {
+                                val matchDoc = firestore.collection(MATCHES_COLLECTION)
+                                    .document(booking.matchId)
+                                    .get()
+                                    .await()
+                                
+                                if (matchDoc.exists()) {
+                                    val match = matchDoc.toObject(Match::class.java)
+                                    if (match != null && match.participants.size >= 2) {
+                                        // Gửi notification cho cả 2 participants
+                                        match.participants.forEach { participant ->
+                                            renterNotificationHelper.notifyBookingCancelledByOwner(
+                                                renterId = participant.renterId,
+                                                fieldName = fieldName,
+                                                date = booking.date,
+                                                time = booking.consecutiveSlots.firstOrNull() ?: "",
+                                                reason = null,
+                                                bookingId = booking.bookingId,
+                                                fieldId = booking.fieldId
+                                            )
+                                            println("🔔 DEBUG: Sent booking cancelled notification to renter: ${participant.renterId}")
+                                        }
+                                    } else {
+                                        // Fallback: chỉ gửi cho renter hiện tại
+                                        renterNotificationHelper.notifyBookingCancelledByOwner(
+                                            renterId = booking.renterId,
+                                            fieldName = fieldName,
+                                            date = booking.date,
+                                            time = booking.consecutiveSlots.firstOrNull() ?: "",
+                                            reason = null,
+                                            bookingId = booking.bookingId,
+                                            fieldId = booking.fieldId
+                                        )
+                                        println("🔔 DEBUG: Fallback - sent booking cancelled notification to renter: ${booking.renterId}")
+                                    }
+                                } else {
+                                    // Fallback: chỉ gửi cho renter hiện tại
+                                    renterNotificationHelper.notifyBookingCancelledByOwner(
+                                        renterId = booking.renterId,
+                                        fieldName = fieldName,
+                                        date = booking.date,
+                                        time = booking.consecutiveSlots.firstOrNull() ?: "",
+                                        reason = null,
+                                        bookingId = booking.bookingId,
+                                        fieldId = booking.fieldId
+                                    )
+                                    println("🔔 DEBUG: Fallback - sent booking cancelled notification to renter: ${booking.renterId}")
+                                }
+                            } catch (e: Exception) {
+                                println("❌ ERROR: Failed to get match info for cancellation, sending to single renter: ${e.message}")
+                                // Fallback: chỉ gửi cho renter hiện tại
+                                renterNotificationHelper.notifyBookingCancelledByOwner(
+                                    renterId = booking.renterId,
+                                    fieldName = fieldName,
+                                    date = booking.date,
+                                    time = booking.consecutiveSlots.firstOrNull() ?: "",
+                                    reason = null,
+                                    bookingId = booking.bookingId,
+                                    fieldId = booking.fieldId
+                                )
+                                println("🔔 DEBUG: Fallback - sent booking cancelled notification to renter: ${booking.renterId}")
+                            }
+                        } else {
+                            // Flow 1: HAS_OPPONENT - Gửi notification cho 1 renter
+                            println("🔔 DEBUG: HAS_OPPONENT flow - sending cancellation notification to single renter")
+                            renterNotificationHelper.notifyBookingCancelledByOwner(
+                                renterId = booking.renterId,
+                                fieldName = fieldName,
+                                date = booking.date,
+                                time = booking.consecutiveSlots.firstOrNull() ?: "",
+                                reason = null,
+                                bookingId = booking.bookingId,
+                                fieldId = booking.fieldId
+                            )
+                            println("🔔 DEBUG: Sent booking cancelled notification to renter: ${booking.renterId}")
+                        }
                     }
                 } catch (e: Exception) {
                     println("❌ ERROR: Failed to send booking notification: ${e.message}")

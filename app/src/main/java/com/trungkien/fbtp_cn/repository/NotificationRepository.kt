@@ -167,6 +167,7 @@ class NotificationRepository {
                 body = body,
                 data = data,
                 priority = priority,
+                read = false,
                 createdAt = System.currentTimeMillis()
             )
 
@@ -187,6 +188,14 @@ class NotificationRepository {
      */
     suspend fun createNotification(notification: Notification): Result<String> {
         return try {
+            println("🔔 DEBUG: NotificationRepository.createNotification called:")
+            println("  - notificationId: ${notification.notificationId}")
+            println("  - toUserId: ${notification.toUserId}")
+            println("  - type: ${notification.type}")
+            println("  - title: ${notification.title}")
+            println("  - body: ${notification.body}")
+            println("  - fieldId: ${notification.data.fieldId}")
+            
             notificationsCollection.document(notification.notificationId)
                 .set(notification)
                 .await()
