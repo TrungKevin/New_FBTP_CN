@@ -34,6 +34,9 @@ import android.util.Base64
 import androidx.compose.foundation.clickable
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import android.graphics.Bitmap
 
 @Composable
 fun RenterBookingCard(
@@ -148,38 +151,28 @@ fun RenterBookingCard(
                     // Show field image using base64 decode like RenterSearchResultCard
                     val currentField = field
                     val rawImage = currentField!!.images.mainImage
-                    val decodedImage = remember(rawImage) {
-                        try {
-                            println("🖼️ DEBUG: RenterBookingCard - Decoding image for field: ${currentField.name}")
-                            println("🖼️ DEBUG: Raw image length: ${rawImage.length}")
-                            println("🖼️ DEBUG: Raw image starts with data:image: ${rawImage.startsWith("data:image", ignoreCase = true)}")
-                            
-                            val base64String = if (rawImage.startsWith("data:image", ignoreCase = true)) {
-                                rawImage.substringAfter(",")
-                            } else {
-                                rawImage
+                    // ✅ FIX: Move image decoding to background thread
+                    var decodedImage by remember { mutableStateOf<Bitmap?>(null) }
+                    
+                    LaunchedEffect(rawImage) {
+                        decodedImage = withContext(Dispatchers.IO) {
+                            try {
+                                val base64String = if (rawImage.startsWith("data:image", ignoreCase = true)) {
+                                    rawImage.substringAfter(",")
+                                } else {
+                                    rawImage
+                                }
+                                val imageBytes = Base64.decode(base64String, Base64.DEFAULT)
+                                BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                            } catch (e: Exception) {
+                                null
                             }
-                            println("🖼️ DEBUG: Base64 string length: ${base64String.length}")
-                            
-                            val imageBytes = Base64.decode(base64String, Base64.DEFAULT)
-                            println("🖼️ DEBUG: Decoded bytes length: ${imageBytes.size}")
-                            
-                            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-                            println("🖼️ DEBUG: Bitmap created: ${bitmap != null}")
-                            if (bitmap != null) {
-                                println("🖼️ DEBUG: Bitmap size: ${bitmap.width}x${bitmap.height}")
-                            }
-                            bitmap
-                        } catch (e: Exception) {
-                            println("❌ DEBUG: Error decoding image: ${e.message}")
-                            e.printStackTrace()
-                            null
                         }
                     }
                     
                     if (decodedImage != null) {
                         androidx.compose.foundation.Image(
-                            bitmap = decodedImage.asImageBitmap(),
+                            bitmap = decodedImage!!.asImageBitmap(),
                             contentDescription = "Hình ảnh sân ${currentField.name}",
                             modifier = Modifier.fillMaxSize(),
                             contentScale = androidx.compose.ui.layout.ContentScale.Crop

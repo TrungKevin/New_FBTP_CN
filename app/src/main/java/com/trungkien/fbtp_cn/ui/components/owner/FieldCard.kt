@@ -48,6 +48,9 @@ import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 import com.trungkien.fbtp_cn.ui.theme.CommonShadows
 import kotlin.random.Random
 import androidx.compose.runtime.remember
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import android.graphics.Bitmap
 
 // Helper function to get random avatar
 private fun getRandomAvatar(): Int {
@@ -122,21 +125,23 @@ fun FieldCard(
                     val context = LocalContext.current
                     val base64String = field.images.mainImage
                     
-                    // Xử lý base64 image trước khi gọi composable
-                    val decodedImage = remember(base64String) {
-                        try {
-                            val imageBytes = Base64.decode(base64String, Base64.DEFAULT)
-                            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-                            bitmap
-                        } catch (e: Exception) {
-                            println("DEBUG: Error decoding base64 image: ${e.message}")
-                            null
+                    // ✅ FIX: Move image decoding to background thread
+                    var decodedImage by remember { mutableStateOf<Bitmap?>(null) }
+                    
+                    LaunchedEffect(base64String) {
+                        decodedImage = withContext(Dispatchers.IO) {
+                            try {
+                                val imageBytes = Base64.decode(base64String, Base64.DEFAULT)
+                                BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                            } catch (e: Exception) {
+                                null
+                            }
                         }
                     }
                     
                     if (decodedImage != null) {
                         Image(
-                            bitmap = decodedImage.asImageBitmap(),
+                            bitmap = decodedImage!!.asImageBitmap(),
                             contentDescription = "Field image",
                             modifier = Modifier
                                 .fillMaxSize()

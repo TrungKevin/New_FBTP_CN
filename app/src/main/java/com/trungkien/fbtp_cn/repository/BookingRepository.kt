@@ -1089,10 +1089,11 @@ class BookingRepository(
                             println("🔔 DEBUG: Sent booking confirmed notification to renter: ${booking.renterId}")
                         }
                     } else if (newStatus == "CANCELLED") {
-                        // ✅ Khôi phục trạng thái match/slot về bình thường
+                        // ✅ FIX: Khôi phục trạng thái match/slot về bình thường cho matched bookings
                         try {
                             val matchId = booking.matchId
                             if (!matchId.isNullOrBlank()) {
+                                // ✅ FIX: Reset match về FREE để khe giờ có thể được đặt lại
                                 firestore.collection(MATCHES_COLLECTION)
                                     .document(matchId)
                                     .update(
@@ -1105,6 +1106,37 @@ class BookingRepository(
                                     )
                                     .await()
                                 println("🔄 DEBUG: Match reset to FREE due to booking cancel: $matchId")
+                                
+                                // ✅ FIX: Reset tất cả bookings trong match này về CANCELLED
+                                val matchDoc = firestore.collection(MATCHES_COLLECTION)
+                                    .document(matchId)
+                                    .get()
+                                    .await()
+                                
+                                if (matchDoc.exists()) {
+                                    val match = matchDoc.toObject(Match::class.java)
+                                    if (match != null && match.participants.size >= 2) {
+                                        // Cancel tất cả bookings trong match
+                                        match.participants.forEach { participant ->
+                                            participant.bookingId?.let { bId ->
+                                                try {
+                                                    firestore.collection(BOOKINGS_COLLECTION)
+                                                        .document(bId)
+                                                        .update(
+                                                            mapOf(
+                                                                "status" to "CANCELLED",
+                                                                "updatedAt" to System.currentTimeMillis()
+                                                            )
+                                                        )
+                                                        .await()
+                                                    println("🔄 DEBUG: Booking $bId cancelled due to match cancellation")
+                                                } catch (e: Exception) {
+                                                    println("❌ ERROR: Failed to cancel booking $bId: ${e.message}")
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         } catch (e: Exception) {
                             println("❌ ERROR: Failed to reset match after cancel: ${e.message}")

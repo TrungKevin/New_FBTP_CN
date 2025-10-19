@@ -42,6 +42,9 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import android.graphics.Bitmap
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
@@ -541,19 +544,24 @@ fun FieldImage(
                         imageSource
                     }
                 }
-                val decodedBitmap = remember(base64Data) {
-                    try {
-                        if (base64Data != null && base64Data.isNotEmpty()) {
-                            val bytes = Base64.decode(base64Data, Base64.DEFAULT)
-                            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                        } else {
-                            null
-                        }
-                    } catch (_: Exception) { null }
+                // ✅ FIX: Move image decoding to background thread
+                var decodedBitmap by remember { mutableStateOf<Bitmap?>(null) }
+                
+                LaunchedEffect(base64Data) {
+                    decodedBitmap = withContext(Dispatchers.IO) {
+                        try {
+                            if (base64Data != null && base64Data.isNotEmpty()) {
+                                val bytes = Base64.decode(base64Data, Base64.DEFAULT)
+                                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                            } else {
+                                null
+                            }
+                        } catch (_: Exception) { null }
+                    }
                 }
                 if (decodedBitmap != null) {
                     Image(
-                        bitmap = decodedBitmap.asImageBitmap(),
+                        bitmap = decodedBitmap!!.asImageBitmap(),
                         contentDescription = contentDescription,
                         modifier = modifier,
                         contentScale = ContentScale.Crop

@@ -180,6 +180,11 @@ service cloud.firestore {
          request.resource.data.data != null && 
          request.resource.data.data.fieldId != null &&
          get(/databases/$(db)/documents/fields/$(request.resource.data.data.fieldId)).data.ownerId == request.auth.uid) ||
+        // Cho phép booking cancellation notifications (owner cancels booking)
+        (request.resource.data.type == "BOOKING_CANCELLED_BY_OWNER" &&
+         request.resource.data.data != null && 
+         request.resource.data.data.fieldId != null &&
+         get(/databases/$(db)/documents/fields/$(request.resource.data.data.fieldId)).data.ownerId == request.auth.uid) ||
         // Trường hợp không có fieldId: system notifications (OPPONENT_AVAILABLE)
         (request.resource.data.data == null || 
          request.resource.data.data.fieldId == null)

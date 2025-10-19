@@ -177,18 +177,10 @@ fun RenterFieldSearchScreen(
                 val avgRating = summary?.averageRating ?: f.averageRating
                 val totalReviews = summary?.totalReviews ?: f.totalReviews
                 
-                // Debug logs
-                println("🔄 DEBUG: Field ${f.name}")
-                println("🔄 DEBUG: - field.ownerId: ${f.ownerId}")
-                println("🔄 DEBUG: - fieldPrice: $fieldPrice")
-                println("🔄 DEBUG: - priceText: $priceText")
-                println("🔄 DEBUG: - mainImage: ${f.images.mainImage.take(50)}...")
-                println("🔄 DEBUG: - owner: ${owner?.name}")
-                println("🔄 DEBUG: - owner?.userId: ${owner?.userId}")
-                println("🔄 DEBUG: - ownerAvatarUrl: ${owner?.avatarUrl?.take(50)}...")
-                println("🔄 DEBUG: - ownerAvatarUrl length: ${owner?.avatarUrl?.length}")
-                println("🔄 DEBUG: - ownerInfoMap keys: ${ownerInfoMap.keys}")
-                println("🔄 DEBUG: - ownerInfoMap size: ${ownerInfoMap.size}")
+                // ✅ Simplified debug - chỉ log khi cần thiết
+                if (uiState.allFields.size > 10) {
+                    println("🔄 DEBUG: Processing field ${f.name} - price: $fieldPrice")
+                }
                 
                 SearchResultField(
                     id = f.fieldId,
