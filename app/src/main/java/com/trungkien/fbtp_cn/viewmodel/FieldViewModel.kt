@@ -472,17 +472,34 @@ class FieldViewModel(
 
     // ✅ NEW: Realtime theo ngày để grid cập nhật khi owner hủy/xác nhận
     fun startRealtimeSlotsForDate(fieldId: String, date: String) {
+        println("🔄 DEBUG: startRealtimeSlotsForDate called:")
+        println("  - fieldId: $fieldId")
+        println("  - date: $date")
+        println("  - Current listener: ${dayMatchesListener != null}")
+        
         dayMatchesListener?.remove()
         dayMatchesListener = bookingRepo.listenMatchesByFieldDate(
             fieldId = fieldId,
             date = date,
-            onChange = {
+            onChange = { matches ->
+                println("🔄 DEBUG: Real-time listener triggered!")
+                println("  - FieldId: $fieldId")
+                println("  - Date: $date")
+                println("  - Matches count: ${matches.size}")
+                matches.forEach { match ->
+                    println("  - Match ${match.rangeKey}: status=${match.status}, participants=${match.participants.size}")
+                }
                 // khi matches thay đổi, reload các nguồn màu
+                println("🔄 DEBUG: Forcing UI refresh after match change")
                 loadBookedStartTimes(fieldId, date)
                 loadOpponentTimes(fieldId, date)
             },
-            onError = { e -> println("❌ ERROR: startRealtimeSlotsForDate: ${e.message}") }
+            onError = { e -> 
+                println("❌ ERROR: startRealtimeSlotsForDate: ${e.message}")
+                e.printStackTrace()
+            }
         )
+        println("✅ DEBUG: Real-time listener setup completed")
     }
 
     private fun loadBookedStartTimes(fieldId: String, date: String) {
@@ -513,15 +530,27 @@ class FieldViewModel(
                 println("✅ DEBUG: LoadOpponentTimes results:")
                 println("  - waitingTimes: $waitingTimes")
                 println("  - lockedTimes: $lockedTimes")
+                println("🔄 DEBUG: After Owner cancels FULL match, lockedTimes should be empty")
+                println("🔄 DEBUG: This will make BookingTimeSlotGrid show WHITE color")
                 
                 _uiState.value = _uiState.value.copy(
                     waitingOpponentTimes = waitingTimes,
                     lockedOpponentTimes = lockedTimes
                 )
+                
+                println("✅ DEBUG: UI state updated with new times")
             } catch (e: Exception) { 
                 println("❌ ERROR: loadOpponentTimes failed: ${e.message}")
+                e.printStackTrace()
             }
         }
+    }
+    
+    // ✅ NEW: Force refresh function để debug
+    fun forceRefreshSlots(fieldId: String, date: String) {
+        println("🔄 DEBUG: forceRefreshSlots called manually")
+        loadBookedStartTimes(fieldId, date)
+        loadOpponentTimes(fieldId, date)
     }
     
     private fun addPricingRule(pricingRule: PricingRule) {
@@ -664,6 +693,13 @@ class FieldViewModel(
     
     private fun clearSuccess() {
         _uiState.value = _uiState.value.copy(success = null)
+    }
+    
+    override fun onCleared() {
+        super.onCleared()
+        // Cleanup listener để tránh memory leak
+        dayMatchesListener?.remove()
+        dayMatchesListener = null
     }
     
     // Helper functions for creating default pricing rules

@@ -887,9 +887,9 @@ fun RenterBookingCheckoutScreen(
                         },
                         waitingOpponentSlots = waitingOpponentSlots,
                         lockedSlots = lockedSlots,
-                        bookedStartTimes = fieldViewModel.uiState.collectAsState().value.bookedStartTimes,
-                        waitingOpponentTimes = fieldViewModel.uiState.collectAsState().value.waitingOpponentTimes,
-                        lockedOpponentTimes = fieldViewModel.uiState.collectAsState().value.lockedOpponentTimes
+                        bookedStartTimes = fieldViewModel.uiState.collectAsState().value.bookedStartTimes, // dùng để tô xám các slot đã được đặt
+                        waitingOpponentTimes = fieldViewModel.uiState.collectAsState().value.waitingOpponentTimes,// dùng để tô vàng các slot chờ đối thủ
+                        lockedOpponentTimes = fieldViewModel.uiState.collectAsState().value.lockedOpponentTimes // dùng để tô đỏ các slot có đối thủ
                     )
                 } ?: run {
                     // ✅ FIX: Chỉ hiển thị fallback UI khi không có field data
