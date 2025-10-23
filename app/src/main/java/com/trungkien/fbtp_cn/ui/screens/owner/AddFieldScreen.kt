@@ -117,8 +117,7 @@ fun AddFieldScreen(
     
     LaunchedEffect(uiState.error) {
         uiState.error?.let { error ->
-            // Show error toast or snackbar
-            println("Error: $error")
+            // Show error toast or snackbar (removed debug log)
         }
     }
     
@@ -133,8 +132,7 @@ fun AddFieldScreen(
         // Validate images - đảm bảo có đủ 4 ảnh
         val images = listOfNotNull(mainImageUri, image1Uri, image2Uri, image3Uri)
         if (images.size < 4) {
-            // Show validation error for images
-            println("Cần upload đủ 4 ảnh: ${images.size}/4")
+            // Show validation error for images (removed debug log)
             return
         }
         

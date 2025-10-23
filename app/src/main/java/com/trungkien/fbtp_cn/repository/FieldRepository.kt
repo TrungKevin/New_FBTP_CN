@@ -36,14 +36,10 @@ class FieldRepository {
                 .await()
             val fields = snapshot.documents.mapNotNull { it.toObject(Field::class.java) }
             
-            // ✅ Simplified debug logs - chỉ log khi cần thiết
-            if (fields.size > 5) {
-                println("🔄 DEBUG: FieldRepository.getAllFields() - Found ${fields.size} fields")
-            }
+            // debug logs removed
             
             Result.success(fields)
         } catch (e: Exception) {
-            println("❌ DEBUG: FieldRepository.getAllFields() - Error: ${e.message}")
             Result.failure(e)
         }
     }
@@ -206,24 +202,13 @@ class FieldRepository {
      */
     suspend fun getFieldsByOwnerId(ownerId: String): Result<List<Field>> {
         return try {
-            println("DEBUG: Querying fields for ownerId: $ownerId")
             val snapshot = firestore.collection(FIELDS_COLLECTION)
                 .whereEqualTo("ownerId", ownerId)
                 .get()
                 .await()
-            
-            println("DEBUG: Found ${snapshot.documents.size} documents")
-            
-            val fields = snapshot.documents.mapNotNull { doc ->
-                println("DEBUG: Document ID: ${doc.id}, data: ${doc.data}")
-                doc.toObject(Field::class.java)
-            }
-            
-            println("DEBUG: Successfully converted ${fields.size} fields")
+            val fields = snapshot.documents.mapNotNull { doc -> doc.toObject(Field::class.java) }
             Result.success(fields)
         } catch (e: Exception) {
-            println("DEBUG: Error in getFieldsByOwnerId: ${e.message}")
-            e.printStackTrace()
             Result.failure(e)
         }
     }
@@ -233,19 +218,13 @@ class FieldRepository {
      */
     suspend fun getFieldById(fieldId: String): Result<Field?> {
         return try {
-            println("🔄 DEBUG: FieldRepository.getFieldById($fieldId)")
             val doc = firestore.collection(FIELDS_COLLECTION)
                 .document(fieldId)
                 .get()
                 .await()
-            
-            println("🔄 DEBUG: Document exists: ${doc.exists()}")
             val field = doc.toObject(Field::class.java)
-            println("🔄 DEBUG: Field loaded: ${field?.name}")
-            println("🔄 DEBUG: Field images: ${field?.images?.mainImage?.take(50)}...")
             Result.success(field)
         } catch (e: Exception) {
-            println("❌ DEBUG: Error loading field by ID: ${e.message}")
             Result.failure(e)
         }
     }
@@ -255,47 +234,18 @@ class FieldRepository {
      */
     suspend fun getPricingRulesByFieldId(fieldId: String): Result<List<PricingRule>> {
         return try {
-            println("🔄 DEBUG: FieldRepository.getPricingRulesByFieldId($fieldId)")
-            println("🔍 DEBUG: Querying collection: $PRICING_RULES_COLLECTION")
-            println("🔍 DEBUG: Filter: fieldId == $fieldId")
-            
-            // ✅ DEBUG: Kiểm tra toàn bộ collection trước
             val allRulesSnapshot = firestore.collection(PRICING_RULES_COLLECTION).get().await()
-            println("🔍 DEBUG: Tổng số documents trong collection: ${allRulesSnapshot.size()}")
-            if (allRulesSnapshot.size() > 0) {
-                println("🔍 DEBUG: Sample documents:")
-                allRulesSnapshot.documents.take(3).forEach { doc ->
-                    val sampleRule = doc.toObject(PricingRule::class.java)
-                    if (sampleRule != null) {
-                        println("  📄 ${doc.id}: fieldId='${sampleRule.fieldId}', price=${sampleRule.price}, description='${sampleRule.description}'")
-                    }
-                }
-            }
             
             val snapshot = firestore.collection(PRICING_RULES_COLLECTION)
                 .whereEqualTo("fieldId", fieldId)
                 .get()
                 .await()
             
-            println("✅ DEBUG: Firebase query thành công")
-            println("🔍 DEBUG: Snapshot size: ${snapshot.size()}")
-            println("🔍 DEBUG: Documents count: ${snapshot.documents.size}")
-            
             val rules = snapshot.documents.mapNotNull { doc ->
-                val rule = doc.toObject(PricingRule::class.java)
-                if (rule != null) {
-                    println("  ✅ Document ${doc.id}: ruleId='${rule.ruleId}', fieldId='${rule.fieldId}', price=${rule.price}")
-                } else {
-                    println("  ⚠️ Document ${doc.id}: Không thể parse thành PricingRule")
-                }
-                rule
+                doc.toObject(PricingRule::class.java)
             }
-            
-            println("✅ DEBUG: Parsed ${rules.size} pricing rules thành công")
             Result.success(rules)
         } catch (e: Exception) {
-            println("❌ ERROR: FieldRepository.getPricingRulesByFieldId thất bại: ${e.message}")
-            e.printStackTrace()
             Result.failure(e)
         }
     }
@@ -359,31 +309,15 @@ class FieldRepository {
      */
     suspend fun getSlotsByFieldIdAndDate(fieldId: String, date: String): Result<List<Slot>> {
         return try {
-            println("🔄 DEBUG: FieldRepository.getSlotsByFieldIdAndDate($fieldId, $date)")
-            println("🔍 DEBUG: Querying collection: SLOTS_COLLECTION")
-            println("🔍 DEBUG: Filter: fieldId == $fieldId AND date == $date")
             
             val snapshot = firestore.collection(SLOTS_COLLECTION)
                 .whereEqualTo("fieldId", fieldId)
                 .whereEqualTo("date", date)
                 .get()
                 .await()
-            
-            println("✅ DEBUG: Firebase query thành công")
-            println("🔍 DEBUG: Snapshot size: ${snapshot.size()}")
-            println("🔍 DEBUG: Documents count: ${snapshot.documents.size}")
-            
             val slots = snapshot.toObjects(Slot::class.java)
-            println("✅ DEBUG: Parsed ${slots.size} slots from Firebase")
-            
-            slots.forEachIndexed { index, slot ->
-                println("  [$index] slotId: '${slot.slotId}', fieldId: '${slot.fieldId}', date: '${slot.date}', startAt: '${slot.startAt}', endAt: '${slot.endAt}', isBooked: ${slot.isBooked}")
-            }
-            
             Result.success(slots)
         } catch (e: Exception) {
-            println("❌ ERROR: FieldRepository.getSlotsByFieldIdAndDate failed: ${e.message}")
-            e.printStackTrace()
             Result.failure(e)
         }
     }
@@ -413,11 +347,25 @@ class FieldRepository {
     }
     
     /**
+     * Cập nhật chỉ vị trí GPS của sân
+     */
+    suspend fun updateFieldLocation(fieldId: String, geo: com.trungkien.fbtp_cn.model.GeoLocation): Result<Unit> {
+        return try {
+            firestore.collection(FIELDS_COLLECTION)
+                .document(fieldId)
+                .update("geo", geo)
+                .await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    /**
      * Kiểm tra xem sân có booking chưa hoàn thành và chưa qua thời gian sử dụng không
      */
     suspend fun checkFieldHasActiveBookings(fieldId: String): Result<Boolean> {
         return try {
-            println("🔄 DEBUG: FieldRepository.checkFieldHasActiveBookings($fieldId)")
             
             // Kiểm tra bookings có status PENDING hoặc PAID (chưa hoàn thành)
             val bookingsSnapshot = firestore.collection(BOOKINGS_COLLECTION)
@@ -426,10 +374,7 @@ class FieldRepository {
                 .get()
                 .await()
             
-            println("🔍 DEBUG: Found ${bookingsSnapshot.size()} active bookings for field $fieldId")
-            
             if (bookingsSnapshot.size() == 0) {
-                println("✅ DEBUG: No active bookings found - field can be deleted")
                 return Result.success(false)
             }
             
@@ -442,8 +387,6 @@ class FieldRepository {
                 val date = bookingData?.get("date") as? String
                 val startAt = bookingData?.get("startAt") as? String
                 val status = bookingData?.get("status") as? String
-                
-                println("  📄 Booking ${doc.id}: status=$status, date=$date, startAt=$startAt")
                 
                 if (date != null && startAt != null) {
                     // Tạo timestamp cho thời điểm kết thúc booking (giả sử mỗi booking 1 giờ)
@@ -460,29 +403,21 @@ class FieldRepository {
                         calendar.set(year, month, day, hour, minute, 0)
                         calendar.timeInMillis
                     } catch (e: Exception) {
-                        println("  ❌ Error parsing date/time: ${e.message}")
                         currentTime + 86400000 // Default to tomorrow if parsing fails
                     }
                     
                     // Thêm 1 giờ để có thời gian kết thúc booking
                     val bookingEndTime = bookingDateTime + (60 * 60 * 1000)
                     
-                    println("  🕐 Booking end time: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm").format(java.util.Date(bookingEndTime))}")
-                    println("  🕐 Current time: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm").format(java.util.Date(currentTime))}")
-                    
                     if (bookingEndTime > currentTime) {
-                        println("  ⚠️ Booking ${doc.id} is still active (not expired)")
                         hasValidBookings = true
                     } else {
-                        println("  ✅ Booking ${doc.id} has expired")
+                        // expired
                     }
                 }
             }
-            
-            println("🔍 DEBUG: Has valid (non-expired) bookings: $hasValidBookings")
             Result.success(hasValidBookings)
         } catch (e: Exception) {
-            println("❌ ERROR: FieldRepository.checkFieldHasActiveBookings failed: ${e.message}")
             Result.failure(e)
         }
     }
@@ -494,13 +429,9 @@ class FieldRepository {
      */
     suspend fun deleteField(fieldId: String): Result<Unit> {
         return try {
-            println("🔄 DEBUG: FieldRepository.deleteField($fieldId)")
-            
             // 0. Kiểm tra authentication state
             val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
-            println("🔍 DEBUG: Current Firebase Auth User: ${currentUser?.uid}")
             if (currentUser == null) {
-                println("❌ DEBUG: No authenticated user - cannot delete field")
                 return Result.failure(Exception("Bạn cần đăng nhập để xóa sân"))
             }
             
@@ -509,17 +440,13 @@ class FieldRepository {
             checkResult.fold(
                 onSuccess = { hasActiveBookings ->
                     if (hasActiveBookings) {
-                        println("❌ DEBUG: Cannot delete field - has active bookings")
                         return Result.failure(Exception("Không thể xóa sân vì có khách hàng đã đặt và chưa qua thời gian sử dụng. Vui lòng đợi đến khi tất cả các khe giờ đã đặt đều qua thời gian sử dụng."))
                     }
                 },
                 onFailure = { exception ->
-                    println("❌ DEBUG: Failed to check booking status: ${exception.message}")
                     return Result.failure(exception)
                 }
             )
-            
-            println("✅ DEBUG: No active bookings found, proceeding with deletion")
             
             // 2. Lấy thông tin field để kiểm tra owner
             val fieldDoc = firestore.collection(FIELDS_COLLECTION)
@@ -528,17 +455,11 @@ class FieldRepository {
                 .await()
             
             if (!fieldDoc.exists()) {
-                println("❌ ERROR: Field document does not exist: $fieldId")
                 return Result.failure(Exception("Sân không tồn tại"))
             }
             
             val fieldData = fieldDoc.data
             val fieldOwnerId = fieldData?.get("ownerId") as? String
-            
-            println("🔄 DEBUG: Attempting to delete field document: $fieldId")
-            println("🔍 DEBUG: Current user UID: ${currentUser.uid}")
-            println("🔍 DEBUG: Field owner ID: $fieldOwnerId")
-            println("🔍 DEBUG: Is current user the owner? ${currentUser.uid == fieldOwnerId}")
             
             // 3. Xóa pricing rules TRƯỚC KHI xóa field document
             val rulesSnapshot = firestore.collection(PRICING_RULES_COLLECTION)
@@ -552,7 +473,6 @@ class FieldRepository {
                     batch.delete(doc.reference)
                 }
                 batch.commit().await()
-                println("✅ DEBUG: ${rulesSnapshot.size()} pricing rules deleted")
             }
             
             // 4. Xóa field services TRƯỚC KHI xóa field document
@@ -567,7 +487,6 @@ class FieldRepository {
                     servicesBatch.delete(doc.reference)
                 }
                 servicesBatch.commit().await()
-                println("✅ DEBUG: ${servicesSnapshot.size()} field services deleted")
             }
             
             // 5. Xóa reviews (đánh giá sân) TRƯỚC KHI xóa field document
@@ -582,7 +501,6 @@ class FieldRepository {
                     reviewsBatch.delete(doc.reference)
                 }
                 reviewsBatch.commit().await()
-                println("✅ DEBUG: ${reviewsSnapshot.size()} reviews deleted")
             }
             
             // 6. Xóa slots (khe giờ) của sân TRƯỚC KHI xóa field document
@@ -597,34 +515,22 @@ class FieldRepository {
                     slotsBatch.delete(doc.reference)
                 }
                 slotsBatch.commit().await()
-                println("✅ DEBUG: ${slotsSnapshot.size()} slots deleted")
             }
             
             // 7. Xóa field document CUỐI CÙNG
             try {
-                println("🔄 DEBUG: Starting field document deletion...")
                 val deleteTask = firestore.collection(FIELDS_COLLECTION)
                     .document(fieldId)
                     .delete()
                 
-                println("🔄 DEBUG: Delete task created, awaiting completion...")
                 deleteTask.await()
-                println("✅ DEBUG: Field info deleted successfully")
             } catch (e: Exception) {
-                println("❌ ERROR: Failed to delete field document: ${e.message}")
-                println("❌ ERROR: Exception type: ${e.javaClass.simpleName}")
-                println("❌ ERROR: Stack trace: ${e.stackTraceToString()}")
                 throw e
             }
             
             // 7. Giữ lại bookings (lịch sử đặt sân) để tham khảo
-            println("ℹ️ DEBUG: Bookings are preserved for historical records")
-            
             Result.success(Unit)
         } catch (e: Exception) {
-            println("❌ ERROR: FieldRepository.deleteField failed: ${e.message}")
-            println("❌ ERROR: Exception type: ${e.javaClass.simpleName}")
-            println("❌ ERROR: Stack trace: ${e.stackTraceToString()}")
             Result.failure(e)
         }
     }

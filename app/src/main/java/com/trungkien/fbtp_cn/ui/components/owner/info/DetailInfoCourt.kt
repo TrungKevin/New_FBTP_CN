@@ -1,5 +1,6 @@
 package com.trungkien.fbtp_cn.ui.components.owner.info
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -37,6 +38,7 @@ fun DetailInfoCourt(
     fieldViewModel: com.trungkien.fbtp_cn.viewmodel.FieldViewModel? = null,
     onEditClick: (() -> Unit)? = null,
     onBackClick: (() -> Unit)? = null,
+    onLocationClick: (() -> Unit)? = null, // Callback để navigate đến map screen
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -153,12 +155,13 @@ fun DetailInfoCourt(
                 isEditMode = false
             }
         ) {
-            EditableInfoRowItem(
+            ClickableInfoRowItem(
                 icon = Icons.Default.LocationOn,
                 label = "Địa chỉ",
                 value = editedField.address,
                 isEditMode = isEditMode,
-                onValueChange = { editedField = editedField.copy(address = it) }
+                onValueChange = { editedField = editedField.copy(address = it) },
+                onClick = onLocationClick // Click để xem vị trí trên bản đồ
             )
             
             // Giờ hoạt động - hiển thị trên cùng một hàng
@@ -403,6 +406,106 @@ private fun InfoCard(
                 }
             }
             content()
+        }
+    }
+}
+
+@Composable
+fun ClickableInfoRowItem(
+    icon: ImageVector? = null,
+    painter: Painter? = null,
+    label: String,
+    value: String,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface,
+    isEditMode: Boolean = false,
+    onValueChange: (String) -> Unit = {},
+    onClick: (() -> Unit)? = null, // Callback khi click vào item
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+            .let { 
+                if (onClick != null && !isEditMode) {
+                    it.clickable { onClick() }
+                } else {
+                    it
+                }
+            },
+        verticalAlignment = Alignment.Top
+    ) {
+        when {
+            icon != null -> {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+            painter != null -> {
+                Icon(
+                    painter = painter,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+            else -> {
+                Text(
+                    text = "💰",
+                    fontSize = 16.sp,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium
+            )
+            if (isEditMode) {
+                OutlinedTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        focusedTextColor = valueColor,
+                        unfocusedTextColor = valueColor
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    singleLine = true
+                )
+            } else {
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = valueColor,
+                    fontWeight = FontWeight.Normal,
+                    modifier = Modifier.padding(top = 2.dp),
+                    textAlign = TextAlign.Start
+                )
+            }
+        }
+        
+        // Hiển thị icon mũi tên nếu có thể click
+        if (onClick != null && !isEditMode) {
+            Icon(
+                imageVector = Icons.Default.ArrowForwardIos,
+                contentDescription = "Xem vị trí",
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

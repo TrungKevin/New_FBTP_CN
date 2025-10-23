@@ -68,8 +68,7 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
-    implementation(libs.androidx.maps.compose)
-    implementation(libs.play.services.maps)
+    // Removed Google Maps dependencies - using OpenStreetMap (OSMDroid) instead
     implementation(libs.retrofit2)
     implementation(libs.retrofit2.converter.gson)
     implementation(libs.gson)
@@ -80,6 +79,9 @@ dependencies {
     
     // OpenStreetMap support
     implementation("org.osmdroid:osmdroid-android:6.1.18")
+    
+    // Geocoding support for address to coordinates conversion
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     
     // THÊM FIREBASE DEPENDENCIES
     implementation(platform("com.google.firebase:firebase-bom:33.1.2"))

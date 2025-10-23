@@ -77,7 +77,8 @@ fun OwnerFieldDetailScreen(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
     fieldViewModel: FieldViewModel? = null, // NHẬN VIEWMODEL TỪ PARENT
-    initialTab: String = "info"
+    initialTab: String = "info",
+    onLocationClick: (() -> Unit)? = null // Callback để navigate đến map screen
 ) {
     // Lấy dữ liệu thực từ Firebase thay vì mock data
     val localFieldViewModel: FieldViewModel = fieldViewModel ?: viewModel()
@@ -427,7 +428,8 @@ fun OwnerFieldDetailScreen(
                         0 -> DetailInfoCourt(
                             field = field,
                             fieldViewModel = fieldViewModel,
-                            onBackClick = onBackClick
+                            onBackClick = onBackClick,
+                            onLocationClick = onLocationClick // Truyền callback để navigate đến map
                         )// Hiển thị thông tin chi tiết sân
 
                         1 -> {

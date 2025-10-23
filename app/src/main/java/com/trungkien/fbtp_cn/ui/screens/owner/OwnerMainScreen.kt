@@ -1,6 +1,7 @@
 package com.trungkien.fbtp_cn.ui.screens.owner
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.DrawerState
@@ -18,6 +19,7 @@ import com.trungkien.fbtp_cn.ui.components.owner.OwnerDrawerContent
 import com.trungkien.fbtp_cn.ui.components.owner.OwnerNavScreen
 import com.trungkien.fbtp_cn.ui.screens.ModernEditProfileScreen
 import com.trungkien.fbtp_cn.ui.screens.owner.AddFieldScreen
+import com.trungkien.fbtp_cn.ui.screens.owner.OwnerMapScreen
 import com.trungkien.fbtp_cn.ui.screens.common.SimpleNotificationScreen
 import com.trungkien.fbtp_cn.viewmodel.NotificationViewModel
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
@@ -52,6 +54,10 @@ fun OwnerMainScreen(
 
     // State để quản lý hiển thị BottomNavBar (ẩn khi ở màn hình detail)
     var showBottomNavBar by remember { mutableStateOf(true) }
+    
+    // State để track current route và disable drawer khi ở map screen
+    var currentRoute by remember { mutableStateOf("") }
+    val isMapScreen = currentRoute.startsWith("owner_field_map/")
 
     // Shared FieldViewModel để chia sẻ dữ liệu fields giữa các màn hình
     val fieldViewModel: FieldViewModel = viewModel()
@@ -64,6 +70,14 @@ fun OwnerMainScreen(
     // 🔔 Unread notification count (realtime)
     val notificationRepository = remember { NotificationRepository() }
     var unreadCount by remember { mutableStateOf(0) }
+    
+    // Track current route để disable drawer khi ở map screen
+    LaunchedEffect(navController) {
+        navController.currentBackStackEntryFlow.collect { backStackEntry ->
+            currentRoute = backStackEntry.destination.route ?: ""
+        }
+    }
+    
     LaunchedEffect(currentUser?.userId) {
         val uid = currentUser?.userId
         if (!uid.isNullOrBlank()) {
@@ -75,14 +89,8 @@ fun OwnerMainScreen(
         }
     }
 
-    // ✅ Simplified debug logs - chỉ log khi cần thiết
-    LaunchedEffect(currentUser) {
-        currentUser?.let { user ->
-            if (user.name.isNotEmpty()) {
-                println("🔄 DEBUG: OwnerMainScreen - currentUser: ${user.name}")
-            }
-        }
-    }
+    // Refresh current user UI-related state silently
+    LaunchedEffect(currentUser) { /* no-op debug removed */ }
 
     // Refresh profile on resume to ensure latest avatar
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
@@ -99,7 +107,6 @@ fun OwnerMainScreen(
     // 🔥 TẬP TRUNG VIỆC LOAD DỮ LIỆU TẠI ĐÂY
     LaunchedEffect(currentUser?.userId) {
         currentUser?.userId?.let { ownerId ->
-            println("🔄 OwnerMainScreen - Loading fields for ownerId: $ownerId")
             fieldViewModel.handleEvent(FieldEvent.LoadFieldsByOwner(ownerId))
         }
     }
@@ -112,7 +119,6 @@ fun OwnerMainScreen(
                 success.contains("Cập nhật sân thành công")
             ) {
                 currentUser?.userId?.let { ownerId ->
-                    println("🔄 OwnerMainScreen - Reloading fields after success: $success")
                     // Reload ngay lập tức không delay để đồng bộ
                     fieldViewModel.handleEvent(FieldEvent.LoadFieldsByOwner(ownerId))
                 }
@@ -196,6 +202,7 @@ fun OwnerMainScreen(
     } else {
         ModalNavigationDrawer(
             drawerState = drawerState,
+            gesturesEnabled = !isMapScreen, // Disable drawer gestures khi ở map screen
             drawerContent = {
                 OwnerDrawerContent(
                     avatarUrl = currentUser?.avatarUrl,
@@ -228,17 +235,11 @@ fun OwnerMainScreen(
                 topBar = {
                     if (showTopAppBar) {
                         val currentUserForTopBar = authViewModel.currentUser.collectAsState().value
-                        println("🔄 DEBUG: OwnerMainScreen topBar - currentUserForTopBar: ${currentUserForTopBar?.name}")
-                        println(
-                            "🔄 DEBUG: OwnerMainScreen topBar - avatarUrl: ${
-                                currentUserForTopBar?.avatarUrl?.take(
-                                    50
-                                )
-                            }..."
-                        )
                         OwnerTopAppBar(
                             onMenuClick = {
-                                scope.launch { drawerState.open() }
+                                if (!isMapScreen) { // Chỉ cho phép mở drawer khi không ở map screen
+                                    scope.launch { drawerState.open() }
+                                }
                             },
                             onProfileClick = {
                                 currentScreen = OwnerNavScreen.Profile
@@ -468,7 +469,13 @@ fun OwnerMainScreen(
                                 }
                             },
                             fieldViewModel = fieldViewModel, // TRUYỀN VIEWMODEL ĐỂ CHIA SẺ DỮ LIỆU
-                            initialTab = initialTab
+                            initialTab = initialTab,
+                            onLocationClick = {
+                                // Navigate đến map screen
+                                showTopAppBar = false
+                                showBottomNavBar = false
+                                navController.navigate("owner_field_map/$fieldId")
+                            }
                         )
                     }
 
@@ -512,6 +519,34 @@ fun OwnerMainScreen(
                             },
                             fieldViewModel = fieldViewModel // TRUYỀN VIEWMODEL ĐỂ CHIA SẺ DỮ LIỆU
                         )
+                    }
+
+                    // Màn hình xem vị trí sân trên bản đồ
+                    composable("owner_field_map/{fieldId}") { backStackEntry ->
+                        val fieldId = backStackEntry.arguments?.getString("fieldId") ?: ""
+                        val field = uiState.fields.find { it.fieldId == fieldId }
+                        
+                        if (field != null) {
+                            OwnerMapScreen(
+                                field = field,
+                                onBackClick = {
+                                    // Không reset showTopAppBar và showBottomNavBar - giữ nguyên trạng thái ẩn
+                                    // ✅ FIX: Sử dụng popBackStack thay vì navigateUp để tránh lỗi back stack
+                                    try {
+                                        navController.popBackStack()
+                                    } catch (e: Exception) {
+                                        println("❌ ERROR: Navigation error: ${e.message}")
+                                        // Fallback: navigate to field detail
+                                        navController.navigate("owner_field_detail/$fieldId?tab=info") {
+                                            popUpTo("owner_home") { inclusive = true }
+                                        }
+                                    }
+                                }
+                            )
+                        } else {
+                            // Fallback nếu không tìm thấy field
+                            Text("Không tìm thấy thông tin sân")
+                        }
                     }
                 }
             }
