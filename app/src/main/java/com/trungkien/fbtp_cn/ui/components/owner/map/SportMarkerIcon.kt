@@ -77,20 +77,24 @@ class SportMarkerIcon(
         val centerY = (top + bottom) / 2f
         val radius = (right - left) / 2f
         
-        // Tạo path cho hình giọt nước (teardrop)
+        // Tạo path cho hình giọt nước (teardrop) - cải thiện để marker trỏ đúng vị trí
         val teardropPath = Path()
         
-        // Phần trên tròn - đặt ở giữa để marker cân đối
-        val circleTop = centerY - radius * 0.1f
-        teardropPath.addCircle(centerX, circleTop, radius * 0.8f, Path.Direction.CW)
+        // Phần trên tròn - đặt ở giữa trên để marker cân đối
+        val circleTop = centerY - radius * 0.2f
+        val circleRadius = radius * 0.7f
+        teardropPath.addCircle(centerX, circleTop, circleRadius, Path.Direction.CW)
         
-        // Phần đuôi nhọn - ngắn hơn để marker không quá dài
-        val tailHeight = radius * 0.3f
-        val tailWidth = radius * 0.2f
+        // Phần đuôi nhọn - ngắn hơn và nhọn hơn để marker trỏ chính xác
+        val tailHeight = radius * 0.4f
+        val tailWidth = radius * 0.15f
         
-        teardropPath.moveTo(centerX, bottom.toFloat())
-        teardropPath.lineTo(centerX - tailWidth, centerY + radius * 0.4f)
-        teardropPath.lineTo(centerX + tailWidth, centerY + radius * 0.4f)
+        // Điểm nhọn ở dưới cùng (đây là điểm sẽ trỏ đúng tọa độ)
+        val pointBottom = bottom.toFloat()
+        
+        teardropPath.moveTo(centerX, pointBottom)
+        teardropPath.lineTo(centerX - tailWidth, centerY + radius * 0.3f)
+        teardropPath.lineTo(centerX + tailWidth, centerY + radius * 0.3f)
         teardropPath.close()
         
         // Vẽ hình giọt nước với màu nền
@@ -125,9 +129,9 @@ class SportMarkerIcon(
 
     private fun drawSportIcon(canvas: Canvas, left: Int, top: Int, right: Int, bottom: Int) {
         val centerX = (left + right) / 2f
-        val centerY = (top + bottom) / 2f - (right - left) / 6f // Dịch lên ít hơn để cân đối
+        val centerY = (top + bottom) / 2f - (right - left) / 8f // Dịch lên ít hơn để cân đối với marker mới
 
-        // Nền hình tròn trắng ở giữa để emoji nổi bật
+        // Nền hình tròn trắng ở giữa để emoji nổi bật - làm nhỏ lại để viền màu rộng hơn
         val innerRadius = (right - left) * 0.25f
         val innerCirclePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
@@ -146,14 +150,37 @@ class SportMarkerIcon(
 
         val emojiPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             textAlign = Paint.Align.CENTER
-            // Emoji kích thước lớn hơn một chút để dễ nhìn trong preview và trên map
+            // Emoji kích thước nhỏ hơn để viền màu rộng hơn
             textSize = (right - left) * 0.4f
         }
-        // Điều chỉnh baseline để emoji thật sự ở giữa (approximation)
+        // Điều chỉnh baseline để emoji thật sự ở giữa
         val textBounds = Rect()
         emojiPaint.getTextBounds(emoji, 0, emoji.length, textBounds)
         val textHeight = textBounds.height()
-        canvas.drawText(emoji, centerX, centerY + textHeight / 2f - 2f, emojiPaint)
+        canvas.drawText(emoji, centerX, centerY + textHeight / 2f - 2f, emojiPaint) // Dịch lên 2f để cân đối hơn
+    }
+
+    private fun drawBadmintonIcon(canvas: Canvas, centerX: Float, centerY: Float) {
+        // Vẽ vợt cầu lông - làm to hơn
+        val racketSize = 22f
+        val handleLength = 15f
+        
+        // Vòng vợt (hình oval)
+        canvas.drawOval(
+            centerX - racketSize, centerY - 5f,
+            centerX + racketSize, centerY + 5f,
+            iconPaint
+        )
+        
+        // Cán vợt
+        canvas.drawRect(
+            centerX - 2f, centerY + 5f,
+            centerX + 2f, centerY + 5f + handleLength,
+            iconPaint
+        )
+        
+        // Quả cầu lông
+        canvas.drawCircle(centerX + 18f, centerY - 8f, 4f, iconPaint)
     }
 
     private fun drawTennisIcon(canvas: Canvas, centerX: Float, centerY: Float) {
@@ -175,24 +202,6 @@ class SportMarkerIcon(
         canvas.drawCircle(centerX + 15f, centerY - 10f, 5f, iconPaint)
     }
 
-    private fun drawBadmintonIcon(canvas: Canvas, centerX: Float, centerY: Float) {
-        // Vẽ vợt cầu lông
-        val racketSize = 18f
-        val handleLength = 12f
-        
-        // Vòng vợt
-        canvas.drawCircle(centerX, centerY - 3f, racketSize, iconPaint)
-        
-        // Cán vợt
-        canvas.drawRect(
-            centerX - 1.5f, centerY + 3f,
-            centerX + 1.5f, centerY + 3f + handleLength,
-            iconPaint
-        )
-        
-        // Quả cầu lông
-        canvas.drawCircle(centerX + 12f, centerY - 8f, 3f, iconPaint)
-    }
 
     private fun drawFootballIcon(canvas: Canvas, centerX: Float, centerY: Float) {
         // Vẽ quả bóng đá

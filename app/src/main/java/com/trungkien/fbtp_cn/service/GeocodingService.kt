@@ -32,20 +32,33 @@ class GeocodingService {
                 val attempts = generateGeocodingAttempts(normalizedAddress)
                 
                 for ((index, attempt) in attempts.withIndex()) {
+                    println("🗺️ Geocoding attempt ${index + 1}: $attempt")
                     
                     val result = performGeocodingRequest(attempt)
                     if (result != null) {
+                        println("🗺️ Geocoding result: lat=${result.lat}, lng=${result.lng}")
                         // Kiểm tra độ chính xác của kết quả
                         if (isAccurateResult(result, normalizedAddress)) {
+                            println("🗺️ Geocoding accepted: Accurate result found")
                             return@withContext result
                         } else {
+                            println("🗺️ Geocoding rejected: Not accurate enough")
                         }
+                    } else {
+                        println("🗺️ Geocoding failed: No result")
                     }
                     
                     // Delay giữa các lần thử để tránh rate limit
                     kotlinx.coroutines.delay(500)
                 }
                 
+                // Fallback: Nếu tất cả attempts đều thất bại, thử với địa chỉ đơn giản nhất
+                println("🗺️ All geocoding attempts failed, trying fallback...")
+                val fallbackResult = tryFallbackGeocoding(normalizedAddress)
+                if (fallbackResult != null) {
+                    println("🗺️ Fallback geocoding success: lat=${fallbackResult.lat}, lng=${fallbackResult.lng}")
+                    return@withContext fallbackResult
+                }
                 
                 return@withContext null
                 
@@ -54,6 +67,87 @@ class GeocodingService {
                 return@withContext null
             }
         }
+    }
+    
+    /**
+     * Fallback geocoding với địa chỉ đơn giản nhất
+     */
+    private suspend fun tryFallbackGeocoding(normalizedAddress: String): com.trungkien.fbtp_cn.model.GeoLocation? {
+        try {
+            // Thử với địa chỉ chỉ có tên đường và phường
+            val simpleAddress = extractSimpleAddress(normalizedAddress)
+            if (simpleAddress.isNotEmpty()) {
+                println("🗺️ Fallback attempt: $simpleAddress")
+                val result = performGeocodingRequest(simpleAddress)
+                if (result != null) {
+                    return result
+                }
+            }
+            
+            // Thử với chỉ tên phường và quận
+            val wardDistrictAddress = extractWardDistrict(normalizedAddress)
+            if (wardDistrictAddress.isNotEmpty()) {
+                println("🗺️ Fallback attempt: $wardDistrictAddress")
+                val result = performGeocodingRequest(wardDistrictAddress)
+                if (result != null) {
+                    return result
+                }
+            }
+            
+            // Cuối cùng thử với chỉ quận và thành phố
+            val districtCityAddress = extractDistrictCity(normalizedAddress)
+            if (districtCityAddress.isNotEmpty()) {
+                println("🗺️ Fallback attempt: $districtCityAddress")
+                val result = performGeocodingRequest(districtCityAddress)
+                if (result != null) {
+                    return result
+                }
+            }
+            
+        } catch (e: Exception) {
+            println("🗺️ Fallback geocoding error: ${e.message}")
+        }
+        
+        return null
+    }
+    
+    /**
+     * Extract địa chỉ đơn giản (tên đường + phường)
+     */
+    private fun extractSimpleAddress(address: String): String {
+        val parts = address.split(",").map { it.trim() }
+        if (parts.size >= 2) {
+            return "${parts[0]}, ${parts[1]}"
+        }
+        return address
+    }
+    
+    /**
+     * Extract phường và quận
+     */
+    private fun extractWardDistrict(address: String): String {
+        val parts = address.split(",").map { it.trim() }
+        val ward = parts.find { it.contains("P.") || it.contains("Phường") }
+        val district = parts.find { it.contains("Q.") || it.contains("Quận") }
+        
+        if (ward != null && district != null) {
+            return "$ward, $district"
+        }
+        return ""
+    }
+    
+    /**
+     * Extract quận và thành phố
+     */
+    private fun extractDistrictCity(address: String): String {
+        val parts = address.split(",").map { it.trim() }
+        val district = parts.find { it.contains("Q.") || it.contains("Quận") }
+        val city = parts.find { it.contains("TP.") || it.contains("Thành phố") }
+        
+        if (district != null && city != null) {
+            return "$district, $city"
+        }
+        return ""
     }
     
     /**
@@ -71,6 +165,9 @@ class GeocodingService {
             .replace("Xã", "X.")
             .replace("Thị xã", "TX.")
             .replace("Thị trấn", "TT.")
+            // Loại bỏ Plus Code để tránh gây nhiễu cho geocoding
+            .replace(Regex("\\b[A-Z0-9]{2,3}\\+[A-Z0-9]{2,3}\\b"), "")
+            .replace(Regex("\\s+"), " ") // Loại bỏ khoảng trắng thừa sau khi xóa Plus Code
     }
     
     /**
@@ -106,6 +203,14 @@ class GeocodingService {
         if (specificAddressWithNumber.isNotEmpty()) {
             attempts.add(specificAddressWithNumber)
             attempts.add("$specificAddressWithNumber, Vietnam")
+            
+            // Thử với các biến thể số nhà
+            val streetNumber = extractStreetNumber(normalizedAddress)
+            val streetName = extractStreetName(normalizedAddress)
+            if (streetNumber.isNotEmpty() && streetName.isNotEmpty()) {
+                attempts.add("$streetNumber $streetName, ${extractWard(normalizedAddress)}, ${extractProvince(normalizedAddress)}, Vietnam")
+                attempts.add("$streetNumber $streetName, ${extractWard(normalizedAddress)}, Vietnam")
+            }
         }
         
         // 7. Thử cụ thể cho từng tỉnh/thành phố
@@ -230,6 +335,40 @@ class GeocodingService {
     private fun extractPostalCode(address: String): String {
         val postalMatch = Regex("(\\d{5,6})").find(address)
         return postalMatch?.value ?: ""
+    }
+    
+    /**
+     * Trích xuất số nhà từ địa chỉ
+     */
+    private fun extractStreetNumber(address: String): String {
+        val patterns = listOf(
+            Regex("""^(\d+[A-Za-z]?)\s+"""), // Số nhà có thể có chữ cái
+            Regex("""^(\d+)\s+"""), // Chỉ số
+            Regex("""^(\d+[A-Za-z]?)/"""), // Số nhà với dấu /
+            Regex("""^(\d+[A-Za-z]?)-""") // Số nhà với dấu -
+        )
+        
+        for (pattern in patterns) {
+            val match = pattern.find(address)
+            if (match != null) {
+                return match.groupValues[1]
+            }
+        }
+        return ""
+    }
+    
+    /**
+     * Trích xuất tên đường từ địa chỉ
+     */
+    private fun extractStreetName(address: String): String {
+        // Loại bỏ số nhà ở đầu
+        val withoutNumber = address.replaceFirst(Regex("""^\d+[A-Za-z]?\s*"""), "")
+        
+        // Trích xuất tên đường (từ đầu đến phường/xã)
+        val streetPattern = Regex("""^([^,]+?)(?:\s*,\s*(?:Phường|Xã|Ward|Commune))""")
+        val match = streetPattern.find(withoutNumber)
+        
+        return match?.groupValues?.get(1)?.trim() ?: withoutNumber.split(",")[0].trim()
     }
     
     /**
@@ -542,9 +681,11 @@ class GeocodingService {
         // Điểm cơ bản từ importance
         score += (importance * 10).toInt()
         
-        // Trích xuất tỉnh từ địa chỉ gốc
+        // Trích xuất các thành phần từ địa chỉ gốc
         val originalProvince = extractProvince(originalAttempt)
         val originalWard = extractWard(originalAttempt)
+        val originalStreet = extractStreetName(originalAttempt)
+        val originalNumber = extractStreetNumber(originalAttempt)
         
         // Bonus cao cho tỉnh/thành phố khớp
         if (originalProvince.isNotEmpty()) {
@@ -553,7 +694,7 @@ class GeocodingService {
             
             if (displayName.contains(originalProvince, ignoreCase = true) || 
                 noAccentDisplayProvince.contains(noAccentOriginalProvince, ignoreCase = true)) {
-                score += 60 // Bonus cao cho tỉnh khớp
+                score += 50 // Bonus cao cho tỉnh khớp
             }
         }
         
@@ -564,7 +705,25 @@ class GeocodingService {
             
             if (displayName.contains(originalWard, ignoreCase = true) || 
                 noAccentDisplayWard.contains(noAccentOriginalWard, ignoreCase = true)) {
-                score += 40 // Bonus cao cho phường khớp
+                score += 30 // Bonus cao cho phường khớp
+            }
+        }
+        
+        // Bonus rất cao cho tên đường khớp (quan trọng nhất)
+        if (originalStreet.isNotEmpty()) {
+            val noAccentOriginalStreet = removeVietnameseAccents(originalStreet)
+            val noAccentDisplayStreet = removeVietnameseAccents(displayName)
+            
+            if (displayName.contains(originalStreet, ignoreCase = true) || 
+                noAccentDisplayStreet.contains(noAccentOriginalStreet, ignoreCase = true)) {
+                score += 80 // Bonus rất cao cho tên đường khớp
+            }
+        }
+        
+        // Bonus cho số nhà khớp
+        if (originalNumber.isNotEmpty()) {
+            if (displayName.contains(originalNumber, ignoreCase = true)) {
+                score += 20 // Bonus cho số nhà khớp
             }
         }
         
@@ -574,12 +733,12 @@ class GeocodingService {
         }
         
         // Bonus đặc biệt cho số nhà cụ thể khớp với địa chỉ gốc
-        val originalNumber = extractHouseNumber(originalAttempt)
+        val originalHouseNumber = extractHouseNumber(originalAttempt)
         val displayNumber = extractHouseNumber(displayName)
-        if (originalNumber.isNotEmpty() && displayNumber.isNotEmpty()) {
-            if (originalNumber == displayNumber) {
+        if (originalHouseNumber.isNotEmpty() && displayNumber.isNotEmpty()) {
+            if (originalHouseNumber == displayNumber) {
                 score += 50 // Bonus rất cao cho số nhà khớp chính xác
-            } else if (originalNumber.contains(displayNumber) || displayNumber.contains(originalNumber)) {
+            } else if (originalHouseNumber.contains(displayNumber) || displayNumber.contains(originalHouseNumber)) {
                 score += 25 // Bonus cao cho số nhà tương tự
             }
         }
@@ -648,23 +807,54 @@ class GeocodingService {
             return false
         }
         
-        // Trích xuất tỉnh từ địa chỉ gốc
+        // Trích xuất các thành phần từ địa chỉ gốc
         val originalProvince = extractProvince(originalAddress)
+        val originalWard = extractWard(originalAddress)
+        val originalStreet = extractStreetName(originalAddress)
+        val originalNumber = extractStreetNumber(originalAddress)
         
         // Kiểm tra reverse geocoding để xác nhận
         return try {
             val reverseAddress = kotlinx.coroutines.runBlocking { reverseGeocode(result.lat, result.lng) }
             val isAccurate = reverseAddress?.let { 
+                var accuracyScore = 0
+                
+                // Kiểm tra tỉnh/thành phố (quan trọng nhất)
                 if (originalProvince.isNotEmpty()) {
-                    // Kiểm tra tỉnh khớp
-                    it.contains(originalProvince, ignoreCase = true) || 
-                    it.contains(removeVietnameseAccents(originalProvince), ignoreCase = true)
-                } else {
-                    // Nếu không có tỉnh cụ thể, chỉ cần trong Việt Nam
-                    true
+                    if (it.contains(originalProvince, ignoreCase = true) || 
+                        it.contains(removeVietnameseAccents(originalProvince), ignoreCase = true)) {
+                        accuracyScore += 40
+                    }
                 }
+                
+                // Kiểm tra phường/xã
+                if (originalWard.isNotEmpty()) {
+                    if (it.contains(originalWard, ignoreCase = true) || 
+                        it.contains(removeVietnameseAccents(originalWard), ignoreCase = true)) {
+                        accuracyScore += 30
+                    }
+                }
+                
+                // Kiểm tra tên đường (rất quan trọng)
+                if (originalStreet.isNotEmpty()) {
+                    if (it.contains(originalStreet, ignoreCase = true) || 
+                        it.contains(removeVietnameseAccents(originalStreet), ignoreCase = true)) {
+                        accuracyScore += 25
+                    }
+                }
+                
+                // Kiểm tra số nhà (nếu có)
+                if (originalNumber.isNotEmpty()) {
+                    if (it.contains(originalNumber, ignoreCase = true)) {
+                        accuracyScore += 5
+                    }
+                }
+                
+                // Giảm yêu cầu accuracy để dễ chấp nhận kết quả hơn
+                accuracyScore >= 50
             } ?: false
             
+            println("🗺️ Geocoding accuracy check: $isAccurate for address: $originalAddress")
             isAccurate
         } catch (e: Exception) {
             true // Giả sử chính xác nếu không thể kiểm tra

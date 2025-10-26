@@ -55,9 +55,10 @@ fun OwnerMainScreen(
     // State để quản lý hiển thị BottomNavBar (ẩn khi ở màn hình detail)
     var showBottomNavBar by remember { mutableStateOf(true) }
     
-    // State để track current route và disable drawer khi ở map screen
+    // State để track current route và disable drawer khi ở map screen hoặc add field screen
     var currentRoute by remember { mutableStateOf("") }
     val isMapScreen = currentRoute.startsWith("owner_field_map/")
+    val isAddFieldScreen = currentRoute == "owner_add_field"
 
     // Shared FieldViewModel để chia sẻ dữ liệu fields giữa các màn hình
     val fieldViewModel: FieldViewModel = viewModel()
@@ -123,6 +124,13 @@ fun OwnerMainScreen(
                     fieldViewModel.handleEvent(FieldEvent.LoadFieldsByOwner(ownerId))
                 }
             }
+        }
+    }
+    
+    // Track current route để disable drawer khi cần
+    LaunchedEffect(navController) {
+        navController.currentBackStackEntryFlow.collect { backStackEntry ->
+            currentRoute = backStackEntry.destination.route ?: ""
         }
     }
 
@@ -202,7 +210,7 @@ fun OwnerMainScreen(
     } else {
         ModalNavigationDrawer(
             drawerState = drawerState,
-            gesturesEnabled = !isMapScreen, // Disable drawer gestures khi ở map screen
+            gesturesEnabled = !isMapScreen && !isAddFieldScreen, // Disable drawer gestures khi ở map screen hoặc add field screen
             drawerContent = {
                 OwnerDrawerContent(
                     avatarUrl = currentUser?.avatarUrl,
@@ -237,7 +245,7 @@ fun OwnerMainScreen(
                         val currentUserForTopBar = authViewModel.currentUser.collectAsState().value
                         OwnerTopAppBar(
                             onMenuClick = {
-                                if (!isMapScreen) { // Chỉ cho phép mở drawer khi không ở map screen
+                                if (!isMapScreen && !isAddFieldScreen) { // Chỉ cho phép mở drawer khi không ở map screen hoặc add field screen
                                     scope.launch { drawerState.open() }
                                 }
                             },

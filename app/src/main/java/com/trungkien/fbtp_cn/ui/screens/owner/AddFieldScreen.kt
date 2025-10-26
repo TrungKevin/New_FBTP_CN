@@ -48,6 +48,11 @@ import com.trungkien.fbtp_cn.viewmodel.FieldUiState
 import com.trungkien.fbtp_cn.viewmodel.AuthViewModel
 import com.trungkien.fbtp_cn.ui.components.common.LoadingDialog
 import com.trungkien.fbtp_cn.utils.ImagePicker
+import com.trungkien.fbtp_cn.ui.screens.owner.OwnerMapScreen
+import com.trungkien.fbtp_cn.ui.theme.GreenPrimary
+import com.trungkien.fbtp_cn.ui.components.owner.map.LocationInfoCard
+import com.trungkien.fbtp_cn.ui.components.owner.map.LocationSelectionStatus
+import com.trungkien.fbtp_cn.ui.components.owner.map.AutoLocationMapView
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,7 +71,7 @@ fun AddFieldScreen(
     val focusManager = LocalFocusManager.current
     
     var currentStep by remember { mutableStateOf(0) }
-    val totalSteps = 4
+    val totalSteps = 5 // Tăng từ 4 lên 5 để thêm step chọn vị trí
     
     // Field information
     var fieldName by remember { mutableStateOf("") }
@@ -96,6 +101,9 @@ fun AddFieldScreen(
     
     // Services
     var fieldServices by remember { mutableStateOf(listOf<FieldService>()) }
+    
+    // Location - Thêm state cho vị trí đã chọn
+    var selectedLocation by remember { mutableStateOf(GeoLocation()) }
     
     // Auto-fetch user profile when screen initializes
     LaunchedEffect(Unit) {
@@ -129,6 +137,12 @@ fun AddFieldScreen(
             return
         }
         
+        // Validate location - đảm bảo đã chọn vị trí
+        if (selectedLocation.lat == 0.0 || selectedLocation.lng == 0.0) {
+            // Show validation error for location
+            return
+        }
+        
         // Validate images - đảm bảo có đủ 4 ảnh
         val images = listOfNotNull(mainImageUri, image1Uri, image2Uri, image3Uri)
         if (images.size < 4) {
@@ -144,7 +158,7 @@ fun AddFieldScreen(
             ownerId = currentUser?.userId ?: "", // Get real ownerId from current user
             name = fieldName,
             address = fieldAddress,
-            geo = GeoLocation(), // TODO: Get from location picker
+            geo = selectedLocation, // Sử dụng vị trí đã chọn
             sports = selectedSports,
             images = FieldImages(), // Will be updated by repository with base64 strings
             slotMinutes = 30,
@@ -170,6 +184,7 @@ fun AddFieldScreen(
             FieldEvent.AddField(field, images, emptyList(), fieldServices)
         )
     }
+    
     
     Scaffold(
         topBar = {
@@ -259,7 +274,51 @@ fun AddFieldScreen(
                 }
                 
                 1 -> {
-                    // Step 2: Images
+                    // Step 2: Location Selection - Tự động geocoding
+                    item {
+                        Text(
+                            text = "Vị trí sân",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF263238)
+                        )
+                    }
+                    
+                    item {
+                        Text(
+                            text = "Vị trí sẽ được xác định tự động từ địa chỉ bạn đã nhập. Bạn có thể điều chỉnh marker nếu cần.",
+                            fontSize = 14.sp,
+                            color = Color(0xFF666666),
+                            modifier = Modifier.padding(bottom = 16.dp)
+                        )
+                        
+                        // Hiển thị map với marker tự động
+                        AutoLocationMapView(
+                            field = Field(
+                                fieldId = "",
+                                ownerId = currentUser?.userId ?: "",
+                                name = fieldName,
+                                address = fieldAddress,
+                                geo = selectedLocation,
+                                sports = selectedSports
+                            ),
+                            onLocationSelected = { location: GeoLocation ->
+                                selectedLocation = location
+                            },
+                            modifier = Modifier.height(400.dp)
+                        )
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        // Hiển thị thông tin vị trí đã chọn
+                        if (selectedLocation.lat != 0.0 && selectedLocation.lng != 0.0) {
+                            LocationInfoCard(location = selectedLocation)
+                        }
+                    }
+                }
+                
+                2 -> {
+                    // Step 3: Images
                     item {
                         Text(
                             text = "Hình ảnh sân",
@@ -283,8 +342,8 @@ fun AddFieldScreen(
                     }
                 }
                 
-                2 -> {
-                    // Step 3: Operating Hours & Amenities
+                3 -> {
+                    // Step 4: Operating Hours & Amenities
                     item {
                         Text(
                             text = "Giờ hoạt động & Tiện ích",
@@ -308,8 +367,8 @@ fun AddFieldScreen(
                     }
                 }
                 
-                3 -> {
-                    // Step 4: Pricing & Services
+                4 -> {
+                    // Step 5: Pricing & Services
                     item {
                         Text(
                             text = "Bảng giá & Dịch vụ",
@@ -366,8 +425,9 @@ fun AddFieldScreen(
                             image1Uri,
                             image2Uri,
                             image3Uri,
-                            // ✅ FIX: Thêm selectedFootballFieldType
-                            selectedFootballFieldType
+                            // ✅ FIX: Thêm selectedFootballFieldType và selectedLocation
+                            selectedFootballFieldType,
+                            selectedLocation
                         ) && !uiState.isLoading
                     ) {
                         if (uiState.isLoading) {
@@ -881,8 +941,9 @@ private fun isStepValid(
     image1Uri: android.net.Uri?,
     image2Uri: android.net.Uri?,
     image3Uri: android.net.Uri?,
-    // ✅ FIX: Thêm parameter cho football field type
-    selectedFootballFieldType: String? = null
+    // ✅ FIX: Thêm parameter cho football field type và selectedLocation
+    selectedFootballFieldType: String? = null,
+    selectedLocation: GeoLocation = GeoLocation()
 ): Boolean {
     return when (step) {
         0 -> {
@@ -895,12 +956,16 @@ private fun isStepValid(
             }
         }
         1 -> {
-            // Step 2: Images - đảm bảo có đủ 4 ảnh
+            // Step 2: Location Selection - đảm bảo đã chọn vị trí
+            selectedLocation.lat != 0.0 && selectedLocation.lng != 0.0
+        }
+        2 -> {
+            // Step 3: Images - đảm bảo có đủ 4 ảnh
             val images = listOfNotNull(mainImageUri, image1Uri, image2Uri, image3Uri)
             images.size >= 4
         }
-        2 -> true // Step 3: Operating Hours & Amenities
-        3 -> true // Step 4: Services - không cần validation
+        3 -> true // Step 4: Operating Hours & Amenities
+        4 -> true // Step 5: Services - không cần validation
         else -> false
     }
 }

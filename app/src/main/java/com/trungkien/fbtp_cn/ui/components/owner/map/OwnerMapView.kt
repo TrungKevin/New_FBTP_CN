@@ -2,7 +2,6 @@ package com.trungkien.fbtp_cn.ui.components.owner.map
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
@@ -15,13 +14,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import org.osmdroid.config.Configuration
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
-import org.osmdroid.util.GeoPoint
-import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.Marker
 import com.trungkien.fbtp_cn.model.Field
 import com.trungkien.fbtp_cn.ui.theme.GreenPrimary
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.MapView
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.Marker
+import com.google.android.gms.maps.model.MarkerOptions
+import com.trungkien.fbtp_cn.ui.components.owner.map.MapMarkerUtils
+import com.trungkien.fbtp_cn.service.GeocodingService
 
 @Composable
 fun OwnerMapView(
@@ -30,10 +32,66 @@ fun OwnerMapView(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    var mapView by remember { mutableStateOf<MapView?>(null) }
+    var googleMap by remember { mutableStateOf<GoogleMap?>(null) }
+    var marker by remember { mutableStateOf<Marker?>(null) }
+    var currentLocation by remember { mutableStateOf(field.geo) }
+    var isLoadingGeocoding by remember { mutableStateOf(false) }
+    var geocodingError by remember { mutableStateOf<String?>(null) }
+    var lastGeocodedAddress by remember { mutableStateOf("") }
     
-    // Configure OSMDroid
-    LaunchedEffect(Unit) {
-        Configuration.getInstance().load(context, context.getSharedPreferences("osmdroid", 0))
+    val geocodingService: GeocodingService = remember { GeocodingService() }
+
+    // ✅ FIX: Geocoding lại khi địa chỉ thay đổi (không chỉ khi tọa độ là 0)
+    LaunchedEffect(field.address) {
+        // Chỉ geocoding khi: 
+        // 1. Địa chỉ không rỗng
+        // 2. Địa chỉ thay đổi so với lần geocoding trước
+        if (field.address.isNotEmpty() && field.address != lastGeocodedAddress) {
+            isLoadingGeocoding = true
+            geocodingError = null
+            
+            try {
+                println("🗺️ OwnerMapView - Auto geocoding address: ${field.address}")
+                val result = geocodingService.geocodeAddress(field.address)
+                if (result != null) {
+                    println("🗺️ OwnerMapView - Geocoding success: lat=${result.lat}, lng=${result.lng}")
+                    currentLocation = result
+                    lastGeocodedAddress = field.address // Lưu địa chỉ đã geocoding
+                    
+                    // Cập nhật map ngay lập tức với marker mới
+                    googleMap?.let { map ->
+                        val geoPoint = LatLng(result.lat, result.lng)
+                        
+                        // Xóa marker cũ
+                        marker?.remove()
+                        
+                        // Tạo marker mới
+                        marker = map.addMarker(
+                            MarkerOptions()
+                                .position(geoPoint)
+                                .title(field.name)
+                                .snippet(field.address)
+                                .icon(MapMarkerUtils.getSportMarkerBitmapDescriptor(mapView?.context ?: context, field.sports.firstOrNull() ?: "TENNIS", 200))
+                                .anchor(0.5f, 0.5f) // Center anchor
+                        )
+                        
+                        // Center map on marker
+                        map.animateCamera(CameraUpdateFactory.newLatLngZoom(geoPoint, 16f))
+                        
+                        println("🗺️ OwnerMapView - Geocoding complete: Marker centered at lat=${result.lat}, lng=${result.lng}")
+                    }
+                } else {
+                    geocodingError = "Không tìm thấy vị trí cho địa chỉ này"
+                    println("🗺️ OwnerMapView - Geocoding failed for: ${field.address}")
+                }
+            } catch (e: Exception) {
+                geocodingError = "Lỗi khi tìm vị trí: ${e.message}"
+                println("🗺️ OwnerMapView - Geocoding error: ${e.message}")
+            } finally {
+                isLoadingGeocoding = false
+            }
+        }
     }
 
     Box(
@@ -41,70 +99,63 @@ fun OwnerMapView(
             .fillMaxSize()
             .background(Color.White)
     ) {
-        // OpenStreetMap
-        var mapView by remember { mutableStateOf<MapView?>(null) }
-        
+        // Google Maps
         AndroidView(
             factory = { context ->
                 MapView(context).apply {
-                    setTileSource(TileSourceFactory.MAPNIK)
-                    setMultiTouchControls(true)
-                    isTilesScaledToDpi = true
-                    
-                    // Set field location as center
-                    val fieldLocation = GeoPoint(field.geo.lat, field.geo.lng)
-                    
-                    controller.setZoom(18.0) // Zoom gần hơn để thấy rõ marker
-                    controller.animateTo(fieldLocation) // Smooth animation đến vị trí marker
-                    
-                    mapView = this
-                    
-                    // Clear any existing overlays to remove unwanted markers
-                    overlays.clear()
-                    
-                    // Debug: Log field information
-                    println("🗺️ OwnerMapView - Field: ${field.name}")
-                    println("🗺️ OwnerMapView - Coordinates: lat=${field.geo.lat}, lng=${field.geo.lng}")
-                    println("🗺️ OwnerMapView - Sports: ${field.sports}")
-                    
-                    // Add field marker with click functionality
-                    val sportType = field.sports.firstOrNull() ?: "TENNIS"
-                    
-                    // Custom marker với SportMarkerIcon
-                    val marker = Marker(this).apply {
-                        position = fieldLocation
-                        title = field.name
-                        snippet = "Chạm để xem chi tiết"
-                        // Neo marker để chóp giọt nước trỏ đúng tọa độ
-                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                        isDraggable = false
+                    onCreate(null)
+                    onResume()
+                    getMapAsync { map ->
+                        googleMap = map
                         
-                        // Custom marker icon theo loại sân - tăng kích thước để hiển thị rõ ràng
-                        icon = SportMarkerIcon(context, sportType, 120)
+                        // Cấu hình map
+                        map.uiSettings.isZoomControlsEnabled = true
+                        map.uiSettings.isCompassEnabled = true
+                        map.uiSettings.isMapToolbarEnabled = false
                         
-                        // Debug: Log marker creation
-                        println("🗺️ OwnerMapView - Created marker for sport: $sportType")
-                        println("🗺️ OwnerMapView - Marker position: lat=${fieldLocation.latitude}, lng=${fieldLocation.longitude}")
+                        val fieldLocation = LatLng(field.geo.lat, field.geo.lng)
                         
-                        // Add click listener để center map và hiển thị bottom sheet khi click marker
-                        setOnMarkerClickListener { marker, mapView ->
-                            
-                            // Center map on marker position
-                            mapView.controller.animateTo(marker.position)
-                            
-                            // Hiển thị bottom sheet nếu có callback
+                        // Tạo marker cố định với icon tương ứng loại sân
+                        marker = map.addMarker(
+                            MarkerOptions()
+                                .position(fieldLocation)
+                                .title(field.name)
+                                .snippet(field.address)
+                                .icon(MapMarkerUtils.getSportMarkerBitmapDescriptor(context, field.sports.firstOrNull() ?: "TENNIS", 150))
+                                .anchor(0.5f, 0.5f) // Center anchor
+                        )
+                        
+                        // Center map on marker
+                        map.moveCamera(CameraUpdateFactory.newLatLngZoom(fieldLocation, 16f))
+                        
+                        // Thêm click listener cho marker
+                        map.setOnMarkerClickListener { clickedMarker ->
                             onMarkerClick?.invoke()
-                            
-                            // Show info window
-                            mapView.invalidate()
                             true
                         }
+                        
+                        println("🗺️ OwnerMapView - Map initialized with marker at: lat=${field.geo.lat}, lng=${field.geo.lng}")
                     }
-                    overlays.add(marker)
                     
-                    // Force map refresh để đảm bảo marker hiển thị
-                    post {
-                        invalidate()
+                    mapView = this
+                }
+            },
+            update = { mapView ->
+                // Chỉ cập nhật khi field thực sự thay đổi
+                googleMap?.let { map ->
+                    val fieldLocation = LatLng(field.geo.lat, field.geo.lng)
+                    
+                    // Chỉ cập nhật nếu vị trí marker thực sự thay đổi
+                    if (marker?.position != fieldLocation) {
+                        marker?.position = fieldLocation
+                        marker?.title = field.name
+                        marker?.snippet = field.address
+                        marker?.setIcon(MapMarkerUtils.getSportMarkerBitmapDescriptor(mapView.context, field.sports.firstOrNull() ?: "TENNIS", 150))
+                        
+                        // Center map on marker
+                        map.animateCamera(CameraUpdateFactory.newLatLngZoom(fieldLocation, 16f))
+                        
+                        println("🗺️ OwnerMapView - Marker position updated to: lat=${field.geo.lat}, lng=${field.geo.lng}")
                     }
                 }
             },
@@ -113,17 +164,39 @@ fun OwnerMapView(
         
         // Field Location Button - chỉ hiển thị khi có tọa độ
         if (field.geo.lat != 0.0 && field.geo.lng != 0.0) {
-            FieldLocationButton(
+            OwnerFieldLocationButton(
                 onClick = {
-                    mapView?.let { map ->
-                        val fieldLocation = GeoPoint(field.geo.lat, field.geo.lng)
-                        map.controller.animateTo(fieldLocation)
+                    googleMap?.let { map ->
+                        val fieldLocation = LatLng(field.geo.lat, field.geo.lng)
+                        map.animateCamera(CameraUpdateFactory.newLatLngZoom(fieldLocation, 16f))
                     }
                 },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(16.dp)
+                    .padding(start = 16.dp, end = 16.dp, bottom = 120.dp) // Di chuyển lên cao hơn để tránh đè zoom controls
             )
         }
+    }
+}
+
+/**
+ * Button để center map về vị trí field
+ */
+@Composable
+private fun OwnerFieldLocationButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    FloatingActionButton(
+        onClick = onClick,
+        modifier = modifier.size(56.dp),
+        containerColor = GreenPrimary,
+        contentColor = androidx.compose.ui.graphics.Color.White
+    ) {
+        Icon(
+            imageVector = Icons.Default.LocationOn,
+            contentDescription = "Vị trí sân",
+            modifier = Modifier.size(24.dp)
+        )
     }
 }

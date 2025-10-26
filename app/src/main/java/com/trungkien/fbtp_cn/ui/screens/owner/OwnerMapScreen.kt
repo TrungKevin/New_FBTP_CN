@@ -21,6 +21,7 @@ import com.trungkien.fbtp_cn.ui.components.owner.map.OwnerMapView
 fun OwnerMapScreen(
     field: Field,
     onBackClick: () -> Unit,
+    onLocationSelected: ((GeoLocation) -> Unit)? = null, // Thêm callback để trả về vị trí đã chọn
     modifier: Modifier = Modifier
 ) {
     var currentField by remember { mutableStateOf(field) }
@@ -33,9 +34,12 @@ fun OwnerMapScreen(
     
     val fieldRepository = remember { FieldRepository() }
     
-    // Nếu chưa có tọa độ, tự động chuyển sang chế độ chọn vị trí
-    LaunchedEffect(field.geo) {
+    // Nếu chưa có tọa độ hoặc được gọi từ AddFieldScreen, tự động chuyển sang chế độ chọn vị trí
+    LaunchedEffect(field.geo, onLocationSelected) {
         if (field.geo.lat == 0.0 && field.geo.lng == 0.0) {
+            isLocationPickerMode = true
+        } else if (onLocationSelected != null) {
+            // Nếu có callback từ AddFieldScreen, luôn ở chế độ picker
             isLocationPickerMode = true
         }
     }
@@ -57,8 +61,15 @@ fun OwnerMapScreen(
                 field = currentField,
                 onLocationSelected = { newLocation ->
                     selectedLocation = newLocation // Lưu vị trí được chọn
-                    isLoading = true
-                    errorMessage = null
+                    if (onLocationSelected != null) {
+                        // Nếu có callback từ AddFieldScreen, gọi callback và đóng màn hình
+                        onLocationSelected(newLocation)
+                        onBackClick()
+                    } else {
+                        // Nếu không có callback, cập nhật vào database như cũ
+                        isLoading = true
+                        errorMessage = null
+                    }
                 },
                 onCancel = {
                     isLocationPickerMode = false

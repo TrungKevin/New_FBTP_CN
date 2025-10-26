@@ -77,7 +77,11 @@ dependencies {
     implementation(libs.androidx.foundation)
     implementation(libs.coroutines.android)
     
-    // OpenStreetMap support
+    // Google Maps SDK
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
+    implementation("com.google.android.gms:play-services-location:21.0.1")
+    
+    // OpenStreetMap support (keep for fallback)
     implementation("org.osmdroid:osmdroid-android:6.1.18")
     
     // Geocoding support for address to coordinates conversion

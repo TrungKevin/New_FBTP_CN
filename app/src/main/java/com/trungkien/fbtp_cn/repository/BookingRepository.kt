@@ -313,16 +313,26 @@ class BookingRepository(
                     onError(e)
                     return@addSnapshotListener
                 }
-                val list = snapshot?.toObjects(Booking::class.java)
-                    ?.sortedByDescending { it.createdAt }
-                    ?: emptyList()
-                println("🔍 DEBUG: listenBookingsByRenter result:")
+                
+                val allList = snapshot?.toObjects(Booking::class.java) ?: emptyList()
+                println("🔍 DEBUG: listenBookingsByRenter RAW result:")
                 println("  - snapshot size: ${snapshot?.size() ?: 0}")
-                println("  - bookings found: ${list.size}")
-                list.forEachIndexed { index, booking ->
-                    println("  [$index] bookingId: ${booking.bookingId}, type: ${booking.bookingType}, status: ${booking.status}, date: ${booking.date}")
+                println("  - all bookings found: ${allList.size}")
+                
+                // ✅ CRITICAL FIX: Double-check renterId filtering in memory
+                val filteredList = allList.filter { booking ->
+                    booking.renterId == renterId
                 }
-                onChange(list)
+                
+                println("🔍 DEBUG: After memory filtering:")
+                println("  - renterId to filter: $renterId")
+                println("  - filtered bookings: ${filteredList.size}")
+                filteredList.forEachIndexed { index, booking ->
+                    println("  [$index] bookingId: ${booking.bookingId}, renterId: ${booking.renterId}, type: ${booking.bookingType}, status: ${booking.status}, date: ${booking.date}")
+                }
+                
+                val sortedList = filteredList.sortedByDescending { it.createdAt }
+                onChange(sortedList)
             }
     }
 
