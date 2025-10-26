@@ -148,7 +148,7 @@ fun RenterGoogleMapView(
                                         SportMarkerIconHelper.createMarkerBitmap(
                                             context,
                                             field.sports.firstOrNull() ?: "OTHER",
-                                            80
+                                            120
                                         )
                                     )
                                 )
@@ -233,18 +233,27 @@ fun RenterGoogleMapView(
         val map = googleMap
         
         if (location != null && map != null) {
-            println("🔄 Updating camera and marker to location: lat=${location.latitude}, lng=${location.longitude}")
+            // CHỈ CẬP NHẬT NẾU LOCATION Ở VIỆT NAM
+            val isInVietnam = location.latitude >= 8.5 && location.latitude <= 23.5 && 
+                              location.longitude >= 102.0 && location.longitude <= 110.0
             
-            // Cập nhật vị trí marker
-            currentLocationMarker?.let { marker ->
-                marker.position = location
-                println("📍 Updated blue dot marker position")
+            if (isInVietnam) {
+                println("🔄 Updating camera and marker to VIETNAM location: lat=${location.latitude}, lng=${location.longitude}")
+                
+                // Cập nhật vị trí marker
+                currentLocationMarker?.let { marker ->
+                    marker.position = location
+                    println("📍 Updated blue dot marker position")
+                }
+                
+                // Cập nhật camera
+                map.animateCamera(
+                    CameraUpdateFactory.newLatLngZoom(location, 15f)
+                )
+            } else {
+                println("⚠️ Ignored location OUTSIDE Vietnam: lat=${location.latitude}, lng=${location.longitude}")
+                // Không update camera/marker nếu location không ở Việt Nam
             }
-            
-            // Cập nhật camera
-            map.animateCamera(
-                CameraUpdateFactory.newLatLngZoom(location, 15f)
-            )
         }
     }
     
@@ -311,10 +320,17 @@ fun RenterGoogleMapView(
                         
                         println("📍 Added blue dot marker at: lat=${locationToShow.latitude}, lng=${locationToShow.longitude}")
                         
-                        map.moveCamera(
-                            CameraUpdateFactory.newLatLngZoom(locationToShow, 15f)
+                        // Zoom đến chấm xanh ngay lập tức để user thấy được
+                        map.animateCamera(
+                            CameraUpdateFactory.newLatLngZoom(locationToShow, 16f)
                         )
                         println("🗺️ Map centered at: lat=${locationToShow.latitude}, lng=${locationToShow.longitude}")
+                        
+                        // Đảm bảo marker visible bằng cách đặt nó lên trên cùng
+                        currentLocationMarker?.let { marker ->
+                            marker.isVisible = true
+                            marker.isFlat = false // 3D marker, không flat
+                        }
                     }
                 }
             },
