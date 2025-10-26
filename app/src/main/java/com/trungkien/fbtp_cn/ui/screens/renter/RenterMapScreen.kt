@@ -7,8 +7,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.List
-
-import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,9 +17,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import org.osmdroid.util.GeoPoint
 import com.trungkien.fbtp_cn.data.MockData
-import com.trungkien.fbtp_cn.ui.components.renter.map.RenterLocationInput
 import com.trungkien.fbtp_cn.ui.components.renter.map.RenterMapHeader
-import com.trungkien.fbtp_cn.ui.components.renter.map.RenterMapView
+import com.trungkien.fbtp_cn.ui.components.renter.map.RenterGoogleMapView
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 
 @Composable
@@ -32,7 +29,7 @@ fun RenterMapScreen(
     showHeader: Boolean = true
 ) {
     var isListView by remember { mutableStateOf(false) }
-    var currentAddress by remember { mutableStateOf("123 ABC Street, District 1, HCMC") }
+    var currentAddress by remember { mutableStateOf("Đang tải...") }
     var currentLocation by remember { mutableStateOf<GeoPoint?>(GeoPoint(10.8231, 106.6297)) }
 
     Column(
@@ -167,121 +164,13 @@ fun RenterMapScreen(
             Box(
                 modifier = Modifier.fillMaxSize()
             ) {
-                // Map View (full screen)
-                RenterMapView(
-                    fields = try {
-                        MockData.mockFields
-                    } catch (e: Exception) {
-                        emptyList()
-                    },
-                    currentLocation = currentLocation,
+                // Google Map View (full screen)
+                RenterGoogleMapView(
                     onFieldClick = onFieldClick,
                     modifier = Modifier.fillMaxSize()
                 )
                 
-                // Mini Header for Map Controls (when no main header)
-                if (!showHeader) {
-                    Surface(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(16.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        shadowElevation = 8.dp
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // View Toggle Button
-                            IconButton(
-                                onClick = { isListView = !isListView },
-                                modifier = Modifier.size(40.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (isListView) Icons.Default.LocationOn else Icons.Default.List,
-                                    contentDescription = if (isListView) "Chuyển sang bản đồ" else "Chuyển sang danh sách",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                            
-                            // Filter Button
-                            IconButton(
-                                onClick = { /* TODO: Open filter dialog */ },
-                                modifier = Modifier.size(40.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.List,
-                                    contentDescription = "Bộ lọc",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-                    }
-                }
-                
-                // Location Input (overlay on top)
-                RenterLocationInput(
-                    currentAddress = currentAddress,
-                    onAddressChange = { address ->
-                        currentAddress = address
-                        // TODO: Geocode address to coordinates
-                    },
-                    onGpsClick = {
-                        // TODO: Get current GPS location
-                        currentLocation = GeoPoint(10.8231, 106.6297)
-                    },
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .fillMaxWidth()
-                        .offset(y = (-8).dp)
-                )
-                
-                // Quick Actions Overlay (bottom right)
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(16.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    shadowElevation = 8.dp
-                ) {
-                    Column(
-                        modifier = Modifier.padding(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // My Location Button
-                        FloatingActionButton(
-                            onClick = {
-                                // TODO: Center map to current location
-                            },
-                            modifier = Modifier.size(48.dp),
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.LocationOn,
-                                contentDescription = "Vị trí của tôi"
-                            )
-                        }
-                        
-                        // Filter Button
-                        FloatingActionButton(
-                            onClick = {
-                                // TODO: Open filter dialog
-                            },
-                            modifier = Modifier.size(48.dp),
-                            containerColor = MaterialTheme.colorScheme.secondary,
-                            contentColor = MaterialTheme.colorScheme.onSecondary
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.List,
-                                contentDescription = "Bộ lọc"
-                            )
-                        }
-                    }
-                }
+                // NOTE: Location input và Quick Actions đã được xóa để tránh trùng lặp với RenterGoogleMapView
             }
         }
     }

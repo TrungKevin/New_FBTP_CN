@@ -67,6 +67,8 @@ fun RenterMainScreen(
     
     ModalNavigationDrawer(
         drawerState = drawerState,
+        // Disable drawer gesture when on map screen
+        gesturesEnabled = selectedScreen != RenterNavScreen.Map,
         drawerContent = {
             RenterDrawerContent(
                 avatarUrl = currentUser?.avatarUrl,
