@@ -66,6 +66,9 @@ fun RenterGoogleMapView(
     var isLoadingFields by remember { mutableStateOf(false) }
     var locationPermissionGranted by remember { mutableStateOf(false) }
     
+    // State for bottomsheet
+    var selectedField by remember { mutableStateOf<Field?>(null) }
+    
     val fusedLocationClient: FusedLocationProviderClient = 
         remember { LocationServices.getFusedLocationProviderClient(context) }
     
@@ -175,7 +178,7 @@ fun RenterGoogleMapView(
             map.setOnMarkerClickListener { marker ->
                 val field = marker.tag as? Field
                 field?.let {
-                    onFieldClick(it)
+                    selectedField = it
                     true
                 } ?: false
             }
@@ -450,6 +453,18 @@ fun RenterGoogleMapView(
             }
         }
     }
+    
+    // Field Info BottomSheet
+    FieldInfoBottomSheet(
+        field = selectedField,
+        onDismiss = { selectedField = null },
+        onViewMoreClick = { fieldId ->
+            selectedField?.let { field ->
+                onFieldClick(field)
+            }
+            selectedField = null
+        }
+    )
 }
 
 /**

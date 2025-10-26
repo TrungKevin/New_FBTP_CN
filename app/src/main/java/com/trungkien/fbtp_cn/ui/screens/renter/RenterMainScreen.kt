@@ -215,7 +215,9 @@ fun RenterMainScreen(
                     RenterMapScreen(
                         onBackClick = { selectedScreen = RenterNavScreen.Home },
                         onFieldClick = { field ->
-                            // TODO: Navigate to field detail
+                            // Navigate to field detail screen
+                            activeOrderDetailFieldId = field.fieldId
+                            selectedScreen = RenterNavScreen.Search
                         },
                         modifier = Modifier.fillMaxSize(),
                         showHeader = false // Không hiển thị header riêng vì đã có RenterTopAppBar
