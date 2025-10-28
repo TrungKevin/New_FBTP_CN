@@ -142,93 +142,93 @@ fun RenterSearchHeader(
             }
         }
         
-        Spacer(modifier = Modifier.height(16.dp))
+//        Spacer(modifier = Modifier.height(16.dp))
         
-        // Quick filters row
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // Location filter
-            Card(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable { onLocationClick() },
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.1f)
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.LocationOn,
-                        contentDescription = "Location",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    
-                    Text(
-                        text = "Quận 1, TP.HCM",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Medium
-                    )
-                    
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = "Change location",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-            
-            // Date filter
-            Card(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable { /* TODO: Date picker */ },
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.1f)
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.DateRange,
-                        contentDescription = "Date",
-                        tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    
-                    Text(
-                        text = "Hôm nay",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Medium
-                    )
-                    
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = "Change date",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-        }
+//        // Quick filters row
+//        Row(
+//            modifier = Modifier.fillMaxWidth(),
+//            horizontalArrangement = Arrangement.spacedBy(12.dp)
+//        ) {
+//            // Location filter
+//            Card(
+//                modifier = Modifier
+//                    .weight(1f)
+//                    .clickable { onLocationClick() },
+//                colors = CardDefaults.cardColors(
+//                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.1f)
+//                ),
+//                shape = RoundedCornerShape(12.dp)
+//            ) {
+//                Row(
+//                    modifier = Modifier
+//                        .fillMaxWidth()
+//                        .padding(12.dp),
+//                    verticalAlignment = Alignment.CenterVertically,
+//                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+//                ) {
+//                    Icon(
+//                        imageVector = Icons.Default.LocationOn,
+//                        contentDescription = "Location",
+//                        tint = MaterialTheme.colorScheme.primary,
+//                        modifier = Modifier.size(18.dp)
+//                    )
+//
+//                    Text(
+//                        text = "Quận 1, TP.HCM",
+//                        style = MaterialTheme.typography.bodyMedium,
+//                        color = MaterialTheme.colorScheme.onSurface,
+//                        fontWeight = FontWeight.Medium
+//                    )
+//
+//                    Icon(
+//                        imageVector = Icons.Default.KeyboardArrowDown,
+//                        contentDescription = "Change location",
+//                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+//                        modifier = Modifier.size(16.dp)
+//                    )
+//                }
+//            }
+//
+//            // Date filter
+//            Card(
+//                modifier = Modifier
+//                    .weight(1f)
+//                    .clickable { /* TODO: Date picker */ },
+//                colors = CardDefaults.cardColors(
+//                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.1f)
+//                ),
+//                shape = RoundedCornerShape(12.dp)
+//            ) {
+//                Row(
+//                    modifier = Modifier
+//                        .fillMaxWidth()
+//                        .padding(12.dp),
+//                    verticalAlignment = Alignment.CenterVertically,
+//                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+//                ) {
+//                    Icon(
+//                        imageVector = Icons.Default.DateRange,
+//                        contentDescription = "Date",
+//                        tint = MaterialTheme.colorScheme.secondary,
+//                        modifier = Modifier.size(18.dp)
+//                    )
+//
+//                    Text(
+//                        text = "Hôm nay",
+//                        style = MaterialTheme.typography.bodyMedium,
+//                        color = MaterialTheme.colorScheme.onSurface,
+//                        fontWeight = FontWeight.Medium
+//                    )
+//
+//                    Icon(
+//                        imageVector = Icons.Default.KeyboardArrowDown,
+//                        contentDescription = "Change date",
+//                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+//                        modifier = Modifier.size(16.dp)
+//                    )
+//                }
+//            }
+//        }
     }
 }
 

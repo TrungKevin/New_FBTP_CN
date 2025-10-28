@@ -25,7 +25,7 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import com.trungkien.fbtp_cn.ui.components.owner.map.MapMarkerUtils
-import org.osmdroid.views.MapView
+// Removed OSMDroid MapView to avoid name clash with Google MapView
 
 /**
  * Component hiển thị Google Maps với marker tự động khi có địa chỉ

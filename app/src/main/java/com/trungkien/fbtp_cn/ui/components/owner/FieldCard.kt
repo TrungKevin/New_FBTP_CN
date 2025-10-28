@@ -228,53 +228,53 @@ fun FieldCard(
                         }
 
                         // Enhanced action buttons
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            // Favorite button with animation
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-                                shadowElevation = CommonShadows.Button,
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clickable { onFavoriteClick() }
-                            ) {
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier.fillMaxSize()
-                                ) {
-                                    Icon(
-                                        imageVector = favoriteIcon,
-                                        contentDescription = "Favorite",
-                                        tint = favoriteColor,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                            }
-
-                            // Share button
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f),
-                                shadowElevation = CommonShadows.Button,
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clickable { onShareClick() }
-                            ) {
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier.fillMaxSize()
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Share,
-                                        contentDescription = "Share",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                            }
-                        }
+//                        Row(
+//                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+//                        ) {
+//                            // Favorite button with animation
+//                            Surface(
+//                                shape = CircleShape,
+//                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+//                                shadowElevation = CommonShadows.Button,
+//                                modifier = Modifier
+//                                    .size(44.dp)
+//                                    .clickable { onFavoriteClick() }
+//                            ) {
+//                                Box(
+//                                    contentAlignment = Alignment.Center,
+//                                    modifier = Modifier.fillMaxSize()
+//                                ) {
+//                                    Icon(
+//                                        imageVector = favoriteIcon,
+//                                        contentDescription = "Favorite",
+//                                        tint = favoriteColor,
+//                                        modifier = Modifier.size(22.dp)
+//                                    )
+//                                }
+//                            }
+//
+//                            // Share button
+//                            Surface(
+//                                shape = CircleShape,
+//                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f),
+//                                shadowElevation = CommonShadows.Button,
+//                                modifier = Modifier
+//                                    .size(44.dp)
+//                                    .clickable { onShareClick() }
+//                            ) {
+//                                Box(
+//                                    contentAlignment = Alignment.Center,
+//                                    modifier = Modifier.fillMaxSize()
+//                                ) {
+//                                    Icon(
+//                                        imageVector = Icons.Default.Share,
+//                                        contentDescription = "Share",
+//                                        tint = Color.White,
+//                                        modifier = Modifier.size(22.dp)
+//                                    )
+//                                }
+//                            }
+ //                       }
                     }
 
                     Spacer(modifier = Modifier.weight(1f))

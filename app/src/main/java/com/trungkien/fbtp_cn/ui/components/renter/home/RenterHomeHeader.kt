@@ -19,6 +19,14 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trungkien.fbtp_cn.data.MockData
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+import android.util.Base64
+import android.graphics.BitmapFactory
+import androidx.compose.ui.graphics.asImageBitmap
 import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 
 @Composable
@@ -26,7 +34,8 @@ fun RenterHomeHeader(
     onSearchClick: () -> Unit = {},
     onMapClick: () -> Unit = {},
     modifier: Modifier = Modifier,
-    renterName: String = ""
+    renterName: String = "",
+    renterAvatarUrl: String? = null
 ) {
     Column(
         modifier = modifier
@@ -34,17 +43,59 @@ fun RenterHomeHeader(
             .background(Color.White)
             .padding(16.dp)
     ) {
-        // Welcome message with icon
+        // Welcome message with avatar/icon
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Icon(
-                imageVector = Icons.Default.Person,
-                contentDescription = "Welcome",
-                tint = MaterialTheme.colorScheme.secondary,
-                modifier = Modifier.size(24.dp)
-            )
+            when {
+                !renterAvatarUrl.isNullOrBlank() && renterAvatarUrl.startsWith("data:image", ignoreCase = true) -> {
+                    val bitmap = remember(renterAvatarUrl) {
+                        try {
+                            val base64 = renterAvatarUrl.substringAfter(",")
+                            val bytes = Base64.decode(base64, Base64.DEFAULT)
+                            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        } catch (e: Exception) { null }
+                    }
+                    if (bitmap != null) {
+                        Image(
+                            bitmap = bitmap.asImageBitmap(),
+                            contentDescription = "Avatar",
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        AsyncImage(
+                            model = renterAvatarUrl,
+                            contentDescription = "Avatar",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                        )
+                    }
+                }
+                !renterAvatarUrl.isNullOrBlank() -> {
+                    AsyncImage(
+                        model = renterAvatarUrl,
+                        contentDescription = "Avatar",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                    )
+                }
+                else -> {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Welcome",
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
             
             Text(
                 text = "Xin chào!",
@@ -87,7 +138,7 @@ fun RenterHomeHeader(
                 )
                 
                 Text(
-                    text = "Quận 1, TP.HCM",
+                    text = "10/80c Song Hành Xa Lộ Hà Nội, Phường Tân Phú, Thủ Đức, Thành phố Hồ Chí Minh",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium

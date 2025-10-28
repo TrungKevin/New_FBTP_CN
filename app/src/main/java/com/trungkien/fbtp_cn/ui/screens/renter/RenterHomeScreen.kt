@@ -74,17 +74,20 @@ fun RenterHomeScreen(
         RenterHomeHeader(
             onSearchClick = onSearchClick,
             onMapClick = onMapClick,
-            renterName = user?.name ?: ""
+            renterName = user?.name ?: "",
+            renterAvatarUrl = user?.avatarUrl
         )
         
         Spacer(modifier = Modifier.height(16.dp))
+
+
         
-        // Map preview nhỏ
-        RenterMapPreview(
-            onMapClick = onMapClick
-        )
-        
-        Spacer(modifier = Modifier.height(24.dp))
+//        // Map preview nhỏ
+//        RenterMapPreview(
+//            onMapClick = onMapClick
+//        )
+//
+//        Spacer(modifier = Modifier.height(24.dp))
         
         // Sân nổi bật (lọc theo rating từ 3.0 đến 5.0) và map sang SearchResultField để tái dùng UI/logic
         val baseFields: List<Field> = fieldUi.allFields.ifEmpty { fieldUi.fields }
@@ -147,10 +150,19 @@ fun RenterHomeScreen(
                 )
             }
 
-        RenterFeaturedFields(
+        RenterFeaturedFields( // Sân nổi bật
             items = featuredItems,
             onFieldClick = onFieldClick,
             onBookClick = onBookClick
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Quick actions
+        RenterQuickActions(
+            onSearchClick = onSearchClick,
+            onMapClick = onMapClick,
+            onHistoryClick = onHistoryClick,
+            onProfileClick = onProfileClick
         )
         
         Spacer(modifier = Modifier.height(24.dp))
@@ -176,15 +188,7 @@ fun RenterHomeScreen(
             onFieldClick = onFieldClick
         )
         
-        Spacer(modifier = Modifier.height(24.dp))
-        
-        // Quick actions
-        RenterQuickActions(
-            onSearchClick = onSearchClick,
-            onMapClick = onMapClick,
-            onHistoryClick = onHistoryClick,
-            onProfileClick = onProfileClick
-        )
+
         
         Spacer(modifier = Modifier.height(100.dp)) // Space cho bottom navigation
     }

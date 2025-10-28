@@ -71,14 +71,14 @@ fun OwnerProfileScreen(
             }
 
             
-            item {
-                ProfileMenuSection(
-                    onMyFields = onNavigateToFieldList,
-                    onMyBookings = onNavigateToBookingList,
-                    onStatistics = onNavigateToStats,
-                    onNotifications = { /* TODO: Navigate to notifications */ }
-                )
-            }
+//            item {
+//                ProfileMenuSection(
+//                    onMyFields = onNavigateToFieldList,
+//                    onMyBookings = onNavigateToBookingList,
+//                    onStatistics = onNavigateToStats,
+//                    onNotifications = { /* TODO: Navigate to notifications */ }
+//                )
+//            }
             
             item {
                 ProfileSettingsSection(

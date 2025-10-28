@@ -66,12 +66,12 @@ fun RenterProfileScreen(
                 )
             }
 
-            item {
-                RenterProfileMenuSection(
-                    onMyBookings = {},
-                    onNotifications = {}
-                )
-            }
+//            item {
+//                RenterProfileMenuSection(
+//                    onMyBookings = {},
+//                    onNotifications = {}
+//                )
+//            }
 
             item {
                 RenterProfileSettingsSection(
