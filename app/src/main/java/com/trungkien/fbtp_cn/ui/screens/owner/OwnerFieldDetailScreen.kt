@@ -170,7 +170,7 @@ fun OwnerFieldDetailScreen(
 
     val pagerState = rememberPagerState(pageCount = { fieldImages.size })
     // Tabs + swipe state - Đơn giản hóa logic
-    val tabs = listOf("Thông tin", "Dịch vụ", "Đánh giá", "Khung giờ")
+    val tabs = listOf("Thông tin", "Dịch vụ", "Đánh giá", "Khung giờ", "Bảng xếp hạng")
     val tabPagerState = rememberPagerState(pageCount = { tabs.size })
 
     // cuộn về tab yêu cầu (reviews/info/services/slots)
@@ -382,11 +382,12 @@ fun OwnerFieldDetailScreen(
                     }
                 }
 
-                // Tabs + content
-                TabRow(
+                // Tabs + content (scrollable, một dòng, kéo ngang)
+                ScrollableTabRow(
                     selectedTabIndex = tabPagerState.currentPage,
                     containerColor = MaterialTheme.colorScheme.surface,
                     contentColor = MaterialTheme.colorScheme.primary,
+                    edgePadding = 12.dp,
                     indicator = { positions ->
                         TabRowDefaults.Indicator(
                             modifier = Modifier
@@ -410,6 +411,8 @@ fun OwnerFieldDetailScreen(
                             text = {
                                 Text(
                                     text = title,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
                                 )
                             }
@@ -491,6 +494,12 @@ fun OwnerFieldDetailScreen(
                             }
                         }
 
+                        4 -> {
+                            com.trungkien.fbtp_cn.ui.components.owner.info.LeaderboardTab(
+                                fieldId = field.fieldId,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
                         else -> Text("Tab $page content") // Mặc định nếu có tab mới
                     }
                 }
