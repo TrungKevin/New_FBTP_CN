@@ -25,6 +25,7 @@ import com.trungkien.fbtp_cn.model.Field
 import com.trungkien.fbtp_cn.model.GeoLocation
 import com.trungkien.fbtp_cn.repository.FieldRepository
 import com.trungkien.fbtp_cn.ui.components.owner.map.SportMarkerIcon
+import com.trungkien.fbtp_cn.ui.components.renter.map.SportLegend
 import com.google.android.gms.tasks.CancellationTokenSource
 import androidx.core.content.ContextCompat
 import android.Manifest
@@ -284,7 +285,7 @@ fun RenterGoogleMapView(
                 MapView(ctx).apply {
                     mapView = this
                     onCreate(null)
-                    getMapAsync { map ->
+                    getMapAsync @androidx.annotation.RequiresPermission(anyOf = [android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION]) { map ->
                         googleMap = map
                         
                         // Enable my location (hiển thị blue dot)
@@ -368,29 +369,37 @@ fun RenterGoogleMapView(
             }
         }
         
-        // Info about fields loaded
+        // Sport Legend - Góc dưới bên trái
         if (!isLoadingFields && fields.isNotEmpty()) {
-            Surface(
+            Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .padding(16.dp),
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-                shadowElevation = 4.dp
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    text = "📍 ${fields.size} sân gần bạn",
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                // Legend ở trên
+                SportLegend()
+                
+                // Info ở dưới
+                Surface(
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                    shadowElevation = 4.dp
+                ) {
+                    Text(
+                        text = "📍 ${fields.size} sân gần bạn",
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
             }
         }
         
-        // Custom Zoom Controls - Góc trên bên phải
+        // Custom Zoom Controls - Góc dưới bên phải
         Column(
             modifier = Modifier
-                .align(Alignment.TopEnd)
+                .align(Alignment.BottomEnd)
                 .padding(horizontal = 8.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {

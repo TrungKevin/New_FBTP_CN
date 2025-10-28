@@ -131,7 +131,7 @@ class SportMarkerIcon(
         val centerX = (left + right) / 2f
         val centerY = (top + bottom) / 2f - (right - left) / 8f // Dịch lên ít hơn để cân đối với marker mới
 
-        // Nền hình tròn trắng ở giữa để emoji nổi bật - làm nhỏ lại để viền màu rộng hơn
+        // Nền hình tròn trắng ở giữa để emoji nổi bật
         val innerRadius = (right - left) * 0.25f
         val innerCirclePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE

@@ -59,6 +59,7 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation("androidx.compose.material:material-icons-extended")
+    implementation(libs.play.services.location)
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     implementation("androidx.navigation:navigation-compose:2.9.2")
     testImplementation(libs.junit)
