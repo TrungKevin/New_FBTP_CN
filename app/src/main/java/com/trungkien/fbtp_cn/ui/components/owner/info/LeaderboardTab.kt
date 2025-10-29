@@ -69,7 +69,35 @@ fun LeaderboardTab(
         return
     }
 
-    val entries = leaderboard?.entries.orEmpty()
+    // Hợp nhất trùng renterId và sắp xếp theo WeightedWinRate giống repository để đảm bảo 1 người chỉ xuất hiện 1 lần
+    val rawEntries = leaderboard?.entries.orEmpty()
+    val c = 10f
+    val entries = rawEntries
+        .groupBy { it.renterId }
+        .values
+        .map { same ->
+            val first = same.first()
+            val wins = same.sumOf { it.wins }
+            val losses = same.sumOf { it.losses }
+            val draws = same.sumOf { it.draws }
+            val goalsFor = same.sumOf { it.goalsFor }
+            val goalsAgainst = same.sumOf { it.goalsAgainst }
+            val total = same.sumOf { it.totalMatches }
+            val winRate = if (total > 0) wins.toFloat() / total.toFloat() else 0f
+            val weighted = winRate * (total.toFloat() / (total.toFloat() + c))
+            first.copy(
+                wins = wins,
+                losses = losses,
+                draws = draws,
+                goalsFor = goalsFor,
+                goalsAgainst = goalsAgainst,
+                totalMatches = total,
+                winPercent = winRate * 100f,
+                weightedWinRate = weighted
+            )
+        }
+        .sortedByDescending { it.weightedWinRate }
+        .mapIndexed { index, e -> e.copy(rank = index + 1) }
 
     if (entries.isEmpty()) {
         Box(modifier = modifier.fillMaxWidth().padding(16.dp)) {
@@ -198,18 +226,7 @@ private fun LeaderboardRow(entry: LeaderboardEntry) {
                 )
             }
 
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = "Bàn thắng/bại",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "${entry.goalsFor}/${entry.goalsAgainst}",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
+            // Bỏ hiển thị Bàn thắng/bại theo yêu cầu
         }
     }
 }

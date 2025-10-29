@@ -75,10 +75,14 @@ class LeaderboardRepository(
                 }
             }
 
+            // Hằng số điều chỉnh trọng số số trận
+            val c = 10f
             val entries = stats.values.map { e ->
-                val winPercent = if (e.totalMatches > 0) e.wins.toFloat() / e.totalMatches * 100f else 0f
-                e.copy(winPercent = winPercent)
-            }.sortedByDescending { it.winPercent }
+                val winRate = if (e.totalMatches > 0) e.wins.toFloat() / e.totalMatches.toFloat() else 0f
+                val weighted = winRate * (e.totalMatches.toFloat() / (e.totalMatches.toFloat() + c))
+                val winPercent = winRate * 100f
+                e.copy(winPercent = winPercent, weightedWinRate = weighted)
+            }.sortedByDescending { it.weightedWinRate }
                 .mapIndexed { index, e -> e.copy(rank = index + 1) }
 
             val leaderboard = FieldLeaderboard(

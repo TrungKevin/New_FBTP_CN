@@ -12,6 +12,8 @@ data class LeaderboardEntry(
     val goalsAgainst: Int = 0,
     val totalMatches: Int = 0,
     val winPercent: Float = 0f,
+    // Điểm xếp hạng theo công thức có trọng số: winRate * (N/(N+C))
+    val weightedWinRate: Float = 0f,
     val rank: Int = 0
 )
 
