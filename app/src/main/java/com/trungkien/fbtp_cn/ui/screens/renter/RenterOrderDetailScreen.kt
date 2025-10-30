@@ -129,7 +129,7 @@ fun RenterOrderDetailScreen(
     val imagePager = rememberPagerState(pageCount = { fieldImages.size })
 
     // Tabs
-    val tabs = listOf("Thông tin", "Dịch vụ", "Đánh giá")
+    val tabs = listOf("Thông tin", "Dịch vụ", "Đánh giá", "Đấu Trường AI")
     val tabPagerState = rememberPagerState(pageCount = { tabs.size })
     val coroutineScope = rememberCoroutineScope()
 
@@ -153,7 +153,7 @@ fun RenterOrderDetailScreen(
             )
         },
         bottomBar = {
-            // Ẩn bottom bar khi đang ở tab "Đánh giá" để có không gian rộng hơn
+            // Ẩn bottom nav ở màn chi tiết. Chỉ hiển thị thanh giá + nút đặt lịch (trừ tab Đánh giá)
             if (tabPagerState.currentPage != 2) {
                 Card(
                     modifier = Modifier
@@ -251,10 +251,11 @@ fun RenterOrderDetailScreen(
             }
 
             // Tabs
-            TabRow(
+            ScrollableTabRow(
                 selectedTabIndex = tabPagerState.currentPage,
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = MaterialTheme.colorScheme.primary,
+                edgePadding = 12.dp,
                 indicator = { positions ->
                     TabRowDefaults.SecondaryIndicator(
                         modifier = Modifier
@@ -327,6 +328,17 @@ fun RenterOrderDetailScreen(
                     2 -> {
                         Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
                             RenterReviewsSection(fieldId = currentField.fieldId)
+                        }
+                    }
+                    3 -> {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            val authViewModel: com.trungkien.fbtp_cn.viewmodel.AuthViewModel = viewModel()
+                            val currentUser = authViewModel.currentUser.collectAsState().value
+                            LaunchedEffect(Unit) { if (currentUser == null) authViewModel.fetchProfile() }
+                            com.trungkien.fbtp_cn.ui.components.renter.ai.AIArenaTab(
+                                fieldId = currentField.fieldId,
+                                renterId = currentUser?.userId ?: ""
+                            )
                         }
                     }
                 }

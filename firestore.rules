@@ -99,23 +99,86 @@ service cloud.firestore {
         isFieldOwner(resource.data.fieldId);
     }
 
-    // BOOKINGS
+    // BOOKINGS (support single renterId or two participants renterA/renterB)
     match /bookings/{bookingId} {
-      allow read: if true;
-      allow create: if signedIn() && request.resource.data.renterId == request.auth.uid;
-      allow update, delete: if signedIn() &&
-        (resource.data.renterId == request.auth.uid || isFieldOwner(resource.data.fieldId));
+      allow read: if signedIn() && (
+        // single renter schema
+        (resource.data.renterId != null && resource.data.renterId == request.auth.uid) ||
+        // two participants schema
+        (resource.data.renterA != null && resource.data.renterA == request.auth.uid) ||
+        (resource.data.renterB != null && resource.data.renterB == request.auth.uid) ||
+        isFieldOwner(resource.data.fieldId)
+      );
+      allow create: if signedIn() && (
+        (request.resource.data.renterId != null && request.resource.data.renterId == request.auth.uid) ||
+        (request.resource.data.renterA != null && request.resource.data.renterA == request.auth.uid) ||
+        (request.resource.data.renterB != null && request.resource.data.renterB == request.auth.uid)
+      );
+      allow update, delete: if signedIn() && (
+        (resource.data.renterId != null && resource.data.renterId == request.auth.uid) ||
+        (resource.data.renterA != null && resource.data.renterA == request.auth.uid) ||
+        (resource.data.renterB != null && resource.data.renterB == request.auth.uid) ||
+        isFieldOwner(resource.data.fieldId)
+      );
     }
 
-    // SLOTS
+    // SLOTS - owner full control; renter may update status available->booked only
     match /slots/{slotId} {
       allow read: if true;
       allow create: if signedIn() &&
         request.resource.data.fieldId != null &&
         isFieldOwner(request.resource.data.fieldId);
-      allow update, delete: if signedIn() &&
-        resource.data.fieldId != null &&
-        isFieldOwner(resource.data.fieldId);
+      allow update: if signedIn() && (
+        (resource.data.fieldId != null && isFieldOwner(resource.data.fieldId)) ||
+        (
+          // renter can only toggle status from available to booked
+          request.resource.data.diff(resource.data).changedKeys().hasOnly(["status"]) &&
+          resource.data.status == "available" &&
+          request.resource.data.status == "booked"
+        )
+      );
+      allow delete: if signedIn() && resource.data.fieldId != null && isFieldOwner(resource.data.fieldId);
+    }
+
+    // Leaderboards (bảng xếp hạng theo sân)
+    match /leaderboards/{fieldId} {
+      allow read: if true;
+      allow create, update, delete: if signedIn() && isFieldOwner(fieldId);
+      allow create, update: if signedIn() && isFieldOwner(fieldId) &&
+        request.resource.data.fieldId == fieldId &&
+        request.resource.data.updatedAt is int &&
+        request.resource.data.entries is list;
+    }
+
+    // MATCH_REQUESTS
+    match /match_requests/{requestId} {
+      // create by one of participants
+      allow create: if signedIn() && (
+        request.resource.data.renterA == request.auth.uid ||
+        request.resource.data.renterB == request.auth.uid
+      );
+      // view by participants or field owner
+      allow read: if signedIn() && (
+        resource.data.renterA == request.auth.uid ||
+        resource.data.renterB == request.auth.uid ||
+        isFieldOwner(resource.data.fieldId)
+      );
+      allow update, delete: if signedIn() && (
+        resource.data.renterA == request.auth.uid ||
+        resource.data.renterB == request.auth.uid ||
+        isFieldOwner(resource.data.fieldId)
+      );
+    }
+
+    // UPPERCASE alias support (for legacy code paths)
+    match /BOOKING/{bookingId} {
+      allow read, create, update, delete: if matches(/databases/$(db)/documents/bookings/$(bookingId));
+    }
+    match /TIME_SLOT/{slotId} {
+      allow read, create, update, delete: if matches(/databases/$(db)/documents/slots/$(slotId));
+    }
+    match /MATCH_REQUEST/{requestId} {
+      allow read, create, update, delete: if matches(/databases/$(db)/documents/match_requests/$(requestId));
     }
 
     // REVIEWS - ✅ SỬA LỖI INDEX

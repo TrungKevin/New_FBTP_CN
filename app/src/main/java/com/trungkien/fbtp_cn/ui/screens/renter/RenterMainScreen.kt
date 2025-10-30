@@ -106,7 +106,9 @@ fun RenterMainScreen(
                 }
             },
             bottomBar = {
-                if (!isEditingProfile && !showNotificationScreen) {
+                // Ẩn bottom bar khi đang mở RenterOrderDetailScreen bên trong tab Search
+                val shouldShowBottom = !isEditingProfile && !showNotificationScreen && !(selectedScreen == RenterNavScreen.Search && activeOrderDetailFieldId != null)
+                if (shouldShowBottom) {
                     RenterBottomNavBar(
                         currentScreen = selectedScreen,
                         onTabSelected = { screen ->
