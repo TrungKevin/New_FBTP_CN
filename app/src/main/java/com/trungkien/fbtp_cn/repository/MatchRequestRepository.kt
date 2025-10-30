@@ -2,6 +2,8 @@ package com.trungkien.fbtp_cn.repository
 
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
+import com.trungkien.fbtp_cn.model.MatchInvite
+import com.trungkien.fbtp_cn.service.MatchInviteNotificationService
 
 data class SlotSuggestion(
     val facilityId: String,
@@ -78,6 +80,41 @@ class MatchRequestRepository(
                 val suggestions = suggestAlternatives(facilityId, date, timeRange)
                 MatchRequestResult.NeedAlternative(suggestions)
             }
+        } catch (e: Exception) {
+            MatchRequestResult.Error(e.message ?: "Gửi lời mời thất bại")
+        }
+    }
+
+    suspend fun sendMatchRequestFull(
+        renterAId: String,
+        renterBId: String,
+        facilityId: String,
+        courtId: String,
+        fieldName: String,
+        date: String,
+        timeRange: String,
+        phone: String,
+        note: String
+    ): MatchRequestResult {
+        return try {
+            val inviteId = FirebaseFirestore.getInstance().collection("match_invites").document().id
+            val matchInvite = MatchInvite(
+                inviteId = inviteId,
+                fromRenterId = renterAId,
+                fromName = "", // TODO: lấy tên user hiện tại (bổ sung nếu profile available)
+                fromPhone = phone,
+                toRenterId = renterBId,
+                fieldId = facilityId,
+                fieldName = fieldName,
+                date = date,
+                timeRange = timeRange,
+                note = note,
+                status = "pending"
+            )
+            FirebaseFirestore.getInstance().collection("match_invites").document(inviteId).set(matchInvite).await()
+            // Gửi notification
+            MatchInviteNotificationService.sendMatchInviteNotification(matchInvite)
+            MatchRequestResult.Booked
         } catch (e: Exception) {
             MatchRequestResult.Error(e.message ?: "Gửi lời mời thất bại")
         }

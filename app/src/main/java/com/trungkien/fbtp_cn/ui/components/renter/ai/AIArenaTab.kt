@@ -34,6 +34,12 @@ import android.util.Base64
 import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.border
 
 @Composable
 fun AIArenaTab(
@@ -225,12 +231,9 @@ fun AIArenaTab(
 
         val comparator = compareByDescending<LeaderboardEntry> { it.weightedWinRate }
             .thenByDescending { it.totalMatches }
-        val strong = entries
-            .filter { it.weightedWinRate >= strongThreshold }
-            .sortedWith(comparator)
-        val balanced = entries
-            .filter { it.weightedWinRate in balancedMin..strongThreshold }
-            .sortedWith(comparator)
+        val strongIds = entries.filter { it.weightedWinRate >= 0.5f }.map { it.renterId }.toSet()
+        val strong = entries.filter { it.weightedWinRate >= 0.5f }.sortedWith(comparator)
+        val balanced = entries.filter { it.weightedWinRate < 0.5f && it.renterId !in strongIds }.sortedWith(comparator)
 
         // Nếu tab Đối mạnh trống nhưng Đối khá có dữ liệu, tự chuyển sang Đối khá để người dùng thấy danh sách
         LaunchedEffect(entries, strong.size, balanced.size) {
@@ -250,7 +253,11 @@ fun AIArenaTab(
                 modifier = Modifier.fillMaxSize().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(list) { e -> OpponentCard(fieldId, renterId, e) }
+                items(list) { e -> // dùng items để tránh key warning khi danh sách thay đổi động
+                    if (e.renterId.isNotBlank() && e.renterId.lowercase() != "unknown" && e.renterId.lowercase() != "đối thủ") {
+                        OpponentCard(fieldId, renterId, e)
+                    }
+                }
             }
         }
     }
@@ -263,19 +270,42 @@ private fun OpponentCard(fieldId: String, renterAId: String, entry: LeaderboardE
     var name by remember { mutableStateOf("Đối thủ") }
     // Đồng bộ với cách lấy avatar của RenterReviewCard: luôn lấy mới từ UserRepository
     var showInvite by remember { mutableStateOf(false) }
-    var facilityId by remember { mutableStateOf("") }
-    var courtId by remember { mutableStateOf("") }
+    var facilityId by remember { mutableStateOf<String?>(null) }
+    var courtId by remember { mutableStateOf<String?>(null) }
     var date by remember { mutableStateOf("") }
     var timeRange by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    var note by remember { mutableStateOf("") }
     var suggestions by remember { mutableStateOf<List<com.trungkien.fbtp_cn.repository.SlotSuggestion>>(emptyList()) }
     var sending by remember { mutableStateOf(false) }
+    var showDetail by remember { mutableStateOf(false) }
+    var fieldName by remember { mutableStateOf<String?>(null) }
+    var fieldLoading by remember { mutableStateOf(false) }
+
+    // Fetch field khi cần show detail
+    LaunchedEffect(showDetail) {
+        if (showDetail && fieldName == null) {
+            fieldLoading = true
+            try {
+                val doc = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    .collection("fields")
+                    .document(fieldId)
+                    .get()
+                    .await()
+                fieldName = doc.getString("name") ?: "--"
+            } catch (_: Exception) {
+                fieldName = "--"
+            }
+            fieldLoading = false
+        }
+    }
 
     val avatarData by produceState(initialValue = "", key1 = entry.renterId) {
         if (entry.renterId.isNotBlank()) {
             userRepo.getUserById(
                 entry.renterId,
                 onSuccess = { u ->
-                    name = u.name
+            name = u.name
                     value = u.avatarUrl ?: ""
                 },
                 onError = { _ -> value = "" }
@@ -291,110 +321,47 @@ private fun OpponentCard(fieldId: String, renterAId: String, entry: LeaderboardE
         ),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            val data = avatarData
-            val context = LocalContext.current
-            when {
-                data.isBlank() -> {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(48.dp)
-                    )
+        Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            // Avatar trái (ẩn hoàn toàn nếu không có avatar)
+            if (avatarData.isNotBlank()) {
+                if (avatarData.startsWith("data:image", true)) {
+                    val base = avatarData.substringAfter(",")
+                    val bytes = try { android.util.Base64.decode(base, android.util.Base64.DEFAULT) } catch (_: Exception) { null }
+                    val bmp = bytes?.let { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size) }
+                    if (bmp != null) Image(bitmap = bmp.asImageBitmap(), contentDescription = null, modifier = Modifier.size(54.dp).clip(CircleShape).border(1.dp, MaterialTheme.colorScheme.outline, CircleShape))
+                } else {
+                    AsyncImage(model = ImageRequest.Builder(LocalContext.current).data(avatarData).allowHardware(false).build(), contentDescription = null, modifier = Modifier.size(54.dp).clip(CircleShape).border(1.dp, MaterialTheme.colorScheme.outline, CircleShape))
                 }
-                data.startsWith("data:image", ignoreCase = true) -> {
-                    val base64 = data.substringAfter(",")
-                    val bytes = try { Base64.decode(base64, Base64.DEFAULT) } catch (_: Exception) { null }
-                    val bmp = bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
-                    if (bmp != null) {
-                        Image(
-                            bitmap = bmp.asImageBitmap(),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(48.dp)
-                        )
-                    }
-                }
-                data.startsWith("http", ignoreCase = true) -> {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(data)
-                            .crossfade(true)
-                            .allowHardware(false)
-                            .build(),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                    )
-                }
-                else -> {
-                    // base64 thô từ Firestore (không prefix), cố decode trực tiếp
-                    val bytes = try { Base64.decode(data, Base64.DEFAULT) } catch (_: Exception) { null }
-                    val bmp = bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
-                    if (bmp != null) {
-                        Image(
-                            bitmap = bmp.asImageBitmap(),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                        )
-                    } else {
-                        AsyncImage(
-                            model = ImageRequest.Builder(context)
-                                .data("data:image/jpeg;base64,$data")
-                                .crossfade(true)
-                                .allowHardware(false)
-                                .build(),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                        )
-                    }
-                }
+                Spacer(modifier = Modifier.width(14.dp))
+            } else {
+                Spacer(modifier = Modifier.width(8.dp)) // spacing khi không có avatar
             }
-
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            // Cột thông tin giữa
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
                 Text(
                     text = name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    AssistChip(
+                        onClick = {},
+                        label = { Text("AI ${((entry.weightedWinRate * 100).coerceIn(0f, 100f)).toInt()}/100", style = MaterialTheme.typography.labelMedium) },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.height(28.dp)
+                    )
+                    AssistChip(
+                        onClick = {},
+                        label = { Text("Win ${"%.1f".format(entry.winPercent)}%", style = MaterialTheme.typography.labelMedium) },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.height(28.dp)
+                    )
 
-                val aiScore = ((entry.weightedWinRate * 100).coerceIn(0f, 100f)).toInt()
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AssistChip(
-                        onClick = {},
-                        label = { Text("AI ${aiScore}/100") }
-                    )
-                    AssistChip(
-                        onClick = {},
-                        label = { Text("Win ${"%.1f".format(entry.winPercent)}%") }
-                    )
-                    AssistChip(
-                        onClick = {},
-                        label = { Text("Trận ${entry.totalMatches}") }
-                    )
                 }
-
+                Spacer(modifier = Modifier.height(6.dp))
                 val desc = if (entry.weightedWinRate >= 0.5f) {
                     "AI nhận định: phong độ cao, phù hợp để thử thách."
                 } else {
@@ -402,37 +369,63 @@ private fun OpponentCard(fieldId: String, renterAId: String, entry: LeaderboardE
                 }
                 Text(
                     text = desc,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2
                 )
             }
-
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.End) {
-                TextButton(onClick = { /* TODO: mở trang chi tiết đội */ }) {
-                    Text("Xem chi tiết")
-                }
-                Button(onClick = { showInvite = true }, shape = RoundedCornerShape(12.dp)) {
-                    Text("Gửi lời mời")
+            Spacer(modifier = Modifier.width(12.dp))
+            // Nút Xem chi tiết
+            Column(verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.End) {
+                TextButton(onClick = { showDetail = true }) {
+                    Text("Xem chi tiết", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
                 }
             }
         }
     }
 
+    if (showDetail) {
+        OpponentDetailSheet(
+            renterId = entry.renterId,
+            aiScore = ((entry.weightedWinRate * 100).coerceIn(0f, 100f)).toInt(),
+            winRate = entry.winPercent,
+            totalMatches = entry.totalMatches,
+            fieldName = fieldName ?: "Đang tải...",
+            fieldsLoading = fieldLoading,
+            onDismiss = { showDetail = false },
+            onInvite = { selectedDate, selectedTimeRange, selectedPhone, selectedNote ->
+                date = selectedDate
+                timeRange = selectedTimeRange
+                phone = selectedPhone
+                note = selectedNote
+                showDetail = false
+                showInvite = true
+            }
+        )
+    }
+
     if (showInvite) {
         val scope = rememberCoroutineScope()
+        val fieldNameShow = fieldName ?: "--"
+        val facilityIdField = (facilityId ?: "").ifBlank { fieldId }
+        val courtIdField = (courtId ?: "")
+        val isPhoneValid = phone.length == 11 && phone.all { it.isDigit() }
         AlertDialog(
             onDismissRequest = { if (!sending) showInvite = false },
             confirmButton = {
-                TextButton(enabled = !sending, onClick = {
+                TextButton(enabled = !sending && isPhoneValid, onClick = {
                     sending = true
                     scope.launch {
-                        when (val res = matchRepo.sendMatchRequest(
+                        when (val res = matchRepo.sendMatchRequestFull(
                             renterAId = renterAId,
                             renterBId = entry.renterId,
-                            facilityId = facilityId.ifBlank { fieldId },
-                            courtId = courtId,
+                            facilityId = facilityIdField,
+                            courtId = courtIdField,
+                            fieldName = fieldNameShow,
                             date = date,
-                            timeRange = timeRange
+                            timeRange = timeRange,
+                            phone = phone,
+                            note = note
                         )) {
                             is MatchRequestResult.Booked -> {
                                 sending = false
@@ -453,20 +446,19 @@ private fun OpponentCard(fieldId: String, renterAId: String, entry: LeaderboardE
             title = { Text("Gửi lời mời giao hữu") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = facilityId, onValueChange = { facilityId = it }, label = { Text("Cơ sở/Sân (FacilityId)") })
-                    OutlinedTextField(value = courtId, onValueChange = { courtId = it }, label = { Text("Mã sân (CourtId)") })
-                    OutlinedTextField(value = date, onValueChange = { date = it }, label = { Text("Ngày (yyyy-MM-dd)") })
-                    OutlinedTextField(value = timeRange, onValueChange = { timeRange = it }, label = { Text("Khung giờ (HH:mm-HH:mm)") })
+                    Text("Sân thi đấu: $fieldNameShow", style = MaterialTheme.typography.bodyLarge)
+                    Text("Ngày: $date", style = MaterialTheme.typography.bodyMedium)
+                    Text("Khung giờ: $timeRange", style = MaterialTheme.typography.bodyMedium)
+                    Text("Số điện thoại: $phone", style = MaterialTheme.typography.bodyMedium)
+                    if (note.isNotBlank()) Text("Ghi chú: $note", style = MaterialTheme.typography.bodyMedium)
                     if (suggestions.isNotEmpty()) {
                         Text("Khung giờ đã kín. Gợi ý:")
                         suggestions.forEach { s ->
                             TextButton(onClick = {
-                                facilityId = s.facilityId
-                                courtId = s.courtId
                                 date = s.date
                                 timeRange = s.timeRange
                             }) {
-                                Text("${s.facilityId} • ${s.courtId} • ${s.date} • ${s.timeRange}")
+                                Text("${s.date} • ${s.timeRange}")
                             }
                         }
                     }
