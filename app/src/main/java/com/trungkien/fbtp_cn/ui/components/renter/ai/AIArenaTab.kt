@@ -380,7 +380,7 @@ private fun OpponentCard(fieldId: String, renterAId: String, entry: LeaderboardE
                 TextButton(onClick = { showDetail = true }) {
                     Text("Xem chi tiết", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
                 }
-            }
+        }
         }
     }
 
@@ -409,11 +409,14 @@ private fun OpponentCard(fieldId: String, renterAId: String, entry: LeaderboardE
         val fieldNameShow = fieldName ?: "--"
         val facilityIdField = (facilityId ?: "").ifBlank { fieldId }
         val courtIdField = (courtId ?: "")
-        val isPhoneValid = phone.length == 11 && phone.all { it.isDigit() }
+        val isPhoneValid = phone.length == 10 && phone.all { it.isDigit() }
+        val timeRegex = Regex("^\\d{2}:\\d{2}-\\d{2}:\\d{2}$")
+        val isFormValid = isPhoneValid && date.isNotBlank() && timeRange.matches(timeRegex)
+        val ctx = androidx.compose.ui.platform.LocalContext.current
         AlertDialog(
             onDismissRequest = { if (!sending) showInvite = false },
             confirmButton = {
-                TextButton(enabled = !sending && isPhoneValid, onClick = {
+                androidx.compose.material3.Button(enabled = !sending && isFormValid, onClick = {
                     sending = true
                     scope.launch {
                         when (val res = matchRepo.sendMatchRequestFull(
@@ -430,17 +433,20 @@ private fun OpponentCard(fieldId: String, renterAId: String, entry: LeaderboardE
                             is MatchRequestResult.Booked -> {
                                 sending = false
                                 showInvite = false
+                                android.widget.Toast.makeText(ctx, "Đã gửi lời mời", android.widget.Toast.LENGTH_SHORT).show()
                             }
                             is MatchRequestResult.NeedAlternative -> {
                                 suggestions = res.suggestions
                                 sending = false
+                                android.widget.Toast.makeText(ctx, "Khung giờ đã kín, xem gợi ý", android.widget.Toast.LENGTH_SHORT).show()
                             }
                             is MatchRequestResult.Error -> {
                                 sending = false
+                                android.widget.Toast.makeText(ctx, "Gửi thất bại, thử lại sau", android.widget.Toast.LENGTH_SHORT).show()
                             }
                         }
                     }
-                }) { Text("Gửi") }
+                }) { androidx.compose.material3.Text("Gửi") }
             },
             dismissButton = { TextButton(enabled = !sending, onClick = { showInvite = false }) { Text("Hủy") } },
             title = { Text("Gửi lời mời giao hữu") },

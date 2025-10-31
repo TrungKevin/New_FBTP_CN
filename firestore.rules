@@ -218,6 +218,23 @@ service cloud.firestore {
            get(/databases/$(db)/documents/fields/$(request.resource.data.data.fieldId)).data.ownerId
              == request.auth.uid
          )) ||
+        // Cho phép thông báo thách đấu renter ↔ renter (dữ liệu có thể ở root hoặc trong data.customData)
+        (
+          (request.resource.data.type in ["MATCH_INVITE", "MATCH_ACCEPTED", "MATCH_REJECTED"]) &&
+          request.resource.data.toUserId != null &&
+          (
+            request.resource.data.inviteId != null ||
+            (request.resource.data.data != null && request.resource.data.data.customData != null && request.resource.data.data.customData.inviteId != null)
+          ) &&
+          (
+            request.resource.data.fromRenterId == request.auth.uid ||
+            request.resource.data.toRenterId == request.auth.uid ||
+            (request.resource.data.data != null && request.resource.data.data.customData != null && (
+              request.resource.data.data.customData.fromRenterId == request.auth.uid ||
+              request.resource.data.data.customData.toRenterId == request.auth.uid
+            ))
+          )
+        ) ||
         // Cho phép renter gửi notification cho renter khác khi đã ghép đối thủ (OPPONENT_MATCHED)
         (
           request.resource.data.type == "OPPONENT_MATCHED" &&
@@ -252,6 +269,23 @@ service cloud.firestore {
         (request.resource.data.data == null || 
          request.resource.data.data.fieldId == null)
       );
+    }
+
+    // MATCH_INVITES - lời mời thách đấu renter ↔ renter
+    match /match_invites/{inviteId} {
+      // Tạo bởi người gửi
+      allow create: if signedIn() && request.resource.data.fromRenterId == request.auth.uid;
+      // Đọc bởi hai bên
+      allow read: if signedIn() && (
+        resource.data.fromRenterId == request.auth.uid ||
+        resource.data.toRenterId == request.auth.uid
+      );
+      // Cập nhật trạng thái bởi hai bên (ví dụ: accepted/rejected)
+      allow update: if signedIn() && (
+        resource.data.fromRenterId == request.auth.uid ||
+        resource.data.toRenterId == request.auth.uid
+      );
+      // Không cho xóa để lưu lịch sử
     }
 
     // USER_DEVICES

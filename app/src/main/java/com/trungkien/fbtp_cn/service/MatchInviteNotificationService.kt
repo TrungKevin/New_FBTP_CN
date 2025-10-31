@@ -10,11 +10,25 @@ object MatchInviteNotificationService {
         val notif = hashMapOf(
             "toUserId" to invite.toRenterId,
             "type" to "MATCH_INVITE",
-            "inviteId" to invite.inviteId,
             "title" to "Lời mời thách đấu từ ${invite.fromName}",
-            "content" to "Sân: ${invite.fieldName}\nNgày: ${invite.date}\nGiờ: ${invite.timeRange}\nSĐT: ${invite.fromPhone}\nGhi chú: ${invite.note}",
-            "status" to "pending",
-            "timestamp" to System.currentTimeMillis()
+            "body" to "Sân: ${invite.fieldName}\nNgày: ${invite.date}\nGiờ: ${invite.timeRange}\nSĐT: ${invite.fromPhone}\nGhi chú: ${invite.note.ifBlank { "Không có" }}",
+            "data" to mapOf(
+                "fieldId" to invite.fieldId,
+                "customData" to mapOf(
+                    "inviteId" to invite.inviteId,
+                    "fromRenterId" to invite.fromRenterId,
+                    "toRenterId" to invite.toRenterId,
+                    "fromName" to invite.fromName,
+                    "fromPhone" to invite.fromPhone,
+                    "date" to invite.date,
+                    "timeRange" to invite.timeRange,
+                    "note" to invite.note,
+                    "fieldName" to invite.fieldName
+                )
+            ),
+            "read" to false,
+            "isRead" to false,
+            "createdAt" to System.currentTimeMillis()
         )
         FirebaseFirestore.getInstance().collection("notifications").add(notif).await()
     }
@@ -24,11 +38,19 @@ object MatchInviteNotificationService {
         val notif = hashMapOf(
             "toUserId" to invite.fromRenterId,
             "type" to "MATCH_ACCEPTED",
-            "inviteId" to invite.inviteId,
             "title" to "Đối thủ đã xác nhận thách đấu",
-            "content" to "${accepterName} đã xác nhận giao hữu với bạn.\nSân: ${invite.fieldName}\nNgày: ${invite.date}\nGiờ: ${invite.timeRange}",
-            "status" to "accepted",
-            "timestamp" to System.currentTimeMillis()
+            "body" to "$accepterName đã xác nhận giao hữu với bạn.\nSân: ${invite.fieldName}\nNgày: ${invite.date}\nGiờ: ${invite.timeRange}",
+            "data" to mapOf(
+                "fieldId" to invite.fieldId,
+                "customData" to mapOf(
+                    "inviteId" to invite.inviteId,
+                    "fromRenterId" to invite.fromRenterId,
+                    "toRenterId" to invite.toRenterId
+                )
+            ),
+            "read" to false,
+            "isRead" to false,
+            "createdAt" to System.currentTimeMillis()
         )
         FirebaseFirestore.getInstance().collection("notifications").add(notif).await()
     }
@@ -38,11 +60,19 @@ object MatchInviteNotificationService {
         val notif = hashMapOf(
             "toUserId" to invite.fromRenterId,
             "type" to "MATCH_REJECTED",
-            "inviteId" to invite.inviteId,
             "title" to "Đối thủ từ chối lời mời giao hữu",
-            "content" to "${rejecterName} đã từ chối lời mời.\nSân: ${invite.fieldName}\nNgày: ${invite.date}\nGiờ: ${invite.timeRange}",
-            "status" to "rejected",
-            "timestamp" to System.currentTimeMillis()
+            "body" to "$rejecterName đã từ chối lời mời.\nSân: ${invite.fieldName}\nNgày: ${invite.date}\nGiờ: ${invite.timeRange}",
+            "data" to mapOf(
+                "fieldId" to invite.fieldId,
+                "customData" to mapOf(
+                    "inviteId" to invite.inviteId,
+                    "fromRenterId" to invite.fromRenterId,
+                    "toRenterId" to invite.toRenterId
+                )
+            ),
+            "read" to false,
+            "isRead" to false,
+            "createdAt" to System.currentTimeMillis()
         )
         FirebaseFirestore.getInstance().collection("notifications").add(notif).await()
     }

@@ -113,7 +113,9 @@ fun getNotificationStyle(type: String): NotificationStyle {
 @Composable
 fun NotificationCard(
     notification: Notification,
-    onItemClick: (Notification) -> Unit
+    onItemClick: (Notification) -> Unit,
+    onAcceptInvite: (inviteId: String, fieldId: String?) -> Unit = { _, _ -> },
+    onRejectInvite: (inviteId: String) -> Unit = { }
 ) {
     val notificationStyle = getNotificationStyle(notification.type)
     val backgroundColor = if (notification.read) Color.White else notificationStyle.backgroundColor
@@ -177,7 +179,7 @@ fun NotificationCard(
                     text = displayBody,
                     style = MaterialTheme.typography.bodyMedium,
                     color = textColor,
-                    maxLines = 2,
+                    maxLines = 3,
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(4.dp))
@@ -186,6 +188,22 @@ fun NotificationCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.Gray
                 )
+
+                // Hành động cho MATCH_INVITE
+                if (notification.type == "MATCH_INVITE") {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    val custom = notification.data.customData
+                    val inviteId = (custom["inviteId"] as? String) ?: ""
+                    val fieldId = notification.data.fieldId
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        androidx.compose.material3.OutlinedButton(onClick = { if (inviteId.isNotBlank()) onRejectInvite(inviteId) }) {
+                            Text("Từ chối")
+                        }
+                        androidx.compose.material3.Button(onClick = { if (inviteId.isNotBlank()) onAcceptInvite(inviteId, fieldId) }) {
+                            Text("Đồng ý")
+                        }
+                    }
+                }
             }
             
             // Unread indicator với color phù hợp
@@ -230,7 +248,9 @@ fun NotificationList(
     notifications: List<Notification>,
     onItemClick: (Notification) -> Unit,
     modifier: Modifier = Modifier,
-    selectedDate: String? = null // null = hiển thị ngày hôm nay, có giá trị = hiển thị ngày được chọn
+    selectedDate: String? = null, // null = hiển thị ngày hôm nay, có giá trị = hiển thị ngày được chọn
+    onAcceptInvite: (inviteId: String, fieldId: String?) -> Unit = { _, _ -> },
+    onRejectInvite: (inviteId: String) -> Unit = { }
 ) {
     if (notifications.isEmpty()) {
         // Hiển thị 4 card placeholder cho từng nhóm thông báo
@@ -338,7 +358,9 @@ fun NotificationList(
                 items(filteredNotifications.sortedByDescending { it.createdAt }) { notification ->
                     NotificationCard(
                         notification = notification,
-                        onItemClick = onItemClick
+                        onItemClick = onItemClick,
+                        onAcceptInvite = onAcceptInvite,
+                        onRejectInvite = onRejectInvite
                     )
                 }
             }
@@ -466,7 +488,7 @@ fun NotificationCardPreview() {
                     read = false,
                     createdAt = System.currentTimeMillis() - 3600000
                 )
-            ) {}
+            , onItemClick = {})
             
             NotificationCard(
                 notification = Notification(
@@ -479,7 +501,7 @@ fun NotificationCardPreview() {
                     read = true,
                     createdAt = System.currentTimeMillis() - 7200000
                 )
-            ) {}
+            , onItemClick = {})
         }
     }
 }
