@@ -40,6 +40,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.border
+import kotlin.math.roundToInt
 
 @Composable
 fun AIArenaTab(
@@ -48,14 +49,18 @@ fun AIArenaTab(
     modifier: Modifier = Modifier
 ) {
     val repo = remember { LeaderboardRepository() }
+    val aiAgent = remember { com.trungkien.fbtp_cn.repository.AIAgent() }
     var entries by remember { mutableStateOf<List<LeaderboardEntry>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    var myWeighted by remember { mutableStateOf<Float?>(null) }
 
     LaunchedEffect(fieldId, renterId) {
         isLoading = true
         val lb = repo.getLeaderboard(fieldId).getOrNull()
             ?: repo.recomputeAndSave(fieldId).getOrNull()
         var list = lb?.entries.orEmpty()
+        // kỹ năng của chính mình nếu có trong leaderboard
+        myWeighted = lb?.entries?.firstOrNull { it.renterId == renterId }?.weightedWinRate
         // loại chính mình nếu có
         if (renterId.isNotEmpty()) list = list.filter { it.renterId != renterId }
         // Fallback: nếu sân hiện tại không có dữ liệu leaderboard, thử tính trực tiếp từ match_results theo field
@@ -216,7 +221,7 @@ fun AIArenaTab(
     var strongThreshold by remember { mutableStateOf(0.5f) }
     // Mở rộng tab "Đối khá" để bao phủ mọi đối thủ dưới ngưỡng mạnh
     var balancedMin by remember { mutableStateOf(0f) }
-    val tabs = listOf("Đối mạnh", "Đối khá")
+    val tabs = listOf("Gợi ý", "Đối mạnh", "Đối khá")
 
     Column(modifier = modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = selectedTab) {
@@ -234,15 +239,24 @@ fun AIArenaTab(
         val strongIds = entries.filter { it.weightedWinRate >= 0.5f }.map { it.renterId }.toSet()
         val strong = entries.filter { it.weightedWinRate >= 0.5f }.sortedWith(comparator)
         val balanced = entries.filter { it.weightedWinRate < 0.5f && it.renterId !in strongIds }.sortedWith(comparator)
+        val suggestions: List<LeaderboardEntry> = remember(entries, myWeighted) {
+            val sug = aiAgent.suggestOpponents(myWeighted, entries, limit = 5)
+            val idSet = sug.map { it.renterId }.toSet()
+            entries.filter { it.renterId in idSet }
+                .sortedByDescending { e -> sug.firstOrNull { it.renterId == e.renterId }?.score ?: 0f }
+        }
 
         // Nếu tab Đối mạnh trống nhưng Đối khá có dữ liệu, tự chuyển sang Đối khá để người dùng thấy danh sách
         LaunchedEffect(entries, strong.size, balanced.size) {
-            if (selectedTab == 0 && strong.isEmpty() && balanced.isNotEmpty()) {
-                selectedTab = 1
-            }
+            if (selectedTab == 0 && suggestions.isNotEmpty()) return@LaunchedEffect
+            if (selectedTab == 1 && strong.isEmpty() && balanced.isNotEmpty()) selectedTab = 2
         }
 
-        val list = if (selectedTab == 0) strong else balanced
+        val list = when (selectedTab) {
+            0 -> suggestions
+            1 -> strong
+            else -> balanced
+        }
 
         if (list.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -253,9 +267,16 @@ fun AIArenaTab(
                 modifier = Modifier.fillMaxSize().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(list) { e -> // dùng items để tránh key warning khi danh sách thay đổi động
+                items(list) { e ->
                     if (e.renterId.isNotBlank() && e.renterId.lowercase() != "unknown" && e.renterId.lowercase() != "đối thủ") {
-                        OpponentCard(fieldId, renterId, e)
+                        val prob = if (selectedTab == 0) {
+                            val baseMy = myWeighted ?: run {
+                                val arr = entries.map { it.weightedWinRate }.sorted()
+                                if (arr.isEmpty()) 0.5f else arr[arr.size / 2]
+                            }
+                            aiAgent.estimateOutcomeProbabilities(baseMy, e.weightedWinRate)
+                        } else null
+                        OpponentCard(fieldId, renterId, e, prob)
                     }
                 }
             }
@@ -264,7 +285,12 @@ fun AIArenaTab(
 }
 
 @Composable
-private fun OpponentCard(fieldId: String, renterAId: String, entry: LeaderboardEntry) {
+private fun OpponentCard(
+    fieldId: String,
+    renterAId: String,
+    entry: LeaderboardEntry,
+    outcomeProb: com.trungkien.fbtp_cn.repository.OutcomeProbabilities? = null
+) {
     val userRepo = remember { UserRepository() }
     val matchRepo = remember { MatchRequestRepository() }
     var name by remember { mutableStateOf("Đối thủ") }
@@ -353,16 +379,35 @@ private fun OpponentCard(fieldId: String, renterAId: String, entry: LeaderboardE
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.height(28.dp)
                     )
-                    AssistChip(
-                        onClick = {},
-                        label = { Text("Win ${"%.1f".format(entry.winPercent)}%", style = MaterialTheme.typography.labelMedium) },
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.height(28.dp)
-                    )
+                    if (outcomeProb == null) {
+                        AssistChip(
+                            onClick = {},
+                            label = { Text("Win ${"%.1f".format(entry.winPercent)}%", style = MaterialTheme.typography.labelMedium) },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.height(28.dp)
+                        )
+                    } else {
+                        val wInt = (outcomeProb.pWin * 100f).roundToInt()
+                        val dInt = (outcomeProb.pDraw * 100f).roundToInt()
+                        var lInt = 100 - wInt - dInt
+                        if (lInt < 0) lInt = 0
+                        AssistChip(
+                            onClick = {},
+                            label = { Text("pWin ${wInt}%", style = MaterialTheme.typography.labelMedium) },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.height(28.dp)
+                        )
+                    }
 
                 }
                 Spacer(modifier = Modifier.height(6.dp))
-                val desc = if (entry.weightedWinRate >= 0.5f) {
+                val desc = if (outcomeProb != null) {
+                    val wInt = (outcomeProb.pWin * 100f).roundToInt()
+                    val dInt = (outcomeProb.pDraw * 100f).roundToInt()
+                    var lInt = 100 - wInt - dInt
+                    if (lInt < 0) lInt = 0
+                    "AI dự đoán: Thắng ${wInt}% • Hòa ${dInt}% • Thua ${lInt}%"
+                } else if (entry.weightedWinRate >= 0.5f) {
                     "AI nhận định: phong độ cao, phù hợp để thử thách."
                 } else {
                     "AI nhận định: phong độ ổn định, thích hợp cho trận cân bằng."
