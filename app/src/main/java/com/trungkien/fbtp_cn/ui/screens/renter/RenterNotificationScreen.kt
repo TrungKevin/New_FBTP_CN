@@ -45,6 +45,8 @@ fun RenterNotificationScreen(
     val matchRepo = remember { com.trungkien.fbtp_cn.repository.MatchRequestRepository() }
     val acceptOrRejectScope = rememberCoroutineScope()
     val currentUserName = remember { mutableStateOf("Bạn") }
+    var showInviteSheet by remember { mutableStateOf(false) }
+    var selectedInvite by remember { mutableStateOf<com.trungkien.fbtp_cn.model.Notification?>(null) }
     val scope = rememberCoroutineScope()
     
     // Date filter state
@@ -156,6 +158,10 @@ fun RenterNotificationScreen(
 
                         // Điều hướng theo loại
                         when (notification.type) {
+                            "MATCH_INVITE" -> {
+                                selectedInvite = notification
+                                showInviteSheet = true
+                            }
                             "BOOKING_CREATED", "BOOKING_SUCCESS", "BOOKING_CANCELLED", "BOOKING_CONFIRMED", "BOOKING_CANCELLED_BY_OWNER", "OPPONENT_JOINED", "OPPONENT_MATCHED", "MATCH_RESULT" -> {
                                 onNavigateToBooking()
                             }
@@ -210,6 +216,52 @@ fun RenterNotificationScreen(
                 )
             }
         }
+    }
+
+    if (showInviteSheet && selectedInvite != null) {
+        val n = selectedInvite!!
+        val cd = n.data.customData
+        val fieldName = (cd["fieldName"] as? String) ?: "--"
+        val date = (cd["date"] as? String) ?: "--"
+        val timeRange = (cd["timeRange"] as? String) ?: "--"
+        val fromName = (cd["fromName"] as? String) ?: "Người gửi"
+        val fromRenterId = (cd["fromRenterId"] as? String)
+        val fromPhone = (cd["fromPhone"] as? String) ?: ""
+        val note = (cd["note"] as? String) ?: ""
+        val inviteId = (cd["inviteId"] as? String) ?: ""
+        val fieldId = n.data.fieldId
+
+        com.trungkien.fbtp_cn.ui.components.notification.InviteDetailBottomSheet(
+            fieldName = fieldName,
+            date = date,
+            timeRange = timeRange,
+            fromName = fromName,
+            fromRenterId = fromRenterId,
+            fromPhone = fromPhone,
+            note = note,
+            onAccept = if (inviteId.isNotBlank()) {
+                {
+                    acceptOrRejectScope.launch {
+                        matchRepo.acceptInvite(inviteId, currentUserName.value)
+                            .onSuccess {
+                                showInviteSheet = false
+                                if (!fieldId.isNullOrBlank()) onNavigateToFieldDetail(fieldId, "booking") else onNavigateToBooking()
+                            }
+                            .onFailure { showInviteSheet = false }
+                    }
+                }
+            } else null,
+            onReject = if (inviteId.isNotBlank()) {
+                {
+                    acceptOrRejectScope.launch {
+                        matchRepo.rejectInvite(inviteId, currentUserName.value)
+                            .onSuccess { showInviteSheet = false }
+                            .onFailure { showInviteSheet = false }
+                    }
+                }
+            } else null,
+            onDismiss = { showInviteSheet = false }
+        )
     }
     
     if (showDatePicker) {

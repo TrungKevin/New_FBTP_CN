@@ -125,6 +125,60 @@ class MatchRequestRepository(
         note: String
     ): MatchRequestResult {
         return try {
+            fun parseMinutes(range: String): Pair<Int, Int>? {
+                val parts = range.split("-").map { it.trim() }
+                if (parts.size != 2) return null
+                fun toMin(hhmm: String): Int {
+                    val p = hhmm.split(":").map { it.trim() }
+                    val h = p.getOrNull(0)?.trim()?.toIntOrNull() ?: 0
+                    val m = p.getOrNull(1)?.trim()?.toIntOrNull() ?: 0
+                    return h * 60 + m
+                }
+                val start = toMin(parts[0])
+                val end = toMin(parts[1])
+                return if (end > start) start to end else null
+            }
+            fun isOverlap(a: String, b: String): Boolean {
+                val ma = parseMinutes(a) ?: return false
+                val mb = parseMinutes(b) ?: return false
+                val (aStart, aEnd) = ma
+                val (bStart, bEnd) = mb
+                return aStart < bEnd && bStart < aEnd
+            }
+            // 1) Kiểm tra khung giờ đã có người đặt chưa (bookings)
+            val occupiedStatuses = listOf("PENDING", "CONFIRMED", "PAID", "BOOKED", "ACCEPTED")
+            val bookingSnap = try {
+                // Tránh lỗi index: chỉ filter theo fieldId + date, còn status lọc trong bộ nhớ
+                FirebaseFirestore.getInstance().collection("bookings")
+                    .whereEqualTo("fieldId", facilityId)
+                    .whereEqualTo("date", date)
+                    .get().await()
+            } catch (_: Exception) { null }
+            if (bookingSnap != null) {
+                val hasOverlap = bookingSnap.documents.any { d ->
+                    val tr = d.getString("timeRange") ?: return@any false
+                    val st = d.getString("status") ?: ""
+                    occupiedStatuses.contains(st) && isOverlap(tr, timeRange)
+                }
+                if (hasOverlap) return MatchRequestResult.Error("Khung giờ này đã có người đặt")
+            }
+
+            // 2) Kiểm tra thêm trong slots (nếu hệ thống dùng slots)
+            val slotSnap = try {
+                FirebaseFirestore.getInstance().collection("slots")
+                    .whereEqualTo("fieldId", facilityId)
+                    .whereEqualTo("date", date)
+                    .whereEqualTo("status", "booked")
+                    .get().await()
+            } catch (_: Exception) { null }
+            if (slotSnap != null) {
+                val hasOverlapSlot = slotSnap.documents.any { d ->
+                    val tr = d.getString("timeRange") ?: return@any false
+                    isOverlap(tr, timeRange)
+                }
+                if (hasOverlapSlot) return MatchRequestResult.Error("Khung giờ này đã có người đặt")
+            }
+
             val inviteId = FirebaseFirestore.getInstance().collection("match_invites").document().id
             val matchInvite = MatchInvite(
                 inviteId = inviteId,

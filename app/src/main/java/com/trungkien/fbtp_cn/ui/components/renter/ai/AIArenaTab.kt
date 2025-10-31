@@ -442,7 +442,8 @@ private fun OpponentCard(fieldId: String, renterAId: String, entry: LeaderboardE
                             }
                             is MatchRequestResult.Error -> {
                                 sending = false
-                                android.widget.Toast.makeText(ctx, "Gửi thất bại, thử lại sau", android.widget.Toast.LENGTH_SHORT).show()
+                                val msg = (res as MatchRequestResult.Error).message
+                                android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_SHORT).show()
                             }
                         }
                     }
