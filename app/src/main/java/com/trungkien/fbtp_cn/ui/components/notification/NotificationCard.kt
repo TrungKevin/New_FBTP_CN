@@ -32,6 +32,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,6 +52,7 @@ import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.tasks.await
 
 // Data class để define style cho từng loại notification
 data class NotificationStyle(
@@ -195,12 +201,41 @@ fun NotificationCard(
                     val custom = notification.data.customData
                     val inviteId = (custom["inviteId"] as? String) ?: ""
                     val fieldId = notification.data.fieldId
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        androidx.compose.material3.OutlinedButton(onClick = { if (inviteId.isNotBlank()) onRejectInvite(inviteId) }) {
-                            Text("Từ chối")
+                    var inviteStatus by remember { mutableStateOf<String?>(null) }
+
+                    // Load trạng thái lời mời để ẩn/hiện nút
+                    LaunchedEffect(inviteId) {
+                        if (inviteId.isNotBlank()) {
+                            try {
+                                val snap = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                                    .collection("match_invites").document(inviteId).get().await()
+                                inviteStatus = snap.getString("status")
+                            } catch (_: Exception) { }
                         }
-                        androidx.compose.material3.Button(onClick = { if (inviteId.isNotBlank()) onAcceptInvite(inviteId, fieldId) }) {
-                            Text("Đồng ý")
+                    }
+
+                    if (inviteStatus == "accepted") {
+                        Text("Đã đồng ý", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+                    } else if (inviteStatus == "rejected") {
+                        Text("Đã từ chối", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelLarge)
+                    } else {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            androidx.compose.material3.OutlinedButton(onClick = {
+                                if (inviteId.isNotBlank()) {
+                                    inviteStatus = "rejected" // cập nhật lạc quan
+                                    onRejectInvite(inviteId)
+                                }
+                            }) {
+                                Text("Từ chối")
+                            }
+                            androidx.compose.material3.Button(onClick = {
+                                if (inviteId.isNotBlank()) {
+                                    inviteStatus = "accepted" // cập nhật lạc quan
+                                    onAcceptInvite(inviteId, fieldId)
+                                }
+                            }) {
+                                Text("Đồng ý")
+                            }
                         }
                     }
                 }

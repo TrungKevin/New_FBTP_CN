@@ -18,13 +18,17 @@ fun NotificationScreenContent(
     notifications: List<Notification>,
     onItemClick: (Notification) -> Unit,
     modifier: Modifier = Modifier,
-    selectedDate: String? = null
+    selectedDate: String? = null,
+    onAcceptInvite: (inviteId: String, fieldId: String?) -> Unit = { _, _ -> },
+    onRejectInvite: (inviteId: String) -> Unit = { }
 ) {
     NotificationList(
         notifications = notifications,
         onItemClick = onItemClick,
         modifier = modifier,
-        selectedDate = selectedDate
+        selectedDate = selectedDate,
+        onAcceptInvite = onAcceptInvite,
+        onRejectInvite = onRejectInvite
     )
 }
 
@@ -34,6 +38,8 @@ fun NotificationScreen(
     onBackClick: () -> Unit,
     onItemClick: (Notification) -> Unit,
     onMarkAllAsRead: () -> Unit,
+    onAcceptInvite: (inviteId: String, fieldId: String?) -> Unit = { _, _ -> },
+    onRejectInvite: (inviteId: String) -> Unit = { },
     modifier: Modifier = Modifier
 ) {
     val unreadCount = notifications.count { !it.read }
@@ -51,7 +57,9 @@ fun NotificationScreen(
         NotificationScreenContent(
             notifications = notifications,
             onItemClick = onItemClick,
-            modifier = Modifier.padding(paddingValues)
+            modifier = Modifier.padding(paddingValues),
+            onAcceptInvite = onAcceptInvite,
+            onRejectInvite = onRejectInvite
         )
     }
 }

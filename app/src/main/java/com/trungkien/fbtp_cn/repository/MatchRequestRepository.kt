@@ -85,6 +85,34 @@ class MatchRequestRepository(
         }
     }
 
+    suspend fun acceptInvite(inviteId: String, accepterName: String): Result<Unit> {
+        return try {
+            val docRef = FirebaseFirestore.getInstance().collection("match_invites").document(inviteId)
+            val snap = docRef.get().await()
+            val invite = snap.toObject(com.trungkien.fbtp_cn.model.MatchInvite::class.java)
+                ?: return Result.failure(IllegalStateException("Invite not found"))
+            docRef.update("status", "accepted").await()
+            MatchInviteNotificationService.sendInviteAcceptNotification(invite, accepterName)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun rejectInvite(inviteId: String, rejecterName: String): Result<Unit> {
+        return try {
+            val docRef = FirebaseFirestore.getInstance().collection("match_invites").document(inviteId)
+            val snap = docRef.get().await()
+            val invite = snap.toObject(com.trungkien.fbtp_cn.model.MatchInvite::class.java)
+                ?: return Result.failure(IllegalStateException("Invite not found"))
+            docRef.update("status", "rejected").await()
+            MatchInviteNotificationService.sendInviteRejectNotification(invite, rejecterName)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun sendMatchRequestFull(
         renterAId: String,
         renterBId: String,

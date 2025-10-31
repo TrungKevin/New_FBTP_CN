@@ -42,6 +42,9 @@ fun RenterNotificationScreen(
         NotificationViewModel(notificationRepository) 
     }
     val uiState by notificationViewModel.uiState.collectAsState()
+    val matchRepo = remember { com.trungkien.fbtp_cn.repository.MatchRequestRepository() }
+    val acceptOrRejectScope = rememberCoroutineScope()
+    val currentUserName = remember { mutableStateOf("Bạn") }
     val scope = rememberCoroutineScope()
     
     // Date filter state
@@ -181,7 +184,29 @@ fun RenterNotificationScreen(
                     selectedDate = selectedDateString,
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(paddingValues)
+                        .padding(paddingValues),
+                    onAcceptInvite = { inviteId, fieldId ->
+                        if (inviteId.isBlank()) return@NotificationScreenContent
+                        acceptOrRejectScope.launch {
+                            matchRepo.acceptInvite(inviteId, currentUserName.value)
+                                .onSuccess {
+                                    // mark as read and navigate
+                                    // Tìm lại notification theo inviteId để mark nếu cần, ở đây đã mark khi click card
+                                    val destFieldId = fieldId ?: ""
+                                    if (destFieldId.isNotBlank()) onNavigateToFieldDetail(destFieldId, "booking")
+                                    else onNavigateToBooking()
+                                }
+                                .onFailure { _ -> }
+                        }
+                    },
+                    onRejectInvite = { inviteId ->
+                        if (inviteId.isBlank()) return@NotificationScreenContent
+                        acceptOrRejectScope.launch {
+                            matchRepo.rejectInvite(inviteId, currentUserName.value)
+                                .onSuccess { }
+                                .onFailure { _ -> }
+                        }
+                    }
                 )
             }
         }
