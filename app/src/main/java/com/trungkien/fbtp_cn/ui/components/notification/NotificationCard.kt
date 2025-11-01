@@ -370,7 +370,43 @@ fun NotificationList(
                 }
             }
         } else {
-            // Hiển thị notifications đã lọc
+            // Deduplicate: Đảm bảo mỗi MATCH_INVITE chỉ hiển thị 1 lần (giữ notification mới nhất)
+            val deduplicatedNotifications = remember(filteredNotifications) {
+                // Tách notifications MATCH_INVITE thành 2 nhóm: có inviteId và không có inviteId
+                val matchInvitesWithId = filteredNotifications
+                    .filter { it.type == "MATCH_INVITE" }
+                    .mapNotNull { notif ->
+                        val inviteId = notif.data.customData["inviteId"] as? String
+                        if (inviteId != null && inviteId.isNotBlank()) {
+                            inviteId to notif
+                        } else null
+                    }
+                
+                val matchInvitesWithoutId = filteredNotifications
+                    .filter { it.type == "MATCH_INVITE" }
+                    .filter { 
+                        val inviteId = it.data.customData["inviteId"] as? String
+                        inviteId == null || inviteId.isBlank()
+                    }
+                
+                // Nhóm các notifications có inviteId và chỉ giữ mới nhất cho mỗi inviteId
+                val deduplicatedWithId = matchInvitesWithId
+                    .groupBy { it.first } // Group by inviteId
+                    .values
+                    .map { group ->
+                        // Chỉ giữ notification mới nhất cho mỗi inviteId
+                        group.map { it.second }.maxByOrNull { it.createdAt }!!
+                    }
+                
+                // Giữ lại tất cả notifications không phải MATCH_INVITE
+                val otherNotifications = filteredNotifications.filter { it.type != "MATCH_INVITE" }
+                
+                // Kết hợp: deduplicated MATCH_INVITE (có id) + MATCH_INVITE (không có id) + các notifications khác
+                (deduplicatedWithId + matchInvitesWithoutId + otherNotifications)
+                    .sortedByDescending { it.createdAt }
+            }
+            
+            // Hiển thị notifications đã lọc và deduplicate
             val displayDate = selectedDate ?: run {
                 val today = java.util.Calendar.getInstance()
                 val todayYear = today.get(java.util.Calendar.YEAR)
@@ -389,8 +425,8 @@ fun NotificationList(
                     DateHeader(date = displayDate)
                 }
                 
-                // Notifications for this date
-                items(filteredNotifications.sortedByDescending { it.createdAt }) { notification ->
+                // Notifications for this date (đã deduplicate)
+                items(deduplicatedNotifications) { notification ->
                     NotificationCard(
                         notification = notification,
                         onItemClick = onItemClick,
