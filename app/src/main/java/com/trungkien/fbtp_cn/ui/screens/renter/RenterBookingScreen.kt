@@ -63,25 +63,78 @@ fun RenterBookingScreen(
                 }
             }
             
-            // Debug logs for booking data
-            LaunchedEffect(bookingUi.myBookings) {
+            // ✅ CRITICAL FIX: Debug logs với renterId để đảm bảo chỉ hiển thị booking đúng account
+            LaunchedEffect(bookingUi.myBookings, myUid) {
                 println("🔍 DEBUG: RenterBookingScreen - Booking data updated:")
+                println("  - Current userId: $myUid")
                 println("  - Total bookings: ${bookingUi.myBookings.size}")
                 bookingUi.myBookings.forEachIndexed { index, booking ->
-                    println("  [$index] bookingId: ${booking.bookingId}, type: ${booking.bookingType}, status: ${booking.status}, date: ${booking.date}")
+                    val isMatching = booking.renterId == myUid
+                    println("  [$index] bookingId: ${booking.bookingId}, renterId: ${booking.renterId}, matches: $isMatching, type: ${booking.bookingType}, status: ${booking.status}, date: ${booking.date}")
+                    if (!isMatching) {
+                        println("    ⚠️ WARNING: Booking renterId (${booking.renterId}) không khớp với userId hiện tại ($myUid)")
+                    }
                 }
             }
             
-            // ✅ Cải thiện logic lọc: Ẩn booking đã qua ngày hiện tại khi không có filter ngày
+            // ✅ CRITICAL FIX: Chỉ dùng myBookings từ ViewModel, KHÔNG fallback về MockData
+            // Điều này đảm bảo chỉ hiển thị booking của account hiện tại
             val today = java.time.LocalDate.now().toString() // Format: "2024-01-15"
-            val allBookings = bookingUi.myBookings.ifEmpty { bookings }
+            val allBookings = bookingUi.myBookings
             
-            val filtered = if (selectedDate != null) {
-                // Khi có filter ngày cụ thể, hiển thị tất cả booking của ngày đó
-                allBookings.filter { it.date == selectedDate }
+            // ✅ CRITICAL FIX: Đảm bảo chỉ hiển thị booking của account hiện tại
+            // Nếu myUid null, không hiển thị booking nào (user chưa đăng nhập)
+            val userBookings = if (myUid != null) {
+                allBookings.filter { booking ->
+                    booking.renterId == myUid
+                }
             } else {
-                // Khi không có filter, chỉ hiển thị booking từ hôm nay trở đi
-                allBookings.filter { it.date >= today }
+                emptyList() // Không hiển thị gì nếu chưa đăng nhập
+            }
+            
+            // ✅ FIX: Logic lọc ngày - Chỉ hiển thị booking của ngày hôm nay khi không có filter
+            val filteredByDate = if (selectedDate != null) {
+                // Khi có filter ngày cụ thể, hiển thị tất cả booking của ngày đó
+                userBookings.filter { it.date == selectedDate }
+            } else {
+                // ✅ FIX: Khi không có filter, CHỈ hiển thị booking của ngày hôm nay (không hiển thị ngày tương lai hoặc quá khứ)
+                userBookings.filter { it.date == today }
+            }
+            
+            // ✅ CRITICAL FIX: Loại bỏ booking duplicate
+            // Vấn đề: Khi renter B join opponent, hệ thống có thể tạo duplicate booking
+            // Logic: Group theo fieldId + date + startAt + endAt + renterId (không phụ thuộc vào matchId)
+            // Vì matchId có thể null ở booking đầu tiên, sau đó mới được assign
+            val filtered = if (myUid != null) {
+                filteredByDate
+                    .groupBy { booking ->
+                        // ✅ FIX: Group theo fieldId + date + startAt + endAt + renterId
+                        // Không dùng matchId vì nó có thể thay đổi sau khi match được tạo
+                        "${booking.fieldId}_${booking.date}_${booking.startAt}_${booking.endAt}_${booking.renterId}"
+                    }
+                    .values
+                    .mapNotNull { group ->
+                        // Nếu có nhiều booking trong group (duplicate) → ưu tiên booking có matchId, nếu không thì giữ mới nhất
+                        if (group.size > 1) {
+                            println("⚠️ WARNING: Found ${group.size} duplicate bookings, filtering:")
+                            group.forEach { b ->
+                                println("    - bookingId: ${b.bookingId}, createdAt: ${b.createdAt}, matchId: ${b.matchId}, matchSide: ${b.matchSide}")
+                            }
+                            // ✅ Ưu tiên: 1) Booking có matchId (đã được assign vào match), 2) Booking mới nhất
+                            val withMatchId = group.filter { it.matchId != null && it.matchId.isNotBlank() }
+                            val selected = if (withMatchId.isNotEmpty()) {
+                                withMatchId.maxByOrNull { it.createdAt } // Giữ booking có matchId và mới nhất
+                            } else {
+                                group.maxByOrNull { it.createdAt } // Nếu không có matchId, giữ booking mới nhất
+                            }
+                            println("    ✅ Selected booking: ${selected?.bookingId}, matchId: ${selected?.matchId}")
+                            selected
+                        } else {
+                            group.firstOrNull()
+                        }
+                    }
+            } else {
+                filteredByDate
             }
             
             // ✅ Hiển thị PENDING/PAID trong mục sắp diễn ra; DONE/CANCELLED trong mục đã hoàn thành
@@ -156,14 +209,14 @@ fun RenterBookingScreen(
                                     text = if (selectedDate != null) {
                                         "Không có lịch đặt nào vào ngày $selectedDate"
                                     } else {
-                                        "Chưa có lịch đặt nào từ hôm nay"
+                                        "Không có lịch đặt nào trong ngày hôm nay"
                                     },
                                     style = MaterialTheme.typography.titleMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 if (selectedDate == null) {
                                     Text(
-                                        text = "Sử dụng bộ lọc ngày để xem lịch đặt cũ",
+                                        text = "Sử dụng bộ lọc ngày để xem lịch đặt các ngày trước đó hoặc ngày tương lai",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                     )

@@ -1818,6 +1818,51 @@ class BookingRepository(
                 println("❌ ERROR: Failed to send match result notifications: ${e.message}")
             }
             
+            // Cập nhật AI Profile cho cả 2 renter sau khi có match result mới
+            try {
+                val aiProfileRepo = AiProfileRepository()
+                
+                // Collect tất cả renter IDs cần cập nhật
+                val renterIdsToUpdate = mutableSetOf<String>()
+                
+                if (matchResult.isDraw) {
+                    // Nếu là draw, cả 2 renter đều tham gia
+                    if (matchResult.winnerRenterId != null && matchResult.winnerRenterId.isNotBlank()) {
+                        renterIdsToUpdate.add(matchResult.winnerRenterId)
+                    }
+                    if (matchResult.loserRenterId != null && matchResult.loserRenterId.isNotBlank()) {
+                        renterIdsToUpdate.add(matchResult.loserRenterId)
+                    }
+                } else {
+                    // Nếu không phải draw, cập nhật cho winner và loser
+                    if (matchResult.winnerRenterId != null && matchResult.winnerRenterId.isNotBlank()) {
+                        renterIdsToUpdate.add(matchResult.winnerRenterId)
+                    }
+                    if (matchResult.loserRenterId != null && matchResult.loserRenterId.isNotBlank()) {
+                        renterIdsToUpdate.add(matchResult.loserRenterId)
+                    }
+                }
+                
+                // Cập nhật AI Profile cho mỗi renter (skill tổng thể + skill theo sân)
+                renterIdsToUpdate.forEach { renterId ->
+                    try {
+                        // Skill tổng thể (fieldId = null)
+                        aiProfileRepo.updateAiProfileFromMatchResult(renterId, null)
+                        // Skill theo sân
+                        if (matchResult.fieldId.isNotBlank()) {
+                            aiProfileRepo.updateAiProfileFromMatchResult(renterId, matchResult.fieldId)
+                        }
+                    } catch (e: Exception) {
+                        println("⚠️ WARN: Failed to update AI profile for renter $renterId: ${e.message}")
+                    }
+                }
+                
+                println("✅ DEBUG: Updated AI profiles for ${renterIdsToUpdate.size} renters after match result")
+            } catch (e: Exception) {
+                println("❌ ERROR: Failed to update AI profiles: ${e.message}")
+                // Không fail toàn bộ saveMatchResult nếu update AI profile lỗi
+            }
+            
             Result.success(Unit)
         } catch (e: Exception) {
             println("❌ ERROR: Failed to save match result: ${e.message}")

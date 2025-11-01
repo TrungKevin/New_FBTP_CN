@@ -294,5 +294,20 @@ service cloud.firestore {
       allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if signedIn() && resource.data.userId == request.auth.uid;
     }
+
+    // AI_PROFILES - AI Profile cho renter (skill, formRecent)
+    match /ai_profiles/{profileId} {
+      // Mọi người có thể đọc để xem skill của đối thủ
+      allow read: if true;
+      // Chỉ hệ thống (authenticated user) mới có thể create/update
+      // Kiểm tra renterId trong data để đảm bảo user chỉ update profile của chính mình
+      allow create, update: if signedIn() && (
+        // profileId = renterId (skill tổng thể)
+        profileId == request.auth.uid ||
+        // Kiểm tra renterId trong data (cho cả skill tổng thể và skill theo sân)
+        (request.resource.data.renterId != null && request.resource.data.renterId == request.auth.uid)
+      );
+      allow delete: if false; // Không cho xóa
+    }
   }
 }

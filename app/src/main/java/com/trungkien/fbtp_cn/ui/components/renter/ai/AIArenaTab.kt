@@ -56,19 +56,46 @@ fun AIArenaTab(
 
     LaunchedEffect(fieldId, renterId) {
         isLoading = true
+        
+        println("🔍 DEBUG: AIArenaTab - Loading opponents for fieldId: $fieldId, renterId: $renterId")
+        
+        // ✅ CRITICAL: Lấy leaderboard từ SÂN HIỆN TẠI (fieldId cụ thể)
         val lb = repo.getLeaderboard(fieldId).getOrNull()
             ?: repo.recomputeAndSave(fieldId).getOrNull()
         var list = lb?.entries.orEmpty()
-        // kỹ năng của chính mình nếu có trong leaderboard
+        
+        println("  - Leaderboard entries from field $fieldId: ${list.size}")
+        
+        // ✅ CRITICAL: Kỹ năng của chính mình: ưu tiên từ leaderboard của sân hiện tại, fallback về AiProfile của sân đó
         myWeighted = lb?.entries?.firstOrNull { it.renterId == renterId }?.weightedWinRate
-        // loại chính mình nếu có
+        if (myWeighted == null && fieldId.isNotBlank() && renterId.isNotEmpty()) {
+            try {
+                val aiProfileRepo = com.trungkien.fbtp_cn.repository.AiProfileRepository()
+                val profileResult = aiProfileRepo.getAiProfile(renterId, fieldId)
+                if (profileResult.isSuccess) {
+                    val profile = profileResult.getOrNull()
+                    myWeighted = profile?.skill
+                    println("  - My weighted winRate from AiProfile (field $fieldId): $myWeighted")
+                }
+            } catch (e: Exception) {
+                println("  - Failed to get AiProfile: ${e.message}")
+                // Nếu không lấy được, để null để dùng median
+            }
+        } else {
+            println("  - My weighted winRate from leaderboard (field $fieldId): $myWeighted")
+        }
+        
+        // ✅ Loại chính mình nếu có
         if (renterId.isNotEmpty()) list = list.filter { it.renterId != renterId }
-        // Fallback: nếu sân hiện tại không có dữ liệu leaderboard, thử tính trực tiếp từ match_results theo field
+        // ✅ CRITICAL FIX: Fallback 1 - Tính trực tiếp từ match_results của SÂN HIỆN TẠI (fieldId)
         if (list.isEmpty()) {
+            println("  - Leaderboard empty, computing from match_results for field: $fieldId")
             try {
                 val snap = FirebaseFirestore.getInstance().collection("match_results")
-                    .whereEqualTo("fieldId", fieldId)
+                    .whereEqualTo("fieldId", fieldId) // ✅ CHỈ lấy từ sân hiện tại
                     .get().await()
+                
+                println("  - Found ${snap.size()} match_results for field: $fieldId")
 
                 val stats = mutableMapOf<String, LeaderboardEntry>()
                 snap.documents.forEach { d ->
@@ -99,15 +126,21 @@ fun AIArenaTab(
                     e.copy(winPercent = winRate * 100f, weightedWinRate = weighted)
                 }
                 list = computed.filter { it.renterId.isNotBlank() && it.renterId != renterId }
-            } catch (_: Exception) {}
+                println("  - Computed ${list.size} opponents from match_results for field: $fieldId")
+            } catch (e: Exception) {
+                println("  - Error computing from match_results: ${e.message}")
+            }
         }
-        // Fallback 2: lấy đối thủ từ bookings DUO tại cùng field (không bắt buộc hasOpponent=true)
+        // ✅ CRITICAL FIX: Fallback 2 - Lấy đối thủ từ bookings DUO tại CÙNG SÂN (fieldId)
         if (list.isEmpty()) {
+            println("  - Still empty, trying bookings DUO for field: $fieldId")
             try {
                 val bs = FirebaseFirestore.getInstance().collection("bookings")
-                    .whereEqualTo("fieldId", fieldId)
+                    .whereEqualTo("fieldId", fieldId) // ✅ CHỈ lấy từ sân hiện tại
                     .whereEqualTo("bookingType", "DUO")
                     .get().await()
+                
+                println("  - Found ${bs.size()} DUO bookings for field: $fieldId")
                 val opponentIds = mutableListOf<String>()
                 bs.documents.forEach { d ->
                     listOfNotNull(
@@ -151,60 +184,20 @@ fun AIArenaTab(
                         weightedWinRate = score
                     )
                 }
-            } catch (_: Exception) {}
+                println("  - Computed ${list.size} opponents from bookings for field: $fieldId")
+            } catch (e: Exception) {
+                println("  - Error computing from bookings: ${e.message}")
+            }
         }
 
-        // Fallback 3: nếu vẫn rỗng, quét tất cả DUO bookings công khai (hasOpponent=true)
-        if (list.isEmpty()) {
-            try {
-                val bsAll = FirebaseFirestore.getInstance().collection("bookings")
-                    .whereEqualTo("bookingType", "DUO")
-                    .whereEqualTo("hasOpponent", true)
-                    .get().await()
-
-                val opponentIds = mutableListOf<String>()
-                bsAll.documents.forEach { d ->
-                    listOfNotNull(
-                        d.getString("renterId"),
-                        d.getString("renterA"),
-                        d.getString("renterB"),
-                        d.getString("opponentId")
-                    ).forEach { id -> if (!id.isNullOrBlank() && id != renterId) opponentIds.add(id) }
-                }
-                val distinctIds = opponentIds.distinct()
-
-                val statusScore = mapOf(
-                    "PAID" to 0.7f,
-                    "CONFIRMED" to 0.65f,
-                    "PENDING" to 0.5f,
-                    "CANCELLED" to 0.35f
-                )
-                val idToScore = distinctIds.associateWith { id ->
-                    val related = bsAll.documents.filter { d ->
-                        val ids = listOf(
-                            d.getString("renterId"),
-                            d.getString("renterA"),
-                            d.getString("renterB"),
-                            d.getString("opponentId")
-                        )
-                        ids.contains(id)
-                    }
-                    if (related.isEmpty()) 0.5f else related
-                        .map { statusScore[it.getString("status") ?: "PENDING"] ?: 0.5f }
-                        .average().toFloat()
-                }
-
-                list = idToScore.map { (id, score) ->
-                    LeaderboardEntry(
-                        renterId = id,
-                        totalMatches = 1,
-                        winPercent = score * 100f,
-                        weightedWinRate = score
-                    )
-                }
-            } catch (_: Exception) {}
-        }
+        // ✅ CRITICAL: Không có Fallback 3 - Đảm bảo chỉ tính toán theo sân hiện tại (fieldId)
+        // Không fallback về toàn bộ hệ thống để đảm bảo AI chỉ tính theo từng sân
         entries = list
+        
+        println("  - Final entries count for field $fieldId: ${entries.size}")
+        println("  - Strong opponents (weightedWinRate >= 0.5): ${entries.count { it.weightedWinRate >= 0.5f }}")
+        println("  - Balanced opponents (weightedWinRate < 0.5): ${entries.count { it.weightedWinRate < 0.5f }}")
+        
         isLoading = false
     }
 
@@ -234,11 +227,21 @@ fun AIArenaTab(
             }
         }
 
+        // ✅ CRITICAL FIX: Sắp xếp và phân loại dựa trên weightedWinRate từ SÂN HIỆN TẠI
+        // Comparator: sắp xếp theo weightedWinRate giảm dần, sau đó theo totalMatches giảm dần
         val comparator = compareByDescending<LeaderboardEntry> { it.weightedWinRate }
             .thenByDescending { it.totalMatches }
+        
+        // ✅ Phân loại tab "Đối mạnh" và "Đối khá" dựa trên weightedWinRate từ sân hiện tại
+        // - "Đối mạnh": weightedWinRate >= 0.5 (50%)
+        // - "Đối khá": weightedWinRate < 0.5 (50%)
         val strongIds = entries.filter { it.weightedWinRate >= 0.5f }.map { it.renterId }.toSet()
         val strong = entries.filter { it.weightedWinRate >= 0.5f }.sortedWith(comparator)
         val balanced = entries.filter { it.weightedWinRate < 0.5f && it.renterId !in strongIds }.sortedWith(comparator)
+        
+        println("🔍 DEBUG: AIArenaTab - Tab classification (field: $fieldId)")
+        println("  - Strong tab: ${strong.size} opponents")
+        println("  - Balanced tab: ${balanced.size} opponents")
         val suggestions: List<LeaderboardEntry> = remember(entries, myWeighted) {
             val sug = aiAgent.suggestOpponents(myWeighted, entries, limit = 5)
             val idSet = sug.map { it.renterId }.toSet()
@@ -435,6 +438,7 @@ private fun OpponentCard(
             aiScore = ((entry.weightedWinRate * 100).coerceIn(0f, 100f)).toInt(),
             winRate = entry.winPercent,
             totalMatches = entry.totalMatches,
+            fieldId = fieldId, // Truyền fieldId để lấy dữ liệu theo sân
             fieldName = fieldName ?: "Đang tải...",
             fieldsLoading = fieldLoading,
             onDismiss = { showDetail = false },

@@ -27,7 +27,6 @@ object MatchInviteNotificationService {
                 )
             ),
             "read" to false,
-            "isRead" to false,
             "createdAt" to System.currentTimeMillis()
         )
         FirebaseFirestore.getInstance().collection("notifications").add(notif).await()
@@ -49,7 +48,6 @@ object MatchInviteNotificationService {
                 )
             ),
             "read" to false,
-            "isRead" to false,
             "createdAt" to System.currentTimeMillis()
         )
         FirebaseFirestore.getInstance().collection("notifications").add(notif).await()
@@ -71,7 +69,6 @@ object MatchInviteNotificationService {
                 )
             ),
             "read" to false,
-            "isRead" to false,
             "createdAt" to System.currentTimeMillis()
         )
         FirebaseFirestore.getInstance().collection("notifications").add(notif).await()

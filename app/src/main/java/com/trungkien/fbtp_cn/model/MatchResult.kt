@@ -1,8 +1,10 @@
 package com.trungkien.fbtp_cn.model
 
 import androidx.annotation.Keep
+import com.google.firebase.firestore.IgnoreExtraProperties
 
 @Keep
+@IgnoreExtraProperties
 data class MatchResult(
     val resultId: String = "",
     val matchId: String = "", // rangeKey của Match
@@ -33,10 +35,14 @@ data class MatchResult(
     // Tỉ số trận đấu
     val renterAScore: Int = 0, // Số bàn thắng của renter A
     val renterBScore: Int = 0, // Số bàn thắng của renter B
-    val isDraw: Boolean = false, // Trạng thái hòa
+    
+    // Hỗ trợ cả "isDraw" và "draw" từ Firestore (map tự động)
+    val isDraw: Boolean = false,
     
     // Metadata
     val recordedAt: Long = System.currentTimeMillis(),
     val recordedBy: String = "", // userId của owner ghi kết quả
-    val isVerified: Boolean = false // Có thể dùng để xác thực kết quả sau này
+    
+    // Hỗ trợ cả "isVerified" và "verified" từ Firestore (map tự động)
+    val isVerified: Boolean = false
 )
