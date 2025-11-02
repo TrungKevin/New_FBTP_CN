@@ -57,6 +57,23 @@ fun isConsecutiveSlot(slot1: String, slot2: String): Boolean {
     return kotlin.math.abs(totalMinutes2 - totalMinutes1) == 30
 }
 
+// ✅ NEW: Function để kiểm tra khe giờ đã qua thời gian hiện tại chưa
+@RequiresApi(Build.VERSION_CODES.O)
+fun isTimeSlotPassed(selectedDate: LocalDate, slot: String): Boolean {
+    val now = java.time.LocalDateTime.now()
+    
+    // Parse slot time (format: "HH:mm")
+    val slotParts = slot.split(":")
+    val slotHour = slotParts[0].toInt()
+    val slotMinute = slotParts[1].toInt()
+    
+    // Tạo LocalDateTime cho khe giờ được chọn
+    val slotDateTime = selectedDate.atTime(slotHour, slotMinute)
+    
+    // So sánh với thời gian hiện tại
+    return slotDateTime.isBefore(now)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
@@ -761,6 +778,13 @@ fun RenterBookingCheckoutScreen(
                             println("🎯 DEBUG: lockedSlots: $lockedSlots")
                             println("🎯 DEBUG: waitingOpponentSlots: $waitingOpponentSlots")
                             println("🎯 DEBUG: waitingTimesFromVm: $waitingTimesFromVm")
+                            
+                            // ✅ NEW: Kiểm tra khe giờ đã qua thời gian hiện tại - ưu tiên cao nhất
+                            if (isTimeSlotPassed(selectedDate, slot)) {
+                                println("🎯 DEBUG: Time slot has passed - showing toast")
+                                OpponentDialogUtils.showTimeSlotPassedToast(context)
+                                return@BookingTimeSlotGrid
+                            }
                             
                             // Handle click rules with priority: locked(red) → toast; waiting(yellow) → join; booked(grey) → toast; else toggle
                             if (lockedSlots.contains(slot)) {

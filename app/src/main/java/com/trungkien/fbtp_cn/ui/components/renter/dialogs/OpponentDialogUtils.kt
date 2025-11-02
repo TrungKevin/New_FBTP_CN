@@ -37,6 +37,13 @@ object OpponentDialogUtils {
     fun showErrorToast(context: Context, error: String) {
         Toast.makeText(context, "Lỗi: $error", Toast.LENGTH_SHORT).show()
     }
+    
+    /**
+     * Hiển thị toast khi khe giờ đã qua thời gian
+     */
+    fun showTimeSlotPassedToast(context: Context) {
+        Toast.makeText(context, "Khe giờ này đã qua thời gian", Toast.LENGTH_SHORT).show()
+    }
 }
 
 /**
