@@ -162,7 +162,7 @@ fun AddFieldScreen(
             sports = selectedSports,
             images = FieldImages(), // Will be updated by repository with base64 strings
             slotMinutes = 30,
-            openHours = OpenHours(
+            openHours = OpenHours( // dùng để hiển thị giờ mở cửa trên UI
                 start = startTime,
                 end = endTime,
                 open24h = open24h
@@ -329,7 +329,7 @@ fun AddFieldScreen(
                     }
                     
                     item {
-                        ImagesStep(
+                        ImagesStep( // Sử dụng Uri thay vì String để quản lý ảnh đã chọn
                             mainImageUri = mainImageUri,
                             onMainImageChange = { mainImageUri = it },
                             image1Uri = image1Uri,
@@ -865,16 +865,6 @@ private fun OperatingHoursStep(
                     unfocusedBorderColor = Color(0xFFE0E0E0)
                 )
             )
-        }
-        
-        Row(
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Checkbox(
-                checked = open24h,
-                onCheckedChange = onOpen24hChange
-            )
-            Text("Mở cửa 24/24")
         }
         
         Text(
