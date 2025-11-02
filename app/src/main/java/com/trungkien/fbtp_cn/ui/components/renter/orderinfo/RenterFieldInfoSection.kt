@@ -57,7 +57,7 @@ fun RenterFieldInfoSection(
             InfoRowItem(
                 icon = Icons.Default.AttachMoney,
                 label = "Giá thuê",
-                value = "${String.format("%,d", price)} VND/giờ",
+                value = "${String.format("%,d", price)} VND/15'",
                 valueColor = MaterialTheme.colorScheme.primary,
                 isPrice = true
             )
@@ -69,7 +69,7 @@ fun RenterFieldInfoSection(
             )
             InfoRowItem(
                 icon = Icons.Default.Schedule,
-                label = "Thời gian slot",
+                label = "Thời gian/2slot",
                 value = "${slotMinutes} phút"
             )
             if (description.isNotBlank()) {

@@ -172,12 +172,12 @@ fun RenterOrderDetailScreen(
                     ) {
                         Column {
                             Text(
-                                text = "Giá từ",
+                                text = "Giá trung bình từ:",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = "${String.format("%,d", uiState.pricingRules.firstOrNull()?.price ?: 0L)} VND/giờ",
+                                text = "${String.format("%,d", uiState.pricingRules.firstOrNull()?.price ?: 0L)} VND/15'",
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
