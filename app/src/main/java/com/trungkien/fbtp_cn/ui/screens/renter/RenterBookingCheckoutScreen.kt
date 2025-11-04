@@ -132,6 +132,9 @@ fun RenterBookingCheckoutScreen(
     var showJoinDialog by remember { mutableStateOf(false) }
     var joinMatch: com.trungkien.fbtp_cn.model.Match? by remember { mutableStateOf(null) }
     var opponentName by remember { mutableStateOf("") }
+    // ✅ NEW: Trạng thái sau khi renter B join để bắt buộc lưu trước khi đặt nếu có thay đổi
+    var joinedMatchIdForB by remember { mutableStateOf<String?>(null) }
+    var hasSavedPostJoinForB by remember { mutableStateOf(false) }
     // ✅ NEW: Ghi nhận chế độ đặt: HAS_OPPONENT hoặc FIND_OPPONENT
     var bookingMode by remember { mutableStateOf("") }
     
@@ -454,6 +457,13 @@ fun RenterBookingCheckoutScreen(
         price * entry.value
     }
 
+    // ✅ NEW: Reset cờ lưu sau join khi có thay đổi ở ghi chú/dịch vụ (chỉ áp dụng khi B đã join)
+    LaunchedEffect(joinedMatchIdForB, notes, servicesQuantity) {
+        if (joinedMatchIdForB != null) {
+            hasSavedPostJoinForB = false
+        }
+    }
+
     // ✅ FIX: Load booking data for ownership check
     val currentDate = selectedDate.toString()
     
@@ -670,6 +680,18 @@ fun RenterBookingCheckoutScreen(
                                             opponentAvatar = null,
                                             basePrice = fieldTotal.toLong(),
                                             serviceLines = serviceLines,
+                                            // ✅ LOGIC PHÂN BIỆT 2 TRƯỜNG HỢP:
+                                            // 1. HAS_OPPONENT (bookingMode = "HAS_OPPONENT"): 
+                                            //    - Renter đặt khe giờ với đối thủ sẵn có
+                                            //    - TẤT CẢ dữ liệu (notes, serviceLines) → lưu vào Booking
+                                            //    - notes → Booking.notes
+                                            //    - serviceLines → Booking.serviceLines
+                                            //    - KHÔNG tạo Match
+                                            // 2. FIND_OPPONENT (bookingMode = "FIND_OPPONENT"):
+                                            //    - Renter A đặt khe giờ chưa có đối thủ → tạo Match
+                                            //    - TẤT CẢ dữ liệu (notes, serviceLines) → lưu vào Match, KHÔNG lưu vào Booking
+                                            //    - notes → Match.noteA (KHÔNG lưu vào Booking.notes)
+                                            //    - serviceLines → Match.serviceLinesA (KHÔNG lưu vào Booking.serviceLines)
                                             notes = notes.ifBlank { null },
                                             matchSide = "A", // ✅ CRITICAL FIX: Renter A always has matchSide="A" regardless of opponent choice
                                             createdWithOpponent = bookingMode == "HAS_OPPONENT" // ✅ CRITICAL FIX: immutable origin flag
@@ -680,7 +702,14 @@ fun RenterBookingCheckoutScreen(
                             }
                         }, 
                         // ✅ Enable when there are slots to submit for this renter (selected/recent or own waiting slots)
-                        enabled = effectiveSlots.isNotEmpty(),
+                        enabled = run {
+                            val baseEnabled = effectiveSlots.isNotEmpty()
+                            // Nếu B đã join và có nhập ghi chú/chọn dịch vụ nhưng CHƯA bấm lưu -> không cho đặt
+                            val isB = joinedMatchIdForB != null
+                            val hasAnyInput = notes.isNotBlank() || servicesQuantity.values.any { it > 0 }
+                            val requireSave = isB && hasAnyInput && !hasSavedPostJoinForB
+                            baseEnabled && !requireSave
+                        },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (effectiveSlots.isNotEmpty()) 
                                 MaterialTheme.colorScheme.primary 
@@ -951,14 +980,16 @@ fun RenterBookingCheckoutScreen(
                 }
             }
 
+            val actorSide = if (joinMatch != null) "B" else "A"
             BookingServicesPicker(
                 servicesTotal = servicesTotal,
                 selectedServices = servicesQuantity,
                 allServices = allServices,
-                onAddServicesClick = { showServicePicker = true }
+                onAddServicesClick = { showServicePicker = true },
+                actorSide = actorSide
             )
 
-            BookingNotes(notes = notes, onNotesChange = { notes = it })
+            BookingNotes(notes = notes, onNotesChange = { notes = it }, actorSide = actorSide)
 
             BookingSummaryCard(
                 hours = hours,
@@ -968,6 +999,59 @@ fun RenterBookingCheckoutScreen(
                 fieldTotal = fieldTotal,
                 averagePricePerHour = averagePricePerHour
             )
+
+            // ✅ NEW: Nút lưu ghi chú/dịch vụ cho renter B sau khi đã join
+            if (joinedMatchIdForB != null) {
+                Button(
+                    onClick = {
+                        val computedServices: List<ServiceLine> = servicesQuantity.entries.mapNotNull { (id, qty) ->
+                            val svc = allServices.firstOrNull { it.id == id }
+                            svc?.let {
+                                ServiceLine(
+                                    serviceId = it.id,
+                                    name = it.name,
+                                    billingType = "UNIT",
+                                    price = it.price.toLong(),
+                                    quantity = qty,
+                                    lineTotal = (it.price * qty).toLong()
+                                )
+                            }
+                        }
+                        val notesToSave = notes
+                        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                            val res = bookingRepo.updateOpponentDetails(
+                                matchId = joinedMatchIdForB!!,
+                                renterId = currentUser?.userId ?: "",
+                                notes = notesToSave,
+                                serviceLines = computedServices
+                            )
+                            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                                if (res.isSuccess) {
+                                    android.widget.Toast.makeText(context, "Lưu ghi chú/dịch vụ (B) thành công", android.widget.Toast.LENGTH_SHORT).show()
+                                    hasSavedPostJoinForB = true
+                                } else {
+                                    android.widget.Toast.makeText(context, "Lỗi khi lưu: ${res.exceptionOrNull()?.message ?: "Không xác định"}", android.widget.Toast.LENGTH_SHORT).show()
+                                    hasSavedPostJoinForB = false
+                                }
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(text = "Lưu ghi chú/dịch vụ (đối thủ B)")
+                }
+
+                // Gợi ý cần lưu trước khi đặt nếu có thay đổi
+                val hasAnyInput = notes.isNotBlank() || servicesQuantity.values.any { it > 0 }
+                if (hasAnyInput && !hasSavedPostJoinForB) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Bạn đã nhập/đổi dịch vụ. Hãy bấm 'Lưu ghi chú/dịch vụ (đối thủ B)' trước khi đặt.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
 
             // Extra spacer so the last card is not hidden behind bottom bar
             Spacer(modifier = Modifier.height(16.dp))
@@ -1058,7 +1142,13 @@ fun RenterBookingCheckoutScreen(
             opponentName = opponentName.ifBlank { "người chơi" },
             timeSlot = "${joinMatch!!.startAt} - ${joinMatch!!.endAt}",
             date = joinMatch!!.date,
-            onConfirm = {
+            onConfirm = { // ✅ Renter B xác nhận join, notes và services lấy từ BookingNotes và BookingServicesPicker
+                println("🔍 DEBUG: ========== OpponentConfirmationDialog.onConfirm - Renter B joining ==========")
+                println("🔍 DEBUG: Current state values:")
+                println("  - notes state: '$notes'")
+                println("  - servicesQuantity state: $servicesQuantity")
+                println("  - allServices count: ${allServices.size}")
+                
                 val m = joinMatch!!
                 val basePrice = uiState.pricingRules.firstOrNull()?.price?.toLong() ?: basePricePerHour.toLong()
                 currentUser?.userId?.let { renterId ->
@@ -1078,7 +1168,12 @@ fun RenterBookingCheckoutScreen(
                                 totalPrice = m.totalPrice,
                                 status = m.status,
                                 matchType = m.matchType,
-                                notes = m.notes
+                                // chuyển đổi sang cấu trúc mới
+                                notes = listOf(m.notes.getOrNull(0), m.notes.getOrNull(1)),
+                                serviceLinesBySide = mapOf(
+                                    "A" to (m.serviceLinesBySide["A"] ?: emptyList()),
+                                    "B" to (m.serviceLinesBySide["B"] ?: emptyList())
+                                )
                             )
                             val createResult = bookingRepo.createMatchIfMissing(ensure)
                             if (createResult.isFailure) {
@@ -1088,21 +1183,63 @@ fun RenterBookingCheckoutScreen(
                                 println("✅ DEBUG: Match created/verified successfully")
                             }
                             
-                            // ✅ FIX: Only call joinOpponent if createMatchIfMissing succeeded
+                            // ✅ Logic 2 - FIND_OPPONENT: Renter B join vào match của Renter A
+                            // - TẤT CẢ dữ liệu (notes, serviceLines) → lưu vào Match, KHÔNG tạo Booking B
+                            // - notes → Match.notes[1] (lấy từ BookingNotes component - state 'notes')
+                            // - serviceLines → Match.serviceLinesBySide["B"] (lấy từ BookingServicesPicker - state 'servicesQuantity')
+                            // ✅ FIX: Tính toán serviceLines từ servicesQuantity và allServices (Renter B chọn dịch vụ trong BookingServicesPicker)
+                            println("🔍 DEBUG: Calculating serviceLines from servicesQuantity:")
+                            servicesQuantity.forEach { (id, qty) ->
+                                println("  - serviceId: $id, quantity: $qty")
+                            }
+                            
+                            val serviceLines: List<ServiceLine> = servicesQuantity.entries.mapNotNull { (id, qty) ->
+                                val svc = allServices.firstOrNull { it.id == id }
+                                svc?.let {
+                                    ServiceLine(
+                                        serviceId = it.id,
+                                        name = it.name,
+                                        billingType = "UNIT",
+                                        price = it.price.toLong(),
+                                        quantity = qty,
+                                        lineTotal = (it.price * qty).toLong()
+                                    )
+                                }
+                            }
+                            println("🔍 DEBUG: Renter B joining - serviceLines count: ${serviceLines.size}")
+                            if (serviceLines.isNotEmpty()) {
+                                serviceLines.forEachIndexed { index, service ->
+                                    println("  [$index] ${service.name} (id: ${service.serviceId}): qty=${service.quantity}, price=${service.price}, total=${service.lineTotal}")
+                                }
+                            } else {
+                                println("⚠️ WARNING: serviceLines is EMPTY - Renter B did not select any services")
+                            }
+                            
+                            // ✅ FIX: Sử dụng notes từ BookingNotes component (Renter B nhập ghi chú trong BookingNotes, state 'notes')
+                            val renterBNotes = notes // Pass raw string so empty string clears noteB
+                            println("🔍 DEBUG: Renter B notes from BookingNotes component:")
+                            println("  - notes state (raw): '$notes'")
+                            println("  - renterBNotes (raw, will be saved as-is): '$renterBNotes'")
+                            println("🔍 DEBUG: =================================================================")
+                            
                             val joinResult = bookingRepo.joinOpponent(
                                 matchId = m.rangeKey,
                                 renterId = renterId,
                                 ownerId = uiState.currentField?.ownerId ?: "",
                                 basePrice = basePrice,
-                                serviceLines = emptyList(),
-                                notes = notes.ifBlank { null }
+                                serviceLines = serviceLines, // ✅ ServiceLines của Renter B từ BookingServicesPicker → Match.serviceLinesB
+                                notes = renterBNotes // ✅ Notes của Renter B từ BookingNotes component → Match.noteB (empty string clears)
                             )
                             
                             if (joinResult.isFailure) {
                                 println("❌ ERROR: Failed to join opponent: ${joinResult.exceptionOrNull()?.message}")
                                 return@launch
                             } else {
-                                println("✅ DEBUG: Successfully joined opponent, bookingId: ${joinResult.getOrNull()}")
+                                val joinedId = joinResult.getOrNull()
+                                println("✅ DEBUG: Successfully joined opponent, matchId: ${joinedId}")
+                                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                                    joinedMatchIdForB = joinedId
+                                }
                             }
                         } catch (e: Exception) {
                             println("❌ ERROR: Exception in match creation/joining: ${e.message}")

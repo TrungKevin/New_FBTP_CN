@@ -27,6 +27,7 @@ import androidx.compose.ui.window.DialogProperties
 /**
  * Dialog xác nhận khi renter sau muốn đặt vào khung giờ WAITING_OPPONENT
  * Hiển thị thông tin đối thủ đã đặt trước đó
+ * ✅ FIX: Renter B sẽ nhập ghi chú ở BookingNotes component (không phải trong dialog này)
  */
 @Composable
 fun OpponentConfirmationDialog(
@@ -34,7 +35,7 @@ fun OpponentConfirmationDialog(
     opponentName: String,
     timeSlot: String,
     date: String,
-    onConfirm: () -> Unit,
+    onConfirm: () -> Unit, // ✅ Chỉ xác nhận, notes sẽ lấy từ BookingNotes component
     onCancel: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -111,7 +112,7 @@ fun OpponentConfirmationDialog(
                 ) {
                     // Nút xác nhận
                     Button(
-                        onClick = onConfirm,
+                        onClick = onConfirm, // ✅ Chỉ xác nhận, notes và services sẽ lấy từ BookingNotes và BookingServicesPicker
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
@@ -192,7 +193,7 @@ private fun OpponentConfirmationDialogPreview() {
             opponentName = "Nguyễn Văn A",
             timeSlot = "20:00 - 22:30",
             date = "28/09/2025",
-            onConfirm = {},
+            onConfirm = { println("Confirmed") },
             onCancel = {}
         )
     }

@@ -17,6 +17,7 @@ fun BookingServicesPicker(
     selectedServices: Map<String, Int> = emptyMap(),
     allServices: List<RenterServiceItem> = emptyList(),
     onAddServicesClick: () -> Unit,
+    actorSide: String? = null,
     modifier: Modifier = Modifier
 ) {
     Card(modifier = modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)) {
@@ -25,6 +26,12 @@ fun BookingServicesPicker(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Header chỉ có tiêu đề và nút thêm
+            val title = when (actorSide) {
+                "B" -> "Dịch vụ thêm (đối thủ B)"
+                "A" -> "Dịch vụ thêm (người đặt A)"
+                else -> "Dịch vụ thêm"
+            }
+            Text(text = title, style = MaterialTheme.typography.titleMedium)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,

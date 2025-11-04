@@ -2,6 +2,7 @@ package com.trungkien.fbtp_cn.repository
 
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.DocumentSnapshot
 import com.trungkien.fbtp_cn.model.Booking
 import com.trungkien.fbtp_cn.model.ServiceLine
 import com.trungkien.fbtp_cn.model.Match
@@ -21,6 +22,101 @@ class BookingRepository(
     private val notificationRepository = NotificationRepository()
     private val globalNotificationHelper = GlobalNotificationHelper(notificationRepository)
     private val SLOTS_COLLECTION = "slots"
+
+    // ========================= SAFE PARSERS =========================
+    private fun mapToServiceLineList(raw: Any?): List<ServiceLine> {
+        val list = mutableListOf<ServiceLine>()
+        if (raw is List<*>) {
+            raw.forEach { item ->
+                if (item is Map<*, *>) {
+                    val service = ServiceLine(
+                        serviceId = item["serviceId"] as? String ?: "",
+                        name = item["name"] as? String ?: "",
+                        billingType = item["billingType"] as? String ?: "UNIT",
+                        price = (item["price"] as? Number)?.toLong() ?: 0L,
+                        quantity = (item["quantity"] as? Number)?.toInt() ?: 0,
+                        lineTotal = (item["lineTotal"] as? Number)?.toLong() ?: 0L
+                    )
+                    list.add(service)
+                }
+            }
+        }
+        return list
+    }
+
+    private fun parseMatchSafe(doc: DocumentSnapshot): Match? {
+        return try {
+            doc.toObject(Match::class.java)
+        } catch (_: Exception) {
+            try {
+                val data = doc.data ?: return null
+                val rangeKey = data["rangeKey"] as? String ?: doc.id
+                val fieldId = data["fieldId"] as? String ?: ""
+                val date = data["date"] as? String ?: ""
+                val startAt = data["startAt"] as? String ?: ""
+                val endAt = data["endAt"] as? String ?: ""
+                val capacity = (data["capacity"] as? Number)?.toInt() ?: 2
+                val occupiedCount = (data["occupiedCount"] as? Number)?.toInt() ?: 0
+                val price = (data["price"] as? Number)?.toLong() ?: 0L
+                val totalPrice = (data["totalPrice"] as? Number)?.toLong() ?: 0L
+                val status = data["status"] as? String ?: "WAITING_OPPONENT"
+                val matchType = data["matchType"] as? String
+
+                val notesAny = data["notes"]
+                val notes: List<String?> = when (notesAny) {
+                    is String -> listOf(notesAny, null)
+                    is List<*> -> {
+                        val tmp = notesAny.map { it as? String }
+                        (tmp + listOf<String?>(null, null)).take(2)
+                    }
+                    else -> listOf(data["noteA"] as? String, data["noteB"] as? String)
+                }
+
+                val participantsRaw = data["participants"]
+                val participants: List<MatchParticipant> = if (participantsRaw is List<*>) {
+                    participantsRaw.mapNotNull { m ->
+                        if (m is Map<*, *>) {
+                            MatchParticipant(
+                                bookingId = m["bookingId"] as? String ?: "",
+                                renterId = m["renterId"] as? String ?: "",
+                                side = m["side"] as? String ?: "A"
+                            )
+                        } else null
+                    }
+                } else emptyList()
+
+                val slBySideAny = data["serviceLinesBySide"]
+                val slA = if (slBySideAny is Map<*, *>) mapToServiceLineList(slBySideAny["A"]) else emptyList() 
+                val slB = if (slBySideAny is Map<*, *>) mapToServiceLineList(slBySideAny["B"]) else emptyList() 
+                val serviceLinesBySide = mapOf("A" to slA, "B" to slB)
+
+                val createdAt = (data["createdAt"] as? Number)?.toLong() ?: System.currentTimeMillis()
+                val updatedAt = (data["updatedAt"] as? Number)?.toLong() ?: System.currentTimeMillis()
+
+                Match(
+                    rangeKey = rangeKey,
+                    fieldId = fieldId,
+                    date = date,
+                    startAt = startAt,
+                    endAt = endAt,
+                    capacity = capacity,
+                    occupiedCount = occupiedCount,
+                    participants = participants,
+                    price = price,
+                    totalPrice = totalPrice,
+                    status = status,
+                    matchType = matchType,
+                    notes = notes,
+                    serviceLinesBySide = serviceLinesBySide,
+                    createdAt = createdAt,
+                    updatedAt = updatedAt
+                )
+            } catch (e: Exception) {
+                println("❌ ERROR: parseMatchSafe fallback failed: ${e.message}")
+                null
+            }
+        }
+    }
 
     /**
      * ✅ Helper: Reset trạng thái các documents `slots` liên quan tới một booking.
@@ -73,7 +169,7 @@ class BookingRepository(
                     .await()
                 
                 if (matchDoc.exists()) {
-                    val match = matchDoc.toObject(Match::class.java)
+                    val match = parseMatchSafe(matchDoc)
                     if (match != null) {
                         when {
                             // Trường hợp 1: Renter A hủy solo booking (WAITING_OPPONENT) → chuyển về trắng
@@ -182,6 +278,10 @@ class BookingRepository(
             val servicePrice = serviceLines.sumOf { it.lineTotal }
             val totalPrice = basePrice + servicePrice
             
+            // ✅ Logic 1 - HAS_OPPONENT: Renter đặt khe giờ với đối thủ sẵn có
+            // - notes → Booking.notes (chỉ lưu vào Booking, KHÔNG tạo Match)
+            // - serviceLines → Booking.serviceLines (chỉ lưu vào Booking)
+            // - Booking này KHÔNG hiển thị trong OwnerMatchDetailScreen (vì không có Match)
             val booking = Booking(
                 bookingId = bookingId,
                 renterId = renterId,
@@ -193,11 +293,11 @@ class BookingRepository(
                 slotsCount = slotsCount,
                 minutes = minutes,
                 basePrice = basePrice,
-                serviceLines = serviceLines,
+                serviceLines = serviceLines, // ✅ Dịch vụ thêm → lưu vào Booking.serviceLines
                 servicePrice = servicePrice,
                 totalPrice = totalPrice,
                 status = "PENDING",
-                notes = notes,
+                notes = notes, // ✅ Logic 1: notes lưu vào Booking.notes (vì không có Match)
                 // ✅ NEW: Thông tin đối thủ
                 hasOpponent = hasOpponent,
                 opponentId = opponentId,
@@ -359,7 +459,7 @@ class BookingRepository(
                     onError(e); 
                     return@addSnapshotListener 
                 }
-                val list = snapshot?.toObjects(Match::class.java) ?: emptyList()
+                val list = snapshot?.documents?.mapNotNull { doc -> parseMatchSafe(doc) } ?: emptyList()
                 println("✅ DEBUG: listenMatchesByFieldDate result:")
                 println("  - snapshot size: ${snapshot?.size() ?: 0}")
                 println("  - matches found: ${list.size}")
@@ -372,13 +472,63 @@ class BookingRepository(
     }
 
     /**
+     * ✅ NEW: Cho phép renter B cập nhật ghi chú và dịch vụ SAU KHI đã join
+     * - Không đổi participants/status
+     * - Cập nhật notes[1] và serviceLinesBySide["B"]
+     */
+    suspend fun updateOpponentDetails(
+        matchId: String,
+        renterId: String,
+        notes: String?,
+        serviceLines: List<ServiceLine>
+    ): Result<Unit> {
+        return try {
+            val matchRef = firestore.collection(MATCHES_COLLECTION).document(matchId)
+            val snap = matchRef.get().await()
+            if (!snap.exists()) return Result.failure(IllegalStateException("Match not found"))
+            val match = parseMatchSafe(snap) ?: return Result.failure(IllegalStateException("Match parse failed"))
+
+            val isParticipantB = match.participants.any { it.side == "B" && it.renterId == renterId }
+            if (!isParticipantB) return Result.failure(IllegalStateException("Current user is not renter B of this match"))
+
+            val updateData = mutableMapOf<String, Any>(
+                "updatedAt" to System.currentTimeMillis()
+            )
+
+            val currentNotes = (match.notes + listOf(null, null)).take(2)
+            val newNotes = if (notes != null) listOf(currentNotes[0], notes) else currentNotes
+            updateData["notes"] = newNotes
+
+            val currentServicesMap = match.serviceLinesBySide.ifEmpty { mapOf("A" to emptyList(), "B" to emptyList()) }
+            val newServicesMap = mapOf(
+                "A" to (currentServicesMap["A"] ?: emptyList()),
+                "B" to serviceLines
+            )
+            updateData["serviceLinesBySide"] = newServicesMap
+
+            matchRef.update(updateData).await()
+            println("✅ DEBUG: updateOpponentDetails saved for B -> notes='${newNotes[1]}' services=${serviceLines.size}")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            println("❌ ERROR: updateOpponentDetails failed: ${e.message}")
+            Result.failure(e)
+        }
+    }
+
+    /**
      * ✅ NEW: Cập nhật notes của Match
      */
     suspend fun updateMatchNotes(matchId: String, noteA: String?, noteB: String?): Result<Unit> {
         return try {
+            val matchDoc = firestore.collection(MATCHES_COLLECTION).document(matchId).get().await()
+            val current = parseMatchSafe(matchDoc)
             val updateData = mutableMapOf<String, Any>()
-            noteA?.let { updateData["noteA"] = it }
-            noteB?.let { updateData["noteB"] = it }
+            if (current != null) {
+                val curNotes = (current.notes + listOf(null, null)).take(2)
+                val newNotes = listOf(noteA ?: curNotes[0], noteB ?: curNotes[1])
+                updateData["notes"] = newNotes
+            }
+            // Legacy fields removed – only notes array is updated
             
             if (updateData.isNotEmpty()) {
                 firestore.collection(MATCHES_COLLECTION)
@@ -409,7 +559,7 @@ class BookingRepository(
                 return Result.failure(Exception("Match not found"))
             }
             
-            val match = matchDoc.toObject(Match::class.java)
+            val match = parseMatchSafe(matchDoc)
             if (match == null) {
                 return Result.failure(Exception("Failed to parse match"))
             }
@@ -690,6 +840,10 @@ class BookingRepository(
             println("  - rangeKey: $rangeKey")
             println("  - totalPrice: $totalPrice")
 
+            // ✅ Logic 2 - FIND_OPPONENT: Renter A đặt khe giờ chưa có đối thủ
+            // - TẤT CẢ dữ liệu (serviceLines, notes) → chỉ lưu vào Match, KHÔNG lưu vào Booking
+            // - serviceLines → Match.serviceLinesA (KHÔNG lưu vào Booking.serviceLines)
+            // - notes → Match.noteA (KHÔNG lưu vào Booking.notes)
             val booking = Booking(
                 bookingId = bookingId,
                 renterId = renterId,
@@ -701,11 +855,11 @@ class BookingRepository(
                 slotsCount = slotsCount,
                 minutes = minutes,
                 basePrice = basePrice,
-                serviceLines = serviceLines,
-                servicePrice = servicePrice,
-                totalPrice = totalPrice,
+                serviceLines = emptyList(), // ✅ FIX: FIND_OPPONENT - KHÔNG lưu serviceLines vào Booking, chỉ lưu vào Match.serviceLinesA
+                servicePrice = 0, // ✅ FIX: Service price = 0 vì serviceLines = emptyList()
+                totalPrice = basePrice, // ✅ FIX: Total price = basePrice (không có servicePrice)
                 status = "PENDING",
-                notes = notes,
+                notes = null, // ✅ FIX: FIND_OPPONENT - KHÔNG lưu notes vào Booking, chỉ lưu vào Match.noteA
                 hasOpponent = false,
                 bookingType = "SOLO",
                 opponentMode = "WAITING_OPPONENT",
@@ -714,6 +868,10 @@ class BookingRepository(
                 matchSide = "A"
             )
 
+            // ✅ Logic 2: Tạo Match cho Renter A (chưa có đối thủ)
+            // - TẤT CẢ dữ liệu của Renter A → lưu vào Match (array index 0)
+            // - notes → Match.notes[0]
+            // - serviceLines → Match.serviceLines[0]
             val match = Match(
                 rangeKey = rangeKey,
                 fieldId = fieldId,
@@ -724,11 +882,15 @@ class BookingRepository(
                 occupiedCount = 1,
                 participants = listOf(MatchParticipant(bookingId = bookingId, renterId = renterId, side = "A")),
                 price = basePrice,
-                totalPrice = totalPrice,
+                totalPrice = basePrice + servicePrice, // ✅ FIX: Total price = basePrice + servicePrice (từ serviceLines)
                 status = "WAITING_OPPONENT",
                 matchType = "SINGLE",
-                notes = notes, // Notes chung của trận đấu
-                noteA = notes   // Notes riêng của renter A (người đặt đầu tiên)
+                // NEW arrays
+                notes = listOf(notes, null),
+                serviceLinesBySide = mapOf(
+                    "A" to serviceLines,
+                    "B" to emptyList()
+                )
             )
 
             println("🔍 DEBUG: Created objects:")
@@ -801,7 +963,10 @@ class BookingRepository(
     }
 
     /**
-     * ✅ NEW: Renter thứ 2 tham gia làm đối thủ -> tạo booking B, cập nhật match FULL và booking A
+     * ✅ FIX: Renter thứ 2 tham gia làm đối thủ -> CHỈ cập nhật Match, KHÔNG tạo Booking B
+     * - notes → Match.noteB
+     * - serviceLines → Match.serviceLinesB
+     * - participant B → thêm vào Match.participants (bookingId = "" vì không có Booking B)
      */
     suspend fun joinOpponent(
         matchId: String,
@@ -816,54 +981,81 @@ class BookingRepository(
             val matchRef = firestore.collection(MATCHES_COLLECTION).document(matchId)
             val matchSnap = matchRef.get().await()
             println("🔍 DEBUG: Match document exists: ${matchSnap.exists()}")
-            val match = matchSnap.toObject(Match::class.java) ?: return Result.failure(IllegalStateException("Match not found"))
+            val match = parseMatchSafe(matchSnap) ?: return Result.failure(IllegalStateException("Match not found"))
             println("🔍 DEBUG: Match status: ${match.status}")
             if (match.status == "FULL") return Result.failure(IllegalStateException("Match already full"))
 
-            val bookingId = UUID.randomUUID().toString()
-            val servicePrice = serviceLines.sumOf { it.lineTotal }
-            val totalPrice = basePrice + servicePrice
-            val bookingB = Booking(
-                bookingId = bookingId,
+            // ✅ FIX: Logic 2 - FIND_OPPONENT: Renter B join vào match của Renter A
+            // - CHỈ lưu vào Match, KHÔNG tạo Booking B
+            // - notes → Match.noteB
+            // - serviceLines → Match.serviceLinesB
+            // - participant B → thêm vào Match.participants (bookingId = "" vì không có Booking B)
+            println("🔍 DEBUG: Renter B joining - serviceLines count: ${serviceLines.size}")
+            serviceLines.forEachIndexed { index, service ->
+                println("  [$index] ${service.name} (id: ${service.serviceId}): qty=${service.quantity}, price=${service.price}, total=${service.lineTotal}")
+            }
+            println("🔍 DEBUG: Renter B notes: '$notes'")
+
+            // ✅ FIX: Chỉ cập nhật Match, không tạo Booking B
+            val updatedParticipants = match.participants + MatchParticipant(
+                bookingId = "", // ✅ FIX: Không có Booking B nên để empty
                 renterId = renterId,
-                ownerId = ownerId,
-                fieldId = match.fieldId,
-                date = match.date,
-                startAt = match.startAt,
-                endAt = match.endAt,
-                slotsCount = ((match.endAt.substring(0,2)+match.endAt.substring(3,5)).toInt() - (match.startAt.substring(0,2)+match.startAt.substring(3,5)).toInt())/50, // placeholder, không dùng
-                minutes = 60,
-                basePrice = basePrice,
-                serviceLines = serviceLines,
-                servicePrice = servicePrice,
-                totalPrice = totalPrice,
-                status = "PENDING",
-                notes = notes,
-                hasOpponent = true,
-                bookingType = "DUO",
-                consecutiveSlots = emptyList(),
-                matchId = matchId,
-                matchSide = "B"
+                side = "B"
             )
-
-            val batch = firestore.batch()
-            val bookingBDoc = firestore.collection(BOOKINGS_COLLECTION).document(bookingId)
-            batch.set(bookingBDoc, bookingB)
-
-            // update match FULL và lưu noteB
-            val updatedParticipants = match.participants + MatchParticipant(bookingId = bookingId, renterId = renterId, side = "B")
+            
             val updateData = mutableMapOf<String, Any>(
                 "occupiedCount" to 2,
                 "status" to "FULL",
-                "participants" to updatedParticipants
+                "participants" to updatedParticipants,
+                "updatedAt" to System.currentTimeMillis()
             )
-            // Lưu notes của renter B vào noteB
-            notes?.let { updateData["noteB"] = it }
-            
-            batch.update(matchRef, updateData)
 
-            batch.commit().await()
-            println("✅ DEBUG: joinOpponent completed successfully, bookingId: $bookingId")
+            // ✅ NEW: Update array-based fields by reading current arrays and replacing index 1 (side B)
+            val currentNotes = (match.notes + listOf(null, null)).take(2)
+            val newNotes = if (notes != null) listOf(currentNotes[0], notes) else currentNotes
+            updateData["notes"] = newNotes
+            println("✅ DEBUG: Updating notes array: [A='${newNotes[0]}', B='${newNotes[1]}']")
+
+            val currentServicesMap = match.serviceLinesBySide.ifEmpty { mapOf("A" to emptyList(), "B" to emptyList()) }
+            val newServicesMap = mapOf(
+                "A" to (currentServicesMap["A"] ?: emptyList()),
+                "B" to serviceLines
+            )
+            updateData["serviceLinesBySide"] = newServicesMap
+            println("✅ DEBUG: Updating serviceLinesBySide: A=${newServicesMap["A"]?.size ?: 0} items, B=${newServicesMap["B"]?.size ?: 0} items")
+
+            // Stop mirroring to legacy fields
+            serviceLines.forEachIndexed { index, service ->
+                println("  [$index] serviceId=${service.serviceId}, name='${service.name}', qty=${service.quantity}, price=${service.price}, total=${service.lineTotal}")
+            }
+            
+            println("🔍 DEBUG: About to update Match document with updateData:")
+            println("  - updateData keys: ${updateData.keys}")
+            println("  - notes array in updateData: ${updateData["notes"]}")
+            println("  - serviceLinesBySide sizes: ${(newServicesMap["A"]?.size ?: 0)} / ${(newServicesMap["B"]?.size ?: 0)}")
+            
+            matchRef.update(updateData).await()
+            
+            // ✅ Verify update by reading back the document
+            val verifySnap = matchRef.get().await()
+            val verifiedMatch = parseMatchSafe(verifySnap)
+            println("✅ DEBUG: joinOpponent completed successfully - only updated Match, no Booking B created")
+            println("  - noteB requested: '$notes'")
+            println("  - notes[1] in Firestore: '${verifiedMatch?.notes?.getOrNull(1)}'")
+            println("  - serviceLinesB requested count: ${serviceLines.size}")
+            println("  - serviceLinesBySide['B'] count: ${verifiedMatch?.serviceLinesBySide?.get("B")?.size ?: 0}")
+            println("  - participants count: ${updatedParticipants.size}")
+            
+            // ✅ Debug: Log verified serviceLinesBySide["B"]
+            val verifiedB = verifiedMatch?.serviceLinesBySide?.get("B").orEmpty()
+            if (verifiedB.isNotEmpty()) {
+                println("✅ DEBUG: Verified serviceLinesBySide['B'] from Firestore:")
+                verifiedB.forEachIndexed { index, service ->
+                    println("  [$index] serviceId='${service.serviceId}', name='${service.name}', qty=${service.quantity}, price=${service.price}, total=${service.lineTotal}")
+                }
+            } else {
+                println("⚠️ WARNING: serviceLinesBySide['B'] is empty in Firestore after update!")
+            }
             
             // ✅ Thông báo cho owner là trận đã đủ người (Client-side Approach A)
             try {
@@ -915,10 +1107,11 @@ class BookingRepository(
                 println("❌ ERROR: Failed to notify renter A opponent joined: ${e.message}")
             }
             
-            Result.success(bookingId)
+            // ✅ FIX: Return matchId thay vì bookingId (vì không tạo Booking B)
+            return Result.success(matchId)
         } catch (e: Exception) {
             println("❌ ERROR: joinOpponent failed: ${e.message}")
-            Result.failure(e)
+            return Result.failure(e)
         }
     }
 
@@ -1021,7 +1214,8 @@ class BookingRepository(
                 .whereEqualTo("date", date)
                 .get()
                 .await()
-            val activeMatchIds = activeMatchesSnap.toObjects(Match::class.java)
+            val activeMatchIds = activeMatchesSnap.documents
+                .mapNotNull { parseMatchSafe(it) }
                 .filter { it.status == "FULL" || it.status == "CONFIRMED" }
                 .map { it.rangeKey }
                 .toSet()
@@ -1056,7 +1250,7 @@ class BookingRepository(
             }
             
             // ✅ DEBUG: Log all matches (including FREE/CANCELLED)
-            val allMatches = activeMatchesSnap.toObjects(Match::class.java)
+            val allMatches = activeMatchesSnap.documents.mapNotNull { parseMatchSafe(it) }
             println("🔍 DEBUG: All matches for field $fieldId on $date:")
             allMatches.forEach { match ->
                 println("  - matchId: ${match.rangeKey}, status: ${match.status}, participants: ${match.participants.size}")
@@ -1194,7 +1388,7 @@ class BookingRepository(
                                     .await()
                                 
                                 if (matchDoc.exists()) {
-                                    val match = matchDoc.toObject(Match::class.java)
+                    val match = parseMatchSafe(matchDoc)
                                     if (match != null && match.participants.size >= 2) {
                                         // Gửi notification cho cả 2 participants
                                         match.participants.forEach { participant ->
@@ -1272,7 +1466,7 @@ class BookingRepository(
                                     .await()
                                 
                                 if (matchDoc.exists()) {
-                                    val match = matchDoc.toObject(Match::class.java)
+                                    val match = parseMatchSafe(matchDoc)
                                     if (match != null && match.participants.size >= 2) {
                                         // Gửi notification cho cả 2 participants
                                         match.participants.forEach { participant ->
@@ -1568,7 +1762,7 @@ class BookingRepository(
                     val matchRef = firestore.collection(MATCHES_COLLECTION).document(current.matchId!!)
                     val matchSnap = matchRef.get().await()
                     if (matchSnap.exists()) {
-                        val match = matchSnap.toObject(Match::class.java)
+                        val match = parseMatchSafe(matchSnap)
                         if (match != null) {
                             // Xóa renter đã hủy khỏi participants
                             val remainingParticipants = match.participants.filter { it.bookingId != bookingId }
@@ -1635,7 +1829,7 @@ class BookingRepository(
                     val matchRef = firestore.collection(MATCHES_COLLECTION).document(current.matchId!!)
                     val matchSnap = matchRef.get().await()
                     if (matchSnap.exists()) {
-                        val match = matchSnap.toObject(Match::class.java)
+                        val match = parseMatchSafe(matchSnap)
                         val participantIds = match?.participants?.mapNotNull { it.renterId } ?: emptyList()
                         val fieldSnap = firestore.collection("fields").document(current.fieldId).get().await()
                         val fieldName = fieldSnap.getString("name") ?: "Sân"
@@ -1726,7 +1920,7 @@ class BookingRepository(
             .get()
             .addOnSuccessListener { document ->
                 if (document.exists()) {
-                    val match = document.toObject(Match::class.java)
+                    val match = parseMatchSafe(document)
                     onSuccess(match)
                 } else {
                     onSuccess(null)
@@ -1745,16 +1939,19 @@ class BookingRepository(
         onChange: (Match?) -> Unit,
         onError: (Exception) -> Unit
     ): ListenerRegistration {
+        println("🔍 DEBUG: listenMatchById called for matchId: $matchId")
         return firestore.collection(MATCHES_COLLECTION)
             .document(matchId)
             .addSnapshotListener { snapshot, e ->
                 if (e != null) {
+                    println("❌ ERROR: listenMatchById error: ${e.message}")
                     onError(e)
                     return@addSnapshotListener
                 }
-                val match = if (snapshot != null && snapshot.exists()) {
-                    snapshot.toObject(Match::class.java)
-                } else null
+                println("🔍 DEBUG: listenMatchById snapshot received:")
+                println("  - exists: ${snapshot?.exists()}")
+                println("  - hasPendingWrites: ${snapshot?.metadata?.hasPendingWrites()}")
+                val match = if (snapshot != null && snapshot.exists()) parseMatchSafe(snapshot) else null
                 onChange(match)
             }
     }

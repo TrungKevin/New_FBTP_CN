@@ -16,9 +16,14 @@ data class Match(
     val totalPrice: Long = 0,
     val status: String = "WAITING_OPPONENT", // "FREE" | "WAITING_OPPONENT" | "FULL"
     val matchType: String? = null, // "SINGLE" | "DOUBLE"
-    val notes: String? = null, // Notes chung của trận đấu
-    val noteA: String? = null, // Notes riêng của renter A
-    val noteB: String? = null, // Notes riêng của renter B
+    // ✅ NEW (preferred): notes[0] = note A, notes[1] = note B
+    val notes: List<String?> = listOf(null, null),
+    // ⛔ Firestore không hỗ trợ nested arrays -> dùng map theo side thay cho List<List<...>>
+    // ✅ NEW (preferred): serviceLinesBySide["A"] = A, serviceLinesBySide["B"] = B
+    val serviceLinesBySide: Map<String, List<ServiceLine>> = mapOf(
+        "A" to emptyList(),
+        "B" to emptyList()
+    ),
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis() // ✅ FIX: Thêm updatedAt field
 )

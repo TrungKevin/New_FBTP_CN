@@ -87,16 +87,35 @@ fun OwnerMatchDetailScreen(
             onChange = { matchData ->
                 match = matchData
                 if (matchData != null) {
-                    // Load notes từ match ngay lập tức
-                    renterANote = matchData.noteA ?: ""
-                    renterBNote = matchData.noteB ?: ""
+                    // ✅ Load notes từ mảng notes[0]=A, notes[1]=B
+                    renterANote = matchData.notes.getOrNull(0).orEmpty()
+                    renterBNote = matchData.notes.getOrNull(1).orEmpty()
+                    println("🔍 DEBUG: ========== OwnerMatchDetailScreen - Match data loaded ==========")
+                    println("🔍 DEBUG: Match ID: ${matchData.rangeKey}")
+                    println("🔍 DEBUG: Match status: ${matchData.status}")
                     println("🔍 DEBUG: Loaded notes from match:")
-                    println("  - matchData.noteA: '${matchData.noteA}' -> renterANote: '$renterANote' (for Renter A)")
-                    println("  - matchData.noteB: '${matchData.noteB}' -> renterBNote: '$renterBNote' (for Renter B)")
-                    println("  - Match participants:")
-                    matchData.participants.forEach { participant ->
-                        println("    - ${participant.side}: ${participant.renterId}")
+                    println("  - noteA: '$renterANote' (Renter A - người đặt đầu tiên)")
+                    println("  - noteB: '$renterBNote' (Renter B - đối thủ match vào)")
+                    println("  - notes array: A='${matchData.notes.getOrNull(0)}', B='${matchData.notes.getOrNull(1)}'")
+                    val aCount = matchData.serviceLinesBySide["A"]?.size ?: 0
+                    val bCount = matchData.serviceLinesBySide["B"]?.size ?: 0
+                    println("  - serviceLinesBySide[A] count: ${aCount}")
+                    println("  - serviceLinesBySide[B] count: ${bCount}")
+                    println("  - participants count: ${matchData.participants.size}")
+                    matchData.participants.forEachIndexed { index, p ->
+                        println("    [$index] side: ${p.side}, renterId: ${p.renterId}, bookingId: ${p.bookingId}")
                     }
+                    // ✅ DEBUG: Log chi tiết serviceLinesBySide["B"]
+                    val bServicesDbg = matchData.serviceLinesBySide["B"].orEmpty()
+                    if (bServicesDbg.isNotEmpty()) {
+                        println("✅ DEBUG: serviceLinesBySide['B'] details:")
+                        bServicesDbg.forEachIndexed { index, service ->
+                            println("  [$index] serviceId='${service.serviceId}', name='${service.name}', qty=${service.quantity}, price=${service.price}, total=${service.lineTotal}")
+                        }
+                    } else {
+                        println("⚠️ DEBUG: serviceLinesBySide['B'] is EMPTY")
+                    }
+                    println("🔍 DEBUG: =================================================================")
                     
                     // Load field khi thay đổi match
                     scope.launch {
@@ -118,26 +137,63 @@ fun OwnerMatchDetailScreen(
                             }
                         }
                     }
-                    // Load participants khi thay đổi match
+                    // ✅ Load participants và bookings khi thay đổi match
+                    // - Renter A: lấy serviceLines từ Booking A (bookingId từ participant)
+                    // - Renter B: lấy serviceLines từ Match.serviceLinesB (KHÔNG có Booking B)
                     matchData.participants.forEach { participant ->
+                        println("🔍 DEBUG: Loading participant - side: ${participant.side}, renterId: ${participant.renterId}, bookingId: ${participant.bookingId}")
+                        
+                        // Load User info (tên, email, phone)
                         userRepo.getUserById(participant.renterId,
                             onSuccess = { user ->
+                                println("✅ DEBUG: Loaded user for side ${participant.side}: ${user.name}")
                                 if (participant.side == "A") {
                                     renterA = user
                                 } else {
                                     renterB = user
                                 }
                             },
-                            onError = { /* ignore */ }
+                            onError = { e -> 
+                                println("❌ ERROR: Failed to load user for side ${participant.side}: ${e.message}")
+                            }
                         )
-                        scope.launch {
-                            bookingRepo.getBookingById(participant.bookingId).onSuccess { booking ->
-                                if (participant.side == "A") {
-                                    bookingA = booking
-                                } else {
-                                    bookingB = booking
+                        
+                        // ✅ FIX: Renter A - Lấy serviceLines từ Match.serviceLinesA (lưu trực tiếp vào Match)
+                        // ✅ FIX: Renter B - Lấy serviceLines từ Match.serviceLinesB (không có Booking B)
+                        if (participant.side == "A") {
+                            // ✅ FIX: Renter A - Lấy serviceLines từ Match.serviceLinesA
+                        val aServices = matchData.serviceLinesBySide["A"] ?: emptyList()
+                        println("✅ DEBUG: Renter A - serviceLines from arrays/legacy:")
+                        println("  - count: ${aServices.size}")
+                        aServices.forEachIndexed { index, service ->
+                                println("    [$index] ${service.name} (id: ${service.serviceId}): qty=${service.quantity}, price=${service.price}, total=${service.lineTotal}")
+                            }
+                            // Vẫn load Booking A để lấy thông tin khác nếu cần (nhưng serviceLines lấy từ Match)
+                            scope.launch {
+                            val bookingResult = bookingRepo.getBookingById(participant.bookingId)
+                                bookingResult.onSuccess { booking ->
+                                    if (booking != null) {
+                                        println("✅ DEBUG: Loaded booking for Renter A:")
+                                        println("  - bookingId: ${booking.bookingId}")
+                                        bookingA = booking
+                                    } else {
+                                        println("⚠️ WARNING: Booking not found for Renter A, bookingId: ${participant.bookingId}")
+                                    }
+                                }
+                                bookingResult.onFailure { e ->
+                                    println("❌ ERROR: Failed to load booking for Renter A: ${e.message}")
                                 }
                             }
+                        } else {
+                        // ✅ FIX: Renter B - Lấy serviceLines từ map side B hoặc legacy serviceLinesB
+                        val bServices = matchData.serviceLinesBySide["B"] ?: emptyList()
+                        println("✅ DEBUG: Renter B - serviceLines from arrays/legacy:")
+                        println("  - count: ${bServices.size}")
+                        bServices.forEachIndexed { index, service ->
+                                println("    [$index] ${service.name} (id: ${service.serviceId}): qty=${service.quantity}, price=${service.price}, total=${service.lineTotal}")
+                            }
+                            // Renter B không có Booking, không cần load bookingB
+                            bookingB = null
                         }
                     }
                 }
@@ -178,7 +234,6 @@ fun OwnerMatchDetailScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = { 
-                        println("🔍 DEBUG: Back button clicked")
                         navController.popBackStack() 
                     }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Quay lại")
@@ -302,10 +357,6 @@ fun OwnerMatchDetailScreen(
                     
                     // Renter A
                     renterA?.let { user ->
-                        println("🔍 DEBUG: Rendering RenterInfoCard A:")
-                        println("  - User: ${user.name} (${user.userId})")
-                        println("  - Note from Firebase (noteA): '$renterANote'")
-                        println("  - isMatchFinished: $isMatchFinished")
                         RenterInfoCard(
                             renter = user,
                             side = "A",
@@ -341,30 +392,30 @@ fun OwnerMatchDetailScreen(
                             onNoteChanged = { newNote ->
                                 if (isMatchFinished && existingResult == null) {
                                     renterANote = newNote
-                                    println("🔍 DEBUG: Updated renterANote to: '$newNote'")
                                 }
+                            },
+                            serviceLines = run {
+                                val services = match?.serviceLinesBySide?.get("A") ?: emptyList()
+                                println("🔍 DEBUG: RenterInfoCard A - serviceLines count: ${services.size}")
+                                services
                             },
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
                     
                     // Renter B
-                    renterB?.let { user ->
-                        println("🔍 DEBUG: Rendering RenterInfoCard B:")
-                        println("  - User: ${user.name} (${user.userId})")
-                        println("  - Note from Firebase (noteB): '$renterBNote'")
-                        println("  - isMatchFinished: $isMatchFinished")
+                    val hasParticipantB = match?.participants?.any { it.side == "B" } == true
+                    if (renterB != null) {
                         RenterInfoCard(
-                            renter = user,
+                            renter = renterB!!,
                             side = "B", 
                             isSelected = selectedWinner == "B",
                             isMatchFinished = isMatchFinished,
                             onWinnerSelected = { 
                                 if (isMatchFinished && existingResult == null) {
-                                    // Kiểm tra validation tỉ số
                                     if (validateScoreAndStatus("B")) {
                                         if (isDraw) {
-                                            selectedWinner = "DRAW" // Trạng thái hòa
+                                            selectedWinner = "DRAW"
                                         } else {
                                             selectedWinner = if (selectedWinner == "B") null else "B"
                                         }
@@ -379,7 +430,6 @@ fun OwnerMatchDetailScreen(
                             onScoreChanged = { newScore ->
                                 if (isMatchFinished && existingResult == null) {
                                     renterBScore = newScore
-                                    // Reset selection khi thay đổi tỉ số
                                     selectedWinner = null
                                 }
                             },
@@ -389,8 +439,63 @@ fun OwnerMatchDetailScreen(
                             onNoteChanged = { newNote ->
                                 if (isMatchFinished && existingResult == null) {
                                     renterBNote = newNote
-                                    println("🔍 DEBUG: Updated renterBNote to: '$newNote'")
                                 }
+                            },
+                            serviceLines = run {
+                                val services = match?.serviceLinesBySide?.get("B") ?: emptyList()
+                                println("🔍 DEBUG: RenterInfoCard B - serviceLines count: ${services.size}")
+                                services
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else if (hasParticipantB) {
+                        // ✅ Hiển thị placeholder nếu profile Renter B chưa load nhưng dữ liệu match đã có
+                        val placeholderUser = com.trungkien.fbtp_cn.model.User(
+                            userId = match?.participants?.firstOrNull { it.side == "B" }?.renterId ?: "",
+                            name = "Renter B",
+                            email = "",
+                            phone = ""
+                        )
+                        println("⚠️ DEBUG: Renter B profile not loaded yet - showing placeholder with notes/services from match")
+                        RenterInfoCard(
+                            renter = placeholderUser,
+                            side = "B", 
+                            isSelected = selectedWinner == "B",
+                            isMatchFinished = isMatchFinished,
+                            onWinnerSelected = { 
+                                if (isMatchFinished && existingResult == null) {
+                                    if (validateScoreAndStatus("B")) {
+                                        if (isDraw) {
+                                            selectedWinner = "DRAW"
+                                        } else {
+                                            selectedWinner = if (selectedWinner == "B") null else "B"
+                                        }
+                                    } else {
+                                        toastMessage = "Tỉ số và trạng thái không trùng khớp"
+                                    }
+                                } else {
+                                    toastMessage = if (!isMatchFinished) "Trận đấu chưa kết thúc" else "Kết quả đã được lưu, không thể thay đổi"
+                                }
+                            },
+                            score = renterBScore,
+                            onScoreChanged = { newScore ->
+                                if (isMatchFinished && existingResult == null) {
+                                    renterBScore = newScore
+                                    selectedWinner = null
+                                }
+                            },
+                            opponentScore = renterAScore,
+                            isDraw = isDraw,
+                            renterNote = renterBNote,
+                            onNoteChanged = { newNote ->
+                                if (isMatchFinished && existingResult == null) {
+                                    renterBNote = newNote
+                                }
+                            },
+                            serviceLines = run {
+                                val services = match?.serviceLinesBySide?.get("B") ?: emptyList()
+                                println("🔍 DEBUG: RenterInfoCard B (placeholder) - serviceLines count: ${services.size}")
+                                services
                             },
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -415,49 +520,62 @@ fun OwnerMatchDetailScreen(
                                 return@Button
                             }
                             if (selectedWinner != null && match != null) {
-                                isSavingResult = true
-                                scope.launch {
-                                    // Lưu notes trước
-                                    val notesResult = bookingRepo.updateMatchNotes(
-                                        matchId = match!!.rangeKey,
-                                        noteA = renterANote.ifBlank { null },
-                                        noteB = renterBNote.ifBlank { null }
-                                    )
-                                    
-                                    if (notesResult.isSuccess) {
-                                        // Sau đó lưu kết quả
-                                        val result = saveMatchResult(
-                                            match = match!!,
-                                            winnerSide = selectedWinner!!,
-                                            renterA = renterA,
-                                            renterB = renterB,
-                                            renterAScore = renterAScore,
-                                            renterBScore = renterBScore,
-                                            isDraw = isDraw,
-                                            bookingRepo = bookingRepo
-                                        )
-                                        isSavingResult = false
-                                        if (result.isSuccess) {
-                                            toastMessage = "Lưu kết quả trận đấu thành công"
-                                            existingResult = MatchResult(
-                                                resultId = "", // không cần dùng lại
-                                                matchId = match!!.rangeKey,
-                                                fieldId = match!!.fieldId,
-                                                date = match!!.date,
-                                                startAt = match!!.startAt,
-                                                endAt = match!!.endAt,
-                                                winnerSide = selectedWinner,
-                                                renterAScore = renterAScore,
-                                                renterBScore = renterBScore,
-                                                isDraw = isDraw
+                                // ✅ FIX: Lưu giá trị vào biến local để tránh race condition
+                                val currentMatch = match
+                                val currentWinner = selectedWinner
+                                val currentRenterA = renterA
+                                val currentRenterB = renterB
+                                
+                                if (currentMatch != null && currentWinner != null) {
+                                    isSavingResult = true
+                                    scope.launch {
+                                        try {
+                                            // Lưu notes trước
+                                            val notesResult = bookingRepo.updateMatchNotes(
+                                                matchId = currentMatch.rangeKey,
+                                                noteA = renterANote.ifBlank { null },
+                                                noteB = renterBNote.ifBlank { null }
                                             )
-                                            navController.popBackStack()
-                                        } else {
-                                            toastMessage = "Lỗi: ${result.exceptionOrNull()?.message ?: "Không thể lưu kết quả"}"
+                                            
+                                            if (notesResult.isSuccess) {
+                                                // Sau đó lưu kết quả
+                                                val result = saveMatchResult(
+                                                    match = currentMatch,
+                                                    winnerSide = currentWinner,
+                                                    renterA = currentRenterA,
+                                                    renterB = currentRenterB,
+                                                    renterAScore = renterAScore,
+                                                    renterBScore = renterBScore,
+                                                    isDraw = isDraw,
+                                                    bookingRepo = bookingRepo
+                                                )
+                                                isSavingResult = false
+                                                if (result.isSuccess) {
+                                                    toastMessage = "Lưu kết quả trận đấu thành công"
+                                                    existingResult = MatchResult(
+                                                        resultId = "", // không cần dùng lại
+                                                        matchId = currentMatch.rangeKey,
+                                                        fieldId = currentMatch.fieldId,
+                                                        date = currentMatch.date,
+                                                        startAt = currentMatch.startAt,
+                                                        endAt = currentMatch.endAt,
+                                                        winnerSide = currentWinner,
+                                                        renterAScore = renterAScore,
+                                                        renterBScore = renterBScore,
+                                                        isDraw = isDraw
+                                                    )
+                                                    navController.popBackStack()
+                                                } else {
+                                                    toastMessage = "Lỗi: ${result.exceptionOrNull()?.message ?: "Không thể lưu kết quả"}"
+                                                }
+                                            } else {
+                                                isSavingResult = false
+                                                toastMessage = "Lỗi: ${notesResult.exceptionOrNull()?.message ?: "Không thể lưu ghi chú"}"
+                                            }
+                                        } catch (e: Exception) {
+                                            isSavingResult = false
+                                            toastMessage = "Lỗi: ${e.message ?: "Đã xảy ra lỗi không xác định"}"
                                         }
-                                    } else {
-                                        isSavingResult = false
-                                        toastMessage = "Lỗi: ${notesResult.exceptionOrNull()?.message ?: "Không thể lưu ghi chú"}"
                                     }
                                 }
                             }
@@ -543,7 +661,7 @@ private suspend fun saveMatchResult(
         loserEmail = if (isDraw) null else loserRenter?.email,
         matchType = match.matchType,
         totalPrice = match.totalPrice,
-        notes = match.notes,
+        notes = null, // ✅ FIX: Match không còn field notes, chỉ dùng noteA/noteB riêng
         renterAScore = renterAScore,
         renterBScore = renterBScore,
         isDraw = isDraw,

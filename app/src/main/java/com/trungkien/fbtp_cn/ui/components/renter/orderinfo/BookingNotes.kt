@@ -17,6 +17,7 @@ import com.trungkien.fbtp_cn.ui.theme.FBTP_CNTheme
 fun BookingNotes(
     notes: String,
     onNotesChange: (String) -> Unit,
+    actorSide: String? = null,
     modifier: Modifier = Modifier
 ) {
     // ✅ FIX: FocusManager để ẩn bàn phím
@@ -35,7 +36,12 @@ fun BookingNotes(
                     focusManager.clearFocus()
                 }
         ) {
-            Text(text = "Ghi chú", style = MaterialTheme.typography.titleMedium)
+            val title = when (actorSide) {
+                "B" -> "Ghi chú (đối thủ B)"
+                "A" -> "Ghi chú (người đặt A)"
+                else -> "Ghi chú"
+            }
+            Text(text = title, style = MaterialTheme.typography.titleMedium)
             OutlinedTextField(
                 value = notes,
                 onValueChange = onNotesChange,

@@ -80,7 +80,6 @@ dependencies {
     
     // Google Maps SDK
     implementation("com.google.android.gms:play-services-maps:18.2.0")
-    implementation("com.google.android.gms:play-services-location:21.0.1")
     
     // OpenStreetMap support (keep for fallback)
     implementation("org.osmdroid:osmdroid-android:6.1.18")

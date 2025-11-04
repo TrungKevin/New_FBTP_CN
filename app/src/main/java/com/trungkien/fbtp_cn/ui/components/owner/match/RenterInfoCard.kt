@@ -27,7 +27,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.trungkien.fbtp_cn.model.ServiceLine
 
 @Composable
 fun RenterInfoCard(
@@ -42,6 +44,7 @@ fun RenterInfoCard(
     isDraw: Boolean = false,
     renterNote: String? = null,
     onNoteChanged: (String) -> Unit = {},
+    serviceLines: List<ServiceLine> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     val containerColor = if (isSelected && isMatchFinished) {
@@ -113,17 +116,26 @@ fun RenterInfoCard(
                 value = renter.email
             )
             
-            // Ghi chú riêng của renter - CHỈ HIỂN THỊ DỮ LIỆU CÓ SẴN
-            println("🔍 DEBUG: RenterInfoCard - side: $side")
-            println("  - renterNote: '$renterNote'")
-            println("  - isMatchFinished: $isMatchFinished")
-            println("  - renter.name: '${renter.name}'")
-            
+            // ✅ Ghi chú riêng của renter - CHỈ HIỂN THỊ DỮ LIỆU CÓ SẴN
+            // - Renter A: lấy từ Match.noteA (ghi chú khi đặt khe giờ đầu tiên)
+            // - Renter B: lấy từ Match.noteB (ghi chú khi match vào làm đối thủ)
             // Luôn hiển thị ghi chú có sẵn từ dữ liệu, không cho nhập
+            val displayNote = when {
+                renterNote.isNullOrBlank() -> "Chưa có ghi chú"
+                else -> renterNote
+            }
             EnhancedInfoRowLocal(
                 icon = Icons.Filled.Edit,
                 label = "Ghi chú của ${renter.name.ifBlank { "Renter $side" }}",
-                value = renterNote?.ifBlank { "Chưa có ghi chú" } ?: "Chưa có ghi chú"
+                value = displayNote
+            )
+            
+            // ✅ Dịch vụ thêm của renter - lấy từ Booking.serviceLines
+            // ServiceLines được lưu khi renter chọn dịch vụ lúc đặt giờ (từ FieldService)
+            // Mỗi renter có booking riêng, serviceLines được lấy từ booking của renter đó
+            RenterServicesSection(
+                serviceLines = serviceLines,
+                renterName = renter.name.ifBlank { "Renter $side" }
             )
         }
     }
@@ -314,5 +326,133 @@ private fun EnhancedInfoRowLocal(
                 color = MaterialTheme.colorScheme.onSurface
             )
         }
+    }
+}
+
+@Composable
+private fun RenterServicesSection(
+    serviceLines: List<ServiceLine>,
+    renterName: String
+) {
+    if (serviceLines.isEmpty()) {
+        // Nếu không có dịch vụ, hiển thị "Chưa có dịch vụ thêm"
+        EnhancedInfoRowLocal(
+            icon = Icons.Filled.ShoppingCart,
+            label = "Dịch vụ thêm của $renterName",
+            value = "Chưa có dịch vụ thêm"
+        )
+    } else {
+        // Nếu có dịch vụ, hiển thị danh sách dịch vụ
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    RoundedCornerShape(12.dp)
+                )
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Header
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ShoppingCart,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "Dịch vụ thêm của $renterName",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontWeight = FontWeight.Medium
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+            }
+            
+            // Danh sách dịch vụ
+            serviceLines.forEach { service ->
+                ServiceItemRow(service = service)
+            }
+            
+            // Tổng tiền dịch vụ
+            val totalServicePrice = serviceLines.sumOf { it.lineTotal }
+            if (totalServicePrice > 0) {
+                Divider(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Tổng tiền dịch vụ:",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.SemiBold
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                    )
+                    Text(
+                        text = "${String.format("%,d", totalServicePrice)}₫",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ServiceItemRow(service: ServiceLine) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                RoundedCornerShape(8.dp)
+            )
+            .padding(12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = service.name.ifBlank { "Dịch vụ không xác định" },
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = FontWeight.SemiBold
+                ),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            if (service.quantity > 1) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Số lượng: ${service.quantity} × ${String.format("%,d", service.price)}₫",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+            } else {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "${String.format("%,d", service.price)}₫",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+            }
+        }
+        Text(
+            text = "${String.format("%,d", service.lineTotal)}₫",
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontWeight = FontWeight.Bold
+            ),
+            color = MaterialTheme.colorScheme.primary
+        )
     }
 }

@@ -122,8 +122,9 @@ fun OwnerBookingListScreen(
     var selectedFilter by rememberSaveable { mutableStateOf(BookingStatusFilter.All) }
     var selectedMatchFilter by rememberSaveable { mutableStateOf(MatchStatusFilter.All) }
     var showDatePicker by remember { mutableStateOf(false) }
-    // ✅ Mặc định xem lịch theo ngày hôm nay; người dùng có thể chuyển qua bộ lọc phạm vi
-    var selectedDate by remember { mutableStateOf<LocalDate?>(LocalDate.now()) }
+    // ✅ Lưu ngày lọc bằng rememberSaveable để giữ khi đi đến màn khác rồi quay lại (popBackStack)
+    var selectedDateStr by rememberSaveable { mutableStateOf<String?>(LocalDate.now().toString()) }
+    val selectedDate: LocalDate? = remember(selectedDateStr) { selectedDateStr?.let { runCatching { LocalDate.parse(it) }.getOrNull() } }
     var showRangeMenu by remember { mutableStateOf(false) }
     var selectedRange by remember { mutableStateOf(RecentRangeFilter.All) }
     var selectedBooking by remember { mutableStateOf<Booking?>(null) }
@@ -259,7 +260,17 @@ fun OwnerBookingListScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 IconButton(
-                    onClick = { showDatePicker = true }
+                    onClick = {
+                        // Nếu đang lọc một ngày khác hôm nay → bấm calendar sẽ trở về hôm nay
+                        val today = LocalDate.now()
+                        if (selectedDate != null && selectedDate != today) {
+                            selectedDateStr = today.toString()
+                            // Khi quay về hôm nay, giữ selectedRange hiện tại (không động chạm)
+                        } else {
+                            // Đang ở hôm nay (hoặc chưa chọn ngày cụ thể) → mở DatePicker để chọn ngày
+                            showDatePicker = true
+                        }
+                    }
                 ) {
                     Icon(
                         Icons.Default.DateRange,
@@ -285,7 +296,7 @@ fun OwnerBookingListScreen(
                                 onClick = {
                                     selectedRange = opt
                                     // ✅ Khi chọn phạm vi (tuần/tháng/...), bỏ chọn ngày đơn lẻ để phạm vi có hiệu lực
-                                    selectedDate = null
+                                    selectedDateStr = null
                                     showRangeMenu = false
                                 }
                             )
@@ -412,7 +423,7 @@ fun OwnerBookingListScreen(
         onDismiss = { showDatePicker = false },
         onSelected = { ld ->
             // ✅ Khi chọn ngày, ưu tiên ngày và reset phạm vi về "Tất cả"
-            selectedDate = ld
+            selectedDateStr = ld?.toString()
             selectedRange = RecentRangeFilter.All
         }
     )
