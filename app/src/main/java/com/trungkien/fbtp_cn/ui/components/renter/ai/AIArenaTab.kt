@@ -53,6 +53,10 @@ fun AIArenaTab(
     var entries by remember { mutableStateOf<List<LeaderboardEntry>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var myWeighted by remember { mutableStateOf<Float?>(null) }
+    // Map lưu AI score mới nhất (tính theo sân hiện tại) cho từng renter
+    var latestAiScoreByRenter by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
+    // Map AI score tính TRỰC TIẾP từ match_results của SÂN HIỆN TẠI (để phân loại tab + hiển thị đồng nhất)
+    var computedAiScoreByRenter by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
 
     LaunchedEffect(fieldId, renterId) {
         isLoading = true
@@ -83,6 +87,71 @@ fun AIArenaTab(
             }
         } else {
             println("  - My weighted winRate from leaderboard (field $fieldId): $myWeighted")
+        }
+        // ✅ Đồng bộ hiển thị AI score với OpponentDetailSheet: luôn dùng dữ liệu mới nhất theo sân
+        try {
+            val aiProfileRepo = com.trungkien.fbtp_cn.repository.AiProfileRepository()
+            val renterIds = list.map { it.renterId }.filter { it.isNotBlank() }
+            val profilesResult = aiProfileRepo.getAiProfiles(renterIds, fieldId)
+            if (profilesResult.isSuccess) {
+                val profiles = profilesResult.getOrNull().orEmpty()
+                // Convert skill (0..1) -> score (0..100)
+                latestAiScoreByRenter = profiles.mapValues { ((it.value.skill * 100f).coerceIn(0f, 100f)).toInt() }
+                println("  - Loaded latest AI profiles for ${latestAiScoreByRenter.size} renters (field $fieldId)")
+            }
+        } catch (e: Exception) {
+            println("⚠️ WARN: Failed to load latest AI profiles: ${e.message}")
+        }
+
+        // ✅ Tính AI score theo sân hiện tại từ match_results cho TOÀN BỘ đối thủ (dùng để phân loại tab)
+        try {
+            val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            val snap = db.collection("match_results")
+                .whereEqualTo("fieldId", fieldId)
+                .get()
+                .await()
+
+            val wins = mutableMapOf<String, Int>()
+            val losses = mutableMapOf<String, Int>()
+            val draws = mutableMapOf<String, Int>()
+
+            snap.documents.forEach { d ->
+                try {
+                    val r = d.toObject(com.trungkien.fbtp_cn.model.MatchResult::class.java)
+                    if (r != null) {
+                        // Winner side
+                        r.winnerRenterId?.let { id ->
+                            if (id.isNotBlank()) wins[id] = (wins[id] ?: 0) + (if (r.isDraw) 0 else 1)
+                            if (r.isDraw) draws[id] = (draws[id] ?: 0) + 1
+                        }
+                        // Loser side
+                        r.loserRenterId?.let { id ->
+                            if (id.isNotBlank()) losses[id] = (losses[id] ?: 0) + (if (r.isDraw) 0 else 1)
+                            if (r.isDraw) draws[id] = (draws[id] ?: 0) + 1
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+
+            val C = 10f
+            val map = mutableMapOf<String, Int>()
+            val renterIdsAll = list.map { it.renterId }.toSet()
+            renterIdsAll.forEach { id ->
+                val w = wins[id] ?: 0
+                val l = losses[id] ?: 0
+                val d = draws[id] ?: 0
+                val total = w + l + d
+                val score = if (total > 0) {
+                    val winRate = w.toFloat() / total.toFloat()
+                    val weighted = winRate * (total.toFloat() / (total.toFloat() + C))
+                    ((weighted * 100f).coerceIn(0f, 100f)).toInt()
+                } else 0
+                map[id] = score
+            }
+            computedAiScoreByRenter = map
+            println("  - Computed AI scores for ${map.size} renters from match_results (field $fieldId)")
+        } catch (e: Exception) {
+            println("⚠️ WARN: Failed to compute AI from match_results: ${e.message}")
         }
         
         // ✅ Loại chính mình nếu có
@@ -232,12 +301,27 @@ fun AIArenaTab(
         val comparator = compareByDescending<LeaderboardEntry> { it.weightedWinRate }
             .thenByDescending { it.totalMatches }
         
-        // ✅ Phân loại tab "Đối mạnh" và "Đối khá" dựa trên weightedWinRate từ sân hiện tại
-        // - "Đối mạnh": weightedWinRate >= 0.5 (50%)
-        // - "Đối khá": weightedWinRate < 0.5 (50%)
-        val strongIds = entries.filter { it.weightedWinRate >= 0.5f }.map { it.renterId }.toSet()
-        val strong = entries.filter { it.weightedWinRate >= 0.5f }.sortedWith(comparator)
-        val balanced = entries.filter { it.weightedWinRate < 0.5f && it.renterId !in strongIds }.sortedWith(comparator)
+        // ✅ Phân loại tab theo dữ liệu MỚI NHẤT (ưu tiên computed từ match_results), rồi profile, rồi leaderboard
+        // - "Đối mạnh": AI score >= 50/100
+        // - "Đối khá": AI score < 50/100
+        val strongIds = entries.filter { e ->
+            val score = computedAiScoreByRenter[e.renterId]
+                ?: latestAiScoreByRenter[e.renterId]
+                ?: ((e.weightedWinRate * 100f).coerceIn(0f, 100f)).toInt()
+            score >= 50
+        }.map { it.renterId }.toSet()
+        val strong = entries.filter { e ->
+            val score = computedAiScoreByRenter[e.renterId]
+                ?: latestAiScoreByRenter[e.renterId]
+                ?: ((e.weightedWinRate * 100f).coerceIn(0f, 100f)).toInt()
+            score >= 50
+        }.sortedWith(comparator)
+        val balanced = entries.filter { e ->
+            val score = computedAiScoreByRenter[e.renterId]
+                ?: latestAiScoreByRenter[e.renterId]
+                ?: ((e.weightedWinRate * 100f).coerceIn(0f, 100f)).toInt()
+            score < 50 && e.renterId !in strongIds
+        }.sortedWith(comparator)
         
         println("🔍 DEBUG: AIArenaTab - Tab classification (field: $fieldId)")
         println("  - Strong tab: ${strong.size} opponents")
@@ -279,7 +363,10 @@ fun AIArenaTab(
                             }
                             aiAgent.estimateOutcomeProbabilities(baseMy, e.weightedWinRate)
                         } else null
-                        OpponentCard(fieldId, renterId, e, prob)
+                        run {
+                            val aiScoreMap = if (computedAiScoreByRenter.isNotEmpty()) computedAiScoreByRenter else latestAiScoreByRenter
+                            OpponentCard(fieldId, renterId, e, aiScoreMap, prob)
+                        }
                     }
                 }
             }
@@ -292,6 +379,7 @@ private fun OpponentCard(
     fieldId: String,
     renterAId: String,
     entry: LeaderboardEntry,
+    latestAiScoreByRenter: Map<String, Int> = emptyMap(),
     outcomeProb: com.trungkien.fbtp_cn.repository.OutcomeProbabilities? = null
 ) {
     val userRepo = remember { UserRepository() }
@@ -310,6 +398,90 @@ private fun OpponentCard(
     var showDetail by remember { mutableStateOf(false) }
     var fieldName by remember { mutableStateOf<String?>(null) }
     var fieldLoading by remember { mutableStateOf(false) }
+
+    // Tính AI score realtime từ match_results theo sân hiện tại (đồng bộ với OpponentDetailSheet)
+    var calculatedAiScore by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(entry.renterId, fieldId) {
+        try {
+            val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            val renterId = entry.renterId
+
+            val winnerQuery = db.collection("match_results")
+                .whereEqualTo("winnerRenterId", renterId)
+            val winnerSnap = if (fieldId.isNotBlank()) {
+                winnerQuery.whereEqualTo("fieldId", fieldId).get().await()
+            } else {
+                winnerQuery.get().await()
+            }
+
+            val loserQuery = db.collection("match_results")
+                .whereEqualTo("loserRenterId", renterId)
+            val loserSnap = if (fieldId.isNotBlank()) {
+                loserQuery.whereEqualTo("fieldId", fieldId).get().await()
+            } else {
+                loserQuery.get().await()
+            }
+
+            val drawQuery = db.collection("match_results").whereEqualTo("isDraw", true)
+            val drawSnap = if (fieldId.isNotBlank()) {
+                drawQuery.whereEqualTo("fieldId", fieldId).get().await()
+            } else {
+                drawQuery.get().await()
+            }
+
+            val all = mutableSetOf<String>()
+            val results = mutableListOf<com.trungkien.fbtp_cn.model.MatchResult>()
+            winnerSnap.documents.forEach { d ->
+                try {
+                    val r = d.toObject(com.trungkien.fbtp_cn.model.MatchResult::class.java)
+                    if (r != null && r.resultId.isNotBlank() && !all.contains(r.resultId)) {
+                        all.add(r.resultId); results.add(r)
+                    }
+                } catch (_: Exception) {}
+            }
+            loserSnap.documents.forEach { d ->
+                try {
+                    val r = d.toObject(com.trungkien.fbtp_cn.model.MatchResult::class.java)
+                    if (r != null && r.resultId.isNotBlank() && !all.contains(r.resultId)) {
+                        all.add(r.resultId); results.add(r)
+                    }
+                } catch (_: Exception) {}
+            }
+            drawSnap.documents.forEach { d ->
+                try {
+                    val r = d.toObject(com.trungkien.fbtp_cn.model.MatchResult::class.java)
+                    if (r != null && r.isDraw && r.resultId.isNotBlank()) {
+                        val participated = (r.winnerRenterId == renterId || r.loserRenterId == renterId)
+                        if (participated && !all.contains(r.resultId)) {
+                            all.add(r.resultId); results.add(r)
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+
+            var wins = 0
+            var losses = 0
+            var draws = 0
+            results.forEach { m ->
+                when {
+                    m.isDraw && (m.winnerRenterId == renterId || m.loserRenterId == renterId) -> draws++
+                    m.winnerRenterId == renterId -> wins++
+                    m.loserRenterId == renterId -> losses++
+                }
+            }
+            val total = wins + losses + draws
+            if (total > 0) {
+                val winRate = wins.toFloat() / total.toFloat()
+                val C = 10f
+                val weighted = winRate * (total.toFloat() / (total.toFloat() + C))
+                calculatedAiScore = ((weighted * 100).coerceIn(0f, 100f)).toInt()
+            } else {
+                calculatedAiScore = 0
+            }
+        } catch (_: Exception) {
+            calculatedAiScore = null
+        }
+    }
 
     // Fetch field khi cần show detail
     LaunchedEffect(showDetail) {
@@ -344,7 +516,7 @@ private fun OpponentCard(
         }
     }
 
-    ElevatedCard(
+    ElevatedCard(// là dùng ElevatedCard để có shadow nhẹ của Material 3
         colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
@@ -376,12 +548,18 @@ private fun OpponentCard(
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    AssistChip(
-                        onClick = {},
-                        label = { Text("AI ${((entry.weightedWinRate * 100).coerceIn(0f, 100f)).toInt()}/100", style = MaterialTheme.typography.labelMedium) },
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.height(28.dp)
-                    )
+                    // ✅ CRITICAL: Hiển thị AI score ưu tiên từ map tính cho phân loại (đảm bảo khớp Tab)
+                    run {
+                        val latest = latestAiScoreByRenter[entry.renterId] ?: calculatedAiScore
+                        val fallback = ((entry.weightedWinRate * 100).coerceIn(0f, 100f)).toInt()
+                        val displayAi = latest ?: fallback
+                        AssistChip(
+                            onClick = {},
+                            label = { Text("AI ${displayAi}/100", style = MaterialTheme.typography.labelMedium) },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.height(28.dp)
+                        )
+                    }
                     if (outcomeProb == null) {
                         AssistChip(
                             onClick = {},
@@ -541,7 +719,8 @@ private fun OpponentCardPreview() {
                     totalMatches = 11,
                     winPercent = 72f,
                     weightedWinRate = 0.68f
-                )
+                ),
+                latestAiScoreByRenter = emptyMap()
             )
         }
     }
@@ -564,7 +743,7 @@ private fun OpponentListPreview() {
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(samples) { e ->
-                    OpponentCard(fieldId = "field_sample", renterAId = "renter_A", entry = e)
+                    OpponentCard(fieldId = "field_sample", renterAId = "renter_A", entry = e, latestAiScoreByRenter = emptyMap())
                 }
             }
         }
