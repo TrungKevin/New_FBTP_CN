@@ -1116,6 +1116,119 @@ class BookingRepository(
     }
 
     /**
+     * ✅ NEW: Cho phép renter B cập nhật lại notes/serviceLines sau khi đã join, kể cả khi Match đang FULL
+     * - Không thay đổi status/occupiedCount
+     * - Chỉ ghi đè notes[1] và serviceLinesBySide["B"]
+     */
+    suspend fun updateRenterBInMatch(
+        matchId: String,
+        renterId: String,
+        serviceLines: List<ServiceLine> = emptyList(),
+        notes: String? = null
+    ): Result<Unit> {
+        return try {
+            val matchRef = firestore.collection(MATCHES_COLLECTION).document(matchId)
+            val snap = matchRef.get().await()
+            if (!snap.exists()) return Result.failure(IllegalStateException("Match not found"))
+            val match = parseMatchSafe(snap) ?: return Result.failure(IllegalStateException("Match parse error"))
+
+            // Xác nhận có participant B
+            val hasB = match.participants.any { it.side.equals("B", true) }
+            if (!hasB) return Result.failure(IllegalStateException("Participant B not found in match"))
+
+            // Ghi đè notes[1]
+            val currentNotes = (match.notes + listOf(null, null)).take(2)
+            val newNotes = if (notes != null) listOf(currentNotes[0], notes) else currentNotes
+
+            // Ghi đè servicesBySide["B"]
+            val currentServicesMap = match.serviceLinesBySide.ifEmpty { mapOf("A" to emptyList(), "B" to emptyList()) }
+            val newServicesMap = mapOf(
+                "A" to (currentServicesMap["A"] ?: emptyList()),
+                "B" to serviceLines
+            )
+
+            val update = mapOf(
+                "notes" to newNotes,
+                "serviceLinesBySide" to newServicesMap,
+                "updatedAt" to System.currentTimeMillis()
+            )
+
+            println("🔁 DEBUG: updateRenterBInMatch → matchId=$matchId, notesB='${newNotes.getOrNull(1)}', servicesB=${serviceLines.size}")
+            matchRef.update(update).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            println("❌ ERROR: updateRenterBInMatch failed → ${e.message}")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * ✅ NEW: Đảm bảo có Booking cho renter B khi đã join match (nếu chưa có thì tạo mới)
+     * - Nếu đã tồn tại booking của renter B cho matchId này → trả về bookingId hiện có
+     * - Nếu chưa có → tạo Booking B copy dữ liệu thời gian từ Booking A (cùng match), matchSide = "B"
+     */
+    suspend fun ensureBookingForRenterB(
+        matchId: String,
+        renterBId: String,
+        ownerId: String,
+        basePrice: Long
+    ): Result<String> {
+        return try {
+            val bookingsCol = firestore.collection(BOOKINGS_COLLECTION)
+
+            // 1) Tìm booking hiện có của renter B cho matchId
+            val existingSnap = bookingsCol
+                .whereEqualTo("matchId", matchId)
+                .whereEqualTo("renterId", renterBId)
+                .get()
+                .await()
+            val existing = existingSnap.documents.firstOrNull()?.getString("bookingId")
+            if (existing != null) {
+                println("✅ DEBUG: ensureBookingForRenterB → existing bookingId=$existing")
+                return Result.success(existing)
+            }
+
+            // 2) Lấy booking của A làm mẫu (cùng match)
+            val aSnap = bookingsCol
+                .whereEqualTo("matchId", matchId)
+                .get()
+                .await()
+            val bookingA = aSnap.toObjects(Booking::class.java).firstOrNull()
+                ?: return Result.failure(IllegalStateException("Booking A not found for match $matchId"))
+
+            val newBookingId = UUID.randomUUID().toString()
+            val now = System.currentTimeMillis()
+
+            val bookingB = Booking(
+                bookingId = newBookingId,
+                renterId = renterBId,
+                ownerId = ownerId,
+                fieldId = bookingA.fieldId,
+                date = bookingA.date,
+                startAt = bookingA.startAt,
+                endAt = bookingA.endAt,
+                consecutiveSlots = bookingA.consecutiveSlots,
+                basePrice = basePrice,
+                bookingType = "SOLO",
+                hasOpponent = false,
+                matchId = matchId,
+                status = "PENDING",
+                createdAt = now,
+                updatedAt = now,
+                matchSide = "B",
+                createdWithOpponent = false
+            )
+
+            bookingsCol.document(newBookingId).set(bookingB).await()
+            println("✅ DEBUG: ensureBookingForRenterB → created bookingBId=$newBookingId for matchId=$matchId")
+            Result.success(newBookingId)
+        } catch (e: Exception) {
+            println("❌ ERROR: ensureBookingForRenterB failed → ${e.message}")
+            Result.failure(e)
+        }
+    }
+
+    /**
      * ✅ NEW: Tìm booking SOLO đang chờ đối thủ theo slot
      */
     suspend fun findWaitingBookingBySlot(
@@ -1597,22 +1710,46 @@ class BookingRepository(
             println("🔍 DEBUG: getWaitingOpponentBookings query:")
             println("  - fieldId: $fieldId")
             println("  - date: $date")
-            
+
+            // 1) Lấy danh sách match theo ngày để xác định FULL/CONFIRMED
+            val matchesSnap = firestore.collection(MATCHES_COLLECTION)
+                .whereEqualTo("fieldId", fieldId)
+                .whereEqualTo("date", date)
+                .get()
+                .await()
+            val allMatches = matchesSnap.toObjects(Match::class.java)
+            val activeMatchIds = allMatches
+                .filter { it.status == "FULL" || it.status == "CONFIRMED" }
+                .map { it.rangeKey }
+                .toSet()
+            println("🔍 DEBUG: getWaitingOpponentBookings → activeMatchIds size = ${activeMatchIds.size}")
+
+            // 2) Lấy bookings SOLO, chưa có đối thủ, còn hiệu lực
             val snapshot = firestore.collection(BOOKINGS_COLLECTION)
                 .whereEqualTo("fieldId", fieldId)
                 .whereEqualTo("date", date)
                 .whereEqualTo("bookingType", "SOLO")
                 .whereEqualTo("hasOpponent", false)
-                .whereIn("status", listOf("PENDING", "CONFIRMED")) // ✅ FIX: Chỉ lấy bookings chưa bị hủy
+                .whereIn("status", listOf("PENDING", "CONFIRMED"))
                 .get()
                 .await()
-            
-            val bookings = snapshot.toObjects(Booking::class.java)
-            println("✅ DEBUG: Found ${bookings.size} waiting opponent bookings (PENDING/CONFIRMED only)")
+
+            val raw = snapshot.toObjects(Booking::class.java)
+
+            // 3) Loại các booking đã thuộc match FULL/CONFIRMED để không bị hiển thị vàng nữa
+            val bookings = raw.filter { booking ->
+                val inActive = !booking.matchId.isNullOrBlank() && activeMatchIds.contains(booking.matchId)
+                if (inActive) {
+                    println("↪️ FILTER OUT waiting booking (belongs to FULL/CONFIRMED match): ${booking.bookingId} matchId=${booking.matchId}")
+                }
+                !inActive
+            }
+
+            println("✅ DEBUG: Found ${bookings.size} waiting opponent bookings after filtering active matches")
             bookings.forEachIndexed { index, booking ->
                 println("  [$index] bookingId: ${booking.bookingId}, status: ${booking.status}, slots: ${booking.consecutiveSlots}")
             }
-            
+
             Result.success(bookings)
         } catch (e: Exception) {
             println("❌ ERROR: Failed to get waiting opponent bookings: ${e.message}")
@@ -1655,17 +1792,18 @@ class BookingRepository(
                 return Result.success(emptyList())
             }
 
+            // ✅ IMPORTANT: KHÔNG giới hạn theo bookingType/hasOpponent
+            // Vì flow FIND_OPPONENT giữ booking A là SOLO/hasOpponent=false ngay cả khi match FULL
+            // Ta chỉ cần lấy bookings theo ngày và filter theo matchId thuộc activeMatchIds
             val snapshot = firestore.collection(BOOKINGS_COLLECTION)
                 .whereEqualTo("fieldId", fieldId)
                 .whereEqualTo("date", date)
-                .whereEqualTo("bookingType", "DUO")
-                .whereEqualTo("hasOpponent", true)
                 .whereIn("status", listOf("PENDING", "CONFIRMED"))
                 .get()
                 .await()
 
             val allBookings = snapshot.toObjects(Booking::class.java)
-            println("🔍 DEBUG: All DUO bookings found: ${allBookings.size}")
+            println("🔍 DEBUG: All candidate bookings found: ${allBookings.size}")
             allBookings.forEach { booking ->
                 println("  - Booking ${booking.bookingId}: status=${booking.status}, matchId=${booking.matchId}")
             }

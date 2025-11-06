@@ -65,9 +65,11 @@ private fun Booking.isRenterAStrict(): Boolean =
 
 // ✅ CRITICAL FIX: Single place to define what belongs to the Bookings tab
 private fun Booking.isForBookingsTab(): Boolean =
-    bookingType.equals("DUO", true) &&
-    createdWithOpponent == true &&     // must be chosen at creation time
-    isRenterAStrict()                  // strictly renter A
+    bookingType.equals("DUO", true) &&               // Chỉ các booking tạo theo chế độ "đã có đối thủ"
+    createdWithOpponent == true &&                    // Được chọn "Có đối thủ" ngay lúc tạo
+    // Yêu cầu đã có đối thủ hoặc đã khóa cặp đôi (tránh lọt renter B join/waiting)
+    (hasOpponent == true || opponentMode?.equals("LOCKED_FULL", true) == true) &&
+    isRenterAStrict()                                 // Chỉ hiển thị của Renter A
 
 private enum class BookingStatusFilter(val label: String) {
     All("Tất cả"),
@@ -139,6 +141,17 @@ fun OwnerBookingListScreen(
 
     val filtered = remember(selectedFilter, selectedDate, selectedRange, allBookings, selectedTab) {
         println("🔍 DEBUG: Starting filter process - selectedTab: ${selectedTab.name}, allBookings size: ${allBookings.size}")
+        // Extra diagnostics: breakdown by side and flags BEFORE any filter
+        runCatching {
+            val countA = allBookings.count { it.matchSide?.equals("A", true) == true }
+            val countB = allBookings.count { it.matchSide?.equals("B", true) == true }
+            val countNull = allBookings.count { it.matchSide.isNullOrBlank() }
+            val countDuo = allBookings.count { it.bookingType.equals("DUO", true) }
+            val countCreatedWithOpponent = allBookings.count { it.createdWithOpponent == true }
+            val countHasOpponent = allBookings.count { it.hasOpponent == true }
+            val countLockedFull = allBookings.count { it.opponentMode?.equals("LOCKED_FULL", true) == true }
+            println("🧮 DEBUG: Pre-filter breakdown → A=$countA, B=$countB, null=$countNull, DUO=$countDuo, createdWithOpponent=$countCreatedWithOpponent, hasOpponent=$countHasOpponent, lockedFull=$countLockedFull")
+        }
         
         var list = allBookings
         // Range filter
@@ -170,15 +183,42 @@ fun OwnerBookingListScreen(
                     val isSideBOrNull = booking.matchSide == null ||
                                         booking.matchSide.equals("B", true)
                     if (isSideBOrNull) {
-                        println("🔍 BookingsTab STRICT DENY -> id=${booking.bookingId}, side='${booking.matchSide}' (REJECTED)")
+                        println("🚫 BookingsTab STRICT DENY -> id=${booking.bookingId}, side='${booking.matchSide}' (REJECTED as non-A)")
                         return@filter false
                     }
 
-                    val show = booking.isForBookingsTab() && !isBookingFinished(booking, selectedDate)
-                    // Optional debug
-                    println("🔍 BookingsTab strict -> id=${booking.bookingId}, side=${booking.matchSide}, createdWithOpponent=${booking.createdWithOpponent}, show=$show")
+                    // Break down all conditions used by isForBookingsTab for detailed visibility
+                    val condBookingType = booking.bookingType.equals("DUO", true)
+                    val condCreatedWithOpponent = booking.createdWithOpponent == true
+                    val condHasOpponentOrLocked = (booking.hasOpponent == true || booking.opponentMode?.equals("LOCKED_FULL", true) == true)
+                    val condIsA = booking.matchSide?.trim()?.equals("A", true) == true
+                    val condNotFinished = !isBookingFinished(booking, selectedDate)
+
+                    val show = condBookingType && condCreatedWithOpponent && condHasOpponentOrLocked && condIsA && condNotFinished
+
+                    println(
+                        "📋 BookingsTab CHECK → id=${booking.bookingId} renter=${booking.renterId} date=${booking.date} ${booking.startAt}-${booking.endAt}\n" +
+                        "    - bookingType='${booking.bookingType}' → DUO? $condBookingType\n" +
+                        "    - createdWithOpponent=${booking.createdWithOpponent} → true? $condCreatedWithOpponent\n" +
+                        "    - hasOpponent=${booking.hasOpponent}, opponentMode='${booking.opponentMode}' → hasOpponentOrLocked? $condHasOpponentOrLocked\n" +
+                        "    - matchSide='${booking.matchSide}' → isA? $condIsA\n" +
+                        "    - notFinished? $condNotFinished\n" +
+                        "    ⇒ SHOW=$show"
+                    )
+
                     show
                 }
+
+                // Final sanity filter and diagnostics: if anything non-compliant remains, log and drop
+                val beforeSanity = list.size
+                val sanitized = list.filter { it.isForBookingsTab() }
+                if (sanitized.size != beforeSanity) {
+                    val removed = list.filterNot { it.isForBookingsTab() }
+                    removed.forEach { r ->
+                        println("⚠️ SANITY REMOVAL (BookingsTab): id=${r.bookingId}, side=${r.matchSide}, type=${r.bookingType}, createdWithOpponent=${r.createdWithOpponent}, hasOpponent=${r.hasOpponent}, opponentMode=${r.opponentMode}")
+                    }
+                }
+                list = sanitized
 
                 // Then apply status filter on this already restricted list
                 list = when (selectedFilter) {
@@ -264,9 +304,11 @@ fun OwnerBookingListScreen(
                         // Nếu đang lọc một ngày khác hôm nay → bấm calendar sẽ trở về hôm nay
                         val today = LocalDate.now()
                         if (selectedDate != null && selectedDate != today) {
+                            println("📅 DEBUG: Calendar click → reset to today from ${selectedDate}")
                             selectedDateStr = today.toString()
                             // Khi quay về hôm nay, giữ selectedRange hiện tại (không động chạm)
                         } else {
+                            println("📅 DEBUG: Calendar click → open DatePicker (already on today)")
                             // Đang ở hôm nay (hoặc chưa chọn ngày cụ thể) → mở DatePicker để chọn ngày
                             showDatePicker = true
                         }
@@ -361,6 +403,7 @@ fun OwnerBookingListScreen(
                         }
                     } else {
                         items(filtered, key = { it.bookingId }) { booking ->
+                            println("✅ BookingsTab DISPLAY → bookingId=${booking.bookingId}, renter=${booking.renterId}, side=${booking.matchSide}, type=${booking.bookingType}, createdWithOpponent=${booking.createdWithOpponent}, hasOpponent=${booking.hasOpponent}, opponentMode=${booking.opponentMode}")
                             AnimatedVisibility(
                                 visible = true,
                                 enter = fadeIn(),
@@ -605,52 +648,7 @@ private fun OwnerMatchesContent(
                     listeners = listeners + bookingListener
                 }
                 
-                // ✅ FIX: Tạo listeners cho matches cho từng field
-                fields.forEach { field ->
-                    val dateStr = selectedDate?.toString() ?: LocalDate.now().toString()
-                    println("🔍 DEBUG: listen matches field=${field.fieldId}, date=$dateStr, filter=${selectedStatus.name}")
-                    
-                    val matchListener = bookingRepo.listenMatchesByFieldDate(
-                        fieldId = field.fieldId,
-                        date = dateStr,
-                        onChange = { fieldMatches ->
-                            println("✅ DEBUG: listenMatchesByFieldDate → field=${field.fieldId} size=${fieldMatches.size}")
-                            // Remove old matches for this field and add new ones
-                            allMatches.removeAll { it.fieldId == field.fieldId }
-                            // Chỉ lấy matches đã ghép đôi (FULL hoặc CONFIRMED)
-                            val matchedOnly = fieldMatches.filter { match ->
-                                match.status == "FULL" || match.status == "CONFIRMED"
-                            }
-                            // Hiển thị theo filter trạng thái
-                            val filtered = when (selectedStatus) {
-                                MatchStatusFilter.All -> matchedOnly.filter { !isFinished(it) }
-                                MatchStatusFilter.Waiting -> emptyList()
-                                MatchStatusFilter.Full -> matchedOnly.filter { it.status == "FULL" && !isFinished(it) }
-                                MatchStatusFilter.Confirmed -> matchedOnly.filter { it.status == "CONFIRMED" && !isFinished(it) }
-                                MatchStatusFilter.Cancelled -> matchedOnly.filter { it.status == "CANCELLED" && !isFinished(it) }
-                                // Đã kết thúc: chỉ CONFIRMED và đã qua thời gian
-                                MatchStatusFilter.Finished -> matchedOnly.filter { it.status == "CONFIRMED" && isFinished(it) }
-                            }
-                            println("✅ DEBUG: filtered(${selectedStatus.name}) size=${filtered.size}")
-                            allMatches.addAll(filtered)
-                            matches = allMatches
-
-                            // ✅ Re-filter waitingBookings ngay khi matches thay đổi (listener thứ 2)
-                            val currentMatches = matchedForOverlap.toList()
-                            waitingBookings = waitingBookings.filter { booking ->
-                                val overlapped = currentMatches.any { m ->
-                                    m.fieldId == booking.fieldId && m.date == booking.date &&
-                                        isTimeOverlap(booking.startAt, booking.endAt, m.startAt, m.endAt)
-                                }
-                                val finished = isBookingFinished(booking, selectedDate)
-                                !overlapped && !finished
-                            }
-                            println("🔄 DEBUG: Re-filtered waitingBookings (2nd) after matches update: ${waitingBookings.size}")
-                        },
-                        onError = { _ -> }
-                    )
-                    listeners = listeners + matchListener
-                }
+                // (Removed duplicated listeners block to avoid double subscriptions per field)
             } catch (_: Exception) {
                 // Handle error
             } finally {
@@ -1129,7 +1127,13 @@ private fun EnhancedBookingListItem(
             }
         } catch (_: Exception) {}
     }
-    LaunchedEffect(booking.renterId) {
+    val isAForInfo = remember(booking.matchSide) { booking.matchSide?.equals("A", ignoreCase = true) == true }
+    LaunchedEffect(booking.renterId, booking.matchSide) {
+        // Chỉ tải thông tin renter cho renter A; tránh vô tình lấy dữ liệu renter B nếu lọt qua
+        if (!isAForInfo) {
+            println("🛑 DEBUG: Skip renter info fetch for non-A bookingId=${booking.bookingId}, side=${booking.matchSide}")
+            return@LaunchedEffect
+        }
         try {
             userRepo.getUserById(
                 userId = booking.renterId,
@@ -1272,8 +1276,11 @@ private fun EnhancedBookingListItem(
                     .padding(16.dp)
             ) {
                 // Avatar renter - tham khảo cách render từ RenterReviewCard
-                val avatarData by produceState(initialValue = "", key1 = booking.renterId) {
-                    if (booking.renterId.isNotBlank()) {
+                val avatarData by produceState(initialValue = "", key1 = booking.renterId, key2 = booking.matchSide) {
+                    if (!isAForInfo) {
+                        // Tuyệt đối không tải avatar cho non-A
+                        value = ""
+                    } else if (booking.renterId.isNotBlank()) {
                         UserRepository().getUserById(
                             booking.renterId,
                             onSuccess = { u -> value = u.avatarUrl ?: "" },

@@ -103,6 +103,8 @@ fun RenterBookingCheckoutScreen(
     // ✅ FIX: Quản lý trạng thái khung giờ riêng biệt cho từng ngày
     var selectedSlotsByDate by remember { mutableStateOf(mapOf<String, Set<String>>()) }
     var notes by remember { mutableStateOf("") }
+    // ✅ NEW: Loading state cho renter B khi lưu
+    var isSavingForB by remember { mutableStateOf(false) }
     
     // ✅ FIX: Lấy selectedSlots cho ngày hiện tại
     val selectedSlots = selectedSlotsByDate[selectedDate.toString()] ?: emptySet()
@@ -654,6 +656,61 @@ fun RenterBookingCheckoutScreen(
                                         )
                                     }
                                 }
+                                // ✅ Renter B post-join: đảm bảo có Booking B và cập nhật Match
+                                if (joinedMatchIdForB != null && !renterId.isNullOrEmpty() && ownerId.isNotEmpty()) {
+                                    println("🛑 BLOCK: renter B post-join confirm → ensure Booking B and update Match")
+                                    println("🔁 DEBUG: Post-join save → matchId=${joinedMatchIdForB}, renterId=$renterId, ownerId=$ownerId, services=${serviceLines.size}, notes='${notes}'")
+                                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                                        try {
+                                            isSavingForB = true
+                                            val ensured = bookingRepo.ensureBookingForRenterB(
+                                                matchId = joinedMatchIdForB!!,
+                                                renterBId = renterId,
+                                                ownerId = ownerId,
+                                                basePrice = fieldTotal.toLong()
+                                            )
+                                            if (ensured.isFailure) {
+                                                println("❌ ERROR: ensureBookingForRenterB failed → ${ensured.exceptionOrNull()?.message}")
+                                                isSavingForB = false
+                                                return@launch
+                                            }
+                                            val bookingBId = ensured.getOrNull()
+                                            println("✅ DEBUG: ensureBookingForRenterB success → bookingId=$bookingBId")
+
+                                            val result = bookingRepo.updateRenterBInMatch(
+                                                matchId = joinedMatchIdForB!!,
+                                                renterId = renterId,
+                                                serviceLines = serviceLines,
+                                                notes = notes
+                                            )
+                                            if (result.isSuccess) {
+                                                println("✅ DEBUG: Post-join save completed (Booking B ensured, B notes/services updated)")
+                                                hasSavedPostJoinForB = true
+                                                // ✅ UPDATE UI: chuyển các slots đã chọn từ VÀNG → ĐỎ ngay lập tức
+                                                val currentDateKey = selectedDate.toString()
+                                                val currentWaiting = waitingOpponentSlotsByDate[currentDateKey] ?: emptySet()
+                                                val currentLocked = lockedSlotsByDate[currentDateKey] ?: emptySet()
+                                                // Một số flow dùng effectiveSlots thay vì selectedSlots → ưu tiên effectiveSlots nếu có
+                                                val toLock = if (effectiveSlots.isNotEmpty()) effectiveSlots.toSet() else selectedSlots
+                                                val newWaiting = currentWaiting - toLock
+                                                val newLocked = currentLocked + toLock
+                                                waitingOpponentSlotsByDate = waitingOpponentSlotsByDate + (currentDateKey to newWaiting)
+                                                lockedSlotsByDate = lockedSlotsByDate + (currentDateKey to newLocked)
+                                                println("🔄 STATE CHANGE (B confirm): moved $toLock from YELLOW → RED")
+                                                // ✅ UX: Điều hướng về lịch sử đặt sân (tab Booking)
+                                                isSavingForB = false
+                                                onConfirmBooking()
+                                            } else {
+                                                println("❌ ERROR: Post-join save failed → ${result.exceptionOrNull()?.message}")
+                                                isSavingForB = false
+                                            }
+                                        } catch (e: Exception) {
+                                            println("❌ EXCEPTION: Post-join save → ${e.message}")
+                                            isSavingForB = false
+                                        }
+                                    }
+                                    return@Button
+                                }
                                 if (!renterId.isNullOrEmpty() && ownerId.isNotEmpty()) {
                                     println("🔍 DEBUG: RenterBookingCheckoutScreen - Button clicked:")
                                     println("  - renterId: $renterId")
@@ -743,8 +800,8 @@ fun RenterBookingCheckoutScreen(
             }
         }
     ) { innerPadding ->
-        // Hiển thị loading khi đang tạo booking
-        if (bookingUi.isLoading) {
+        // Hiển thị loading khi đang tạo booking (A) hoặc đang lưu B
+        if (bookingUi.isLoading || isSavingForB) {
             LoadingDialog(message = "Đang tạo đặt lịch...")
         }
         // ✅ FIX: FocusManager để ẩn bàn phím khi click ra ngoài
