@@ -380,7 +380,11 @@ fun OwnerMainScreen(
                                 showBottomNavBar = false
                                 navController.navigate("owner_match_detail/$matchId")
                             },
-                            initialTab = initialTab
+                            initialTab = initialTab,
+                            onBarsVisibilityChange = { showTop, showBottom ->
+                                showTopAppBar = showTop
+                                showBottomNavBar = showBottom
+                            }
                         )
                     }
 

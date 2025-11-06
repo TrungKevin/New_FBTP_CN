@@ -108,6 +108,7 @@ fun OwnerBookingListScreen(
     onBookingClick: (String) -> Unit,
     onMatchClick: (String) -> Unit = {},
     initialTab: MainTab = MainTab.Bookings, // ✅ NEW: Cho phép mở tab cụ thể
+    onBarsVisibilityChange: (showTop: Boolean, showBottom: Boolean) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val authViewModel: AuthViewModel = viewModel()
@@ -249,8 +250,10 @@ fun OwnerBookingListScreen(
         list
     }
 
-    // Nếu có booking được chọn, hiển thị màn hình chi tiết
+    // Nếu có booking được chọn, hiển thị màn hình chi tiết và ẩn Top/Bottom Bar
     selectedBooking?.let { booking ->
+        // Ẩn bars khi vào chi tiết
+        LaunchedEffect(Unit) { onBarsVisibilityChange(false, false) }
         BookingDetailManage(
             booking = booking,
             onConfirm = {
@@ -259,18 +262,21 @@ fun OwnerBookingListScreen(
                     bookingViewModel.handle(BookingEvent.UpdateStatus(id, "CONFIRMED"))
                 }
                 selectedBooking = null
+                onBarsVisibilityChange(true, true)
             },
             onCancel = {
                 booking.bookingId.let { id ->
                     bookingViewModel.handle(BookingEvent.UpdateStatus(id, "CANCELLED"))
                 }
                 selectedBooking = null
+                onBarsVisibilityChange(true, true)
             },
             onSuggestTime = {
                 // TODO: Xử lý gợi ý khung giờ khác
             },
             onBack = {
                 selectedBooking = null
+                onBarsVisibilityChange(true, true)
             }
         )
         return

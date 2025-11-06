@@ -488,11 +488,80 @@ private fun EnhancedBookingInfoSection(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            val totalText = "${String.format("%,d", booking.totalPrice).replace(',', '.')} VND"
+            // Bỏ dòng "Giá tiền" riêng lẻ (tiền sân); sẽ hiển thị một dòng Tổng tiền ở cuối
+
+            // ✅ Dịch vụ thêm do owner đặt
+            if (booking.serviceLines.isNotEmpty()) {
+                // Tiêu đề nhỏ cho nhóm dịch vụ
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ShoppingCart,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "Dịch vụ thêm",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Danh sách dịch vụ: Tên × SL • Thành tiền
+                booking.serviceLines.forEach { line ->
+                    val lineTotalText = "${String.format("%,d", line.lineTotal).replace(',', '.')} VND"
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                                RoundedCornerShape(12.dp)
+                            )
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = line.name.ifBlank { line.serviceId },
+                                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "x${line.quantity} • ${String.format("%,d", line.price).replace(',', '.')} VND",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
+                            )
+                        }
+                        Text(
+                            text = lineTotalText,
+                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            // ✅ Tổng tiền = tiền sân + tiền dịch vụ (dùng totalPrice lưu trong booking)
+            val grandTotalText = "${String.format("%,d", booking.totalPrice).replace(',', '.')} VND"
             EnhancedInfoRow(
-                icon = Icons.Default.Check,
-                label = "Giá tiền",
-                value = totalText
+                icon = Icons.Default.ReceiptLong,
+                label = "Tổng tiền",
+                value = grandTotalText
             )
 
             Spacer(modifier = Modifier.height(12.dp))
