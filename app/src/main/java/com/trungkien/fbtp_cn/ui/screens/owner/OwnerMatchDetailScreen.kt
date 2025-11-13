@@ -170,7 +170,7 @@ fun OwnerMatchDetailScreen(
                             }
                             // Vẫn load Booking A để lấy thông tin khác nếu cần (nhưng serviceLines lấy từ Match)
                             scope.launch {
-                            val bookingResult = bookingRepo.getBookingById(participant.bookingId)
+                                val bookingResult = bookingRepo.getBookingById(participant.bookingId)
                                 bookingResult.onSuccess { booking ->
                                     if (booking != null) {
                                         println("✅ DEBUG: Loaded booking for Renter A:")

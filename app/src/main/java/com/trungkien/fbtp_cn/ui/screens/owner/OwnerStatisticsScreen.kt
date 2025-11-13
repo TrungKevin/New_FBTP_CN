@@ -54,7 +54,8 @@ fun OwnerStatisticsScreen(
         if (ownerId != null) statsVm.load(ownerId)
     }
 
-    val revenueValues: List<Int> = (ui.stats?.chartRevenueByBucket ?: emptyList()).map { (it / 1000L).toInt() }
+    // ✅ FIX: Giữ nguyên giá trị revenue (không chia 1000) để hiển thị chính xác
+    val revenueValues: List<Long> = ui.stats?.chartRevenueByBucket ?: emptyList()
     val bookingValues: List<Int> = ui.stats?.chartBookingsByBucket ?: emptyList()
 
     val totalRevenue = (ui.stats?.totalRevenue ?: 0L).toInt()
@@ -66,6 +67,55 @@ fun OwnerStatisticsScreen(
     Scaffold(
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
+        // ✅ FIX: Hiển thị loading state
+        if (ui.isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+            return@Scaffold
+        }
+        
+        // ✅ FIX: Hiển thị error message
+        if (ui.error != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Text(
+                        text = "Lỗi tải dữ liệu",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFE91E63)
+                    )
+                    Text(
+                        text = ui.error ?: "Không thể tải thống kê",
+                        fontSize = 14.sp,
+                        color = Color(0xFF757575)
+                    )
+                    Button(
+                        onClick = { 
+                            ownerId?.let { statsVm.load(it) }
+                        }
+                    ) {
+                        Text("Thử lại")
+                    }
+                }
+            }
+            return@Scaffold
+        }
+        
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -102,7 +152,11 @@ fun OwnerStatisticsScreen(
                         TimeRange.Month -> "Doanh thu 30 ngày gần đây"
                         TimeRange.Year -> "Doanh thu 12 tháng gần đây"
                     },
-                    values = if (revenueValues.isEmpty()) List(if (selectedRange==TimeRange.Year) 12 else if (selectedRange==TimeRange.Today) 12 else 7){0} else revenueValues
+                    values = if (revenueValues.isEmpty()) {
+                        List(if (selectedRange==TimeRange.Year) 12 else if (selectedRange==TimeRange.Today) 12 else 7) { 0L }
+                    } else {
+                        revenueValues
+                    }
                 )
             }
 
@@ -130,7 +184,7 @@ fun OwnerStatisticsScreen(
 @Composable
 private fun RevenueChartCard(//đùng để hiển thị biểu đồ doanh thu của các khoảng thời gian khác nhau
     title: String, // tiêu đề của biểu đồ
-    values: List<Int>, // danh sách các giá trị doanh thu để hiển thị trên biểu đồ
+    values: List<Long>, // ✅ FIX: Đổi từ Int sang Long để giữ độ chính xác
     modifier: Modifier = Modifier // để tùy chỉnh giao diện của biểu đồ
 ) {
     ElevatedCard( // sử dụng ElevatedCard để tạo thẻ có độ nổi
@@ -152,7 +206,9 @@ private fun RevenueChartCard(//đùng để hiển thị biểu đồ doanh thu 
                 Text(text = title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF263238))
             }
             Spacer(modifier = Modifier.height(16.dp))
-            SimpleBarChart(values = values, barColor = Color(0xFF00C853))
+            // ✅ FIX: Convert Long sang Int cho biểu đồ (chia 1000 để hiển thị đẹp hơn)
+            val chartValues = values.map { (it / 1000L).toInt() }
+            SimpleBarChart(values = chartValues, barColor = Color(0xFF00C853))
         }
     }
 }

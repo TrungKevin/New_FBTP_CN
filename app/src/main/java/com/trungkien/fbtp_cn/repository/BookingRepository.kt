@@ -1003,10 +1003,20 @@ class BookingRepository(
                 side = "B"
             )
             
+            // ✅ FIX: Tính tổng servicePrice của renter B
+            val servicePriceB = serviceLines.sumOf { it.lineTotal }
+            
+            // ✅ FIX: Tính tổng servicePrice của renter A (từ match hiện tại)
+            val servicePriceA = (match.serviceLinesBySide["A"] ?: emptyList()).sumOf { it.lineTotal }
+            
+            // ✅ FIX: Cập nhật totalPrice = basePrice + servicePrice A + servicePrice B
+            val newTotalPrice = match.price + servicePriceA + servicePriceB
+            
             val updateData = mutableMapOf<String, Any>(
                 "occupiedCount" to 2,
                 "status" to "FULL",
                 "participants" to updatedParticipants,
+                "totalPrice" to newTotalPrice, // ✅ FIX: Cập nhật totalPrice khi renter B join
                 "updatedAt" to System.currentTimeMillis()
             )
 
@@ -1023,6 +1033,7 @@ class BookingRepository(
             )
             updateData["serviceLinesBySide"] = newServicesMap
             println("✅ DEBUG: Updating serviceLinesBySide: A=${newServicesMap["A"]?.size ?: 0} items, B=${newServicesMap["B"]?.size ?: 0} items")
+            println("✅ DEBUG: Updating totalPrice: basePrice=${match.price}, servicePriceA=$servicePriceA, servicePriceB=$servicePriceB, newTotalPrice=$newTotalPrice")
 
             // Stop mirroring to legacy fields
             serviceLines.forEachIndexed { index, service ->
@@ -1501,7 +1512,7 @@ class BookingRepository(
                                     .await()
                                 
                                 if (matchDoc.exists()) {
-                    val match = parseMatchSafe(matchDoc)
+                                    val match = parseMatchSafe(matchDoc)
                                     if (match != null && match.participants.size >= 2) {
                                         // Gửi notification cho cả 2 participants
                                         match.participants.forEach { participant ->
@@ -1717,7 +1728,7 @@ class BookingRepository(
                 .whereEqualTo("date", date)
                 .get()
                 .await()
-            val allMatches = matchesSnap.toObjects(Match::class.java)
+            val allMatches = matchesSnap.documents.mapNotNull { parseMatchSafe(it) }
             val activeMatchIds = allMatches
                 .filter { it.status == "FULL" || it.status == "CONFIRMED" }
                 .map { it.rangeKey }
@@ -1771,7 +1782,7 @@ class BookingRepository(
                 .get()
                 .await()
 
-            val allMatches = activeMatchesSnap.toObjects(Match::class.java)
+            val allMatches = activeMatchesSnap.documents.mapNotNull { parseMatchSafe(it) }
             println("🔍 DEBUG: All matches found: ${allMatches.size}")
             allMatches.forEach { match ->
                 println("  - Match ${match.rangeKey}: status=${match.status}, participants=${match.participants.size}")
