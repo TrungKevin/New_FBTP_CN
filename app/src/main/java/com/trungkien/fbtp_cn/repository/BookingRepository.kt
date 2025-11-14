@@ -569,6 +569,9 @@ class BookingRepository(
                 // ✅ FIX: Giữ match với status CANCELLED để hiển thị ở tab "Trận đấu" > "Đã hủy"
                 // Hủy tất cả bookings liên quan nhưng giữ match để tracking
                 try {
+                    // ✅ FIX: Lưu participants TRƯỚC KHI reset match để có thể gửi notification sau
+                    val participantsToNotify = match.participants.toList()
+                    
                     // ✅ FIX: Lấy thông tin field để gửi notification
                     val fieldDoc = firestore.collection("fields")
                         .document(match.fieldId)
@@ -577,18 +580,18 @@ class BookingRepository(
                     
                     val fieldName = fieldDoc.getString("name") ?: "Sân"
                     
-                    // ✅ FIX: Gửi notification cho cả 2 participants TRƯỚC KHI cancel bookings
+                    // ✅ FIX: Gửi notification cho TẤT CẢ participants (kể cả WAITING_OPPONENT với 1 participant)
                     val notificationRepository = NotificationRepository()
                     val renterNotificationHelper = RenterNotificationHelper(notificationRepository)
                     
-                    if (match.participants.size >= 2) {
-                        println("🔔 DEBUG: updateMatchStatus - sending cancellation notifications to both renters")
-                        
-                        match.participants.forEach { participant ->
-                            try {
-                                // Lấy thông tin booking để có thông tin chi tiết
+                    println("🔔 DEBUG: updateMatchStatus - sending cancellation notifications to ${participantsToNotify.size} renters")
+                    
+                    participantsToNotify.forEach { participant ->
+                        try {
+                            // Lấy thông tin booking để có thông tin chi tiết (nếu có bookingId)
+                            if (!participant.bookingId.isNullOrEmpty()) {
                                 val bookingDoc = firestore.collection(BOOKINGS_COLLECTION)
-                                    .document(participant.bookingId ?: "")
+                                    .document(participant.bookingId)
                                     .get()
                                     .await()
                                 
@@ -599,7 +602,7 @@ class BookingRepository(
                                             renterId = participant.renterId,
                                             fieldName = fieldName,
                                             date = booking.date,
-                                            time = booking.consecutiveSlots.firstOrNull() ?: "",
+                                            time = booking.consecutiveSlots.firstOrNull() ?: match.startAt,
                                             reason = null,
                                             bookingId = booking.bookingId,
                                             fieldId = booking.fieldId
@@ -607,9 +610,29 @@ class BookingRepository(
                                         println("🔔 DEBUG: Sent booking cancelled notification to renter: ${participant.renterId}")
                                     }
                                 }
-                            } catch (e: Exception) {
-                                println("❌ ERROR: Failed to send notification to renter ${participant.renterId}: ${e.message}")
+                            } else {
+                                // Renter B không có bookingId, gửi notification trực tiếp
+                                val res = notificationRepository.createNotification(
+                                    toUserId = participant.renterId,
+                                    type = "BOOKING_CANCELLED_BY_OWNER",
+                                    title = "Trận đấu đã bị chủ sân hủy",
+                                    body = "Sân $fieldName - ${match.startAt} ngày ${match.date} đã bị hủy.",
+                                    data = NotificationData(
+                                        bookingId = "",
+                                        fieldId = match.fieldId,
+                                        userId = null,
+                                        customData = emptyMap()
+                                    ),
+                                    priority = "HIGH"
+                                )
+                                if (res.isSuccess) {
+                                    println("🔔 DEBUG: Sent match cancelled notification to renter (no booking): ${participant.renterId}")
+                                } else {
+                                    println("❌ ERROR: Failed to send notification to renter ${participant.renterId}: ${res.exceptionOrNull()?.message}")
+                                }
                             }
+                        } catch (e: Exception) {
+                            println("❌ ERROR: Failed to send notification to renter ${participant.renterId}: ${e.message}")
                         }
                     }
                     
@@ -728,44 +751,8 @@ class BookingRepository(
                 }
             }
             
-            // Gửi thông báo cho renter khi match bị hủy bởi owner
-            if (newStatus == "CANCELLED") {
-                try {
-                    val fieldDoc = firestore.collection("fields")
-                        .document(match.fieldId)
-                        .get()
-                        .await()
-                    val fieldName = fieldDoc.getString("name") ?: "Sân"
-
-                    val notificationRepository = NotificationRepository()
-                    match.participants.forEach { participant ->
-                        try {
-                            val res = notificationRepository.createNotification(
-                                toUserId = participant.renterId,
-                                type = "BOOKING_CANCELLED_BY_OWNER",
-                                title = "Trận đấu đã bị chủ sân hủy",
-                                body = "Sân $fieldName - ${match.startAt} ngày ${match.date} đã bị hủy.",
-                                data = NotificationData(
-                                    bookingId = participant.bookingId ?: "",
-                                    fieldId = match.fieldId,
-                                    userId = null,
-                                    customData = emptyMap()
-                                ),
-                                priority = "HIGH"
-                            )
-                            if (res.isSuccess) {
-                                println("🔔 DEBUG: Notified renter about match cancel -> ${participant.renterId}")
-                            } else {
-                                println("❌ ERROR: Notify renter match cancel failed -> ${res.exceptionOrNull()?.message}")
-                            }
-                        } catch (e: Exception) {
-                            println("❌ ERROR: Create notification match cancel failed -> ${e.message}")
-                        }
-                    }
-                } catch (e: Exception) {
-                    println("❌ ERROR: Failed to send cancel notifications: ${e.message}")
-                }
-            }
+            // ✅ REMOVED: Logic gửi notification khi hủy match đã được xử lý ở trên (dòng 580-640)
+            // Không cần gửi lại ở đây vì match.participants đã bị clear
 
             println("✅ DEBUG: Match status updated: $matchId -> $newStatus")
             Result.success(Unit)

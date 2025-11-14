@@ -13,7 +13,7 @@ import androidx.annotation.Keep
 @Keep
 data class AiProfile(
     val renterId: String = "", // ID của renter
-    val fieldId: String? = null, // ID sân (null = skill tổng thể, có giá trị = skill theo sân)
+    val fieldId: String? = null, // ID sân (null = skill tổng thể, có giá trị = skill thúyeo sân)
     
     /**
      * Skill level: weightedWinRate đã tính sẵn
