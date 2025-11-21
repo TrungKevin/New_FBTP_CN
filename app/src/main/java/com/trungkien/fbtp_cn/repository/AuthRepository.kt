@@ -2,6 +2,8 @@ package com.trungkien.fbtp_cn.repository
 
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 
@@ -111,7 +113,61 @@ class AuthRepository(
                     }
                     .addOnFailureListener { e -> onError(e) }
             }
-            .addOnFailureListener { e -> onError(e) }
+            .addOnFailureListener { e ->
+                // Map Firebase authentication errors to friendly Vietnamese messages
+                val errorMessage = when {
+                    e is FirebaseAuthInvalidUserException -> {
+                        when {
+                            (e.errorCode ?: "").contains("USER_NOT_FOUND", ignoreCase = true) ||
+                            (e.message ?: "").contains("user-not-found", ignoreCase = true) ||
+                            (e.message ?: "").contains("no user record", ignoreCase = true) -> {
+                                "Email không tồn tại trong hệ thống"
+                            }
+                            else -> "Tài khoản không hợp lệ"
+                        }
+                    }
+                    e is FirebaseAuthInvalidCredentialsException -> {
+                        when {
+                            (e.errorCode ?: "").contains("WRONG_PASSWORD", ignoreCase = true) ||
+                            (e.message ?: "").contains("wrong-password", ignoreCase = true) ||
+                            (e.message ?: "").contains("password is invalid", ignoreCase = true) -> {
+                                "Mật khẩu không đúng"
+                            }
+                            (e.errorCode ?: "").contains("INVALID_EMAIL", ignoreCase = true) ||
+                            (e.message ?: "").contains("invalid-email", ignoreCase = true) -> {
+                                "Email không hợp lệ"
+                            }
+                            else -> "Thông tin đăng nhập không đúng"
+                        }
+                    }
+                    (e.message ?: "").contains("network", ignoreCase = true) ||
+                    (e.message ?: "").contains("network_error", ignoreCase = true) -> {
+                        "Lỗi kết nối mạng. Vui lòng thử lại"
+                    }
+                    (e.message ?: "").contains("timeout", ignoreCase = true) -> {
+                        "Kết nối quá chậm. Vui lòng thử lại"
+                    }
+                    (e.message ?: "").contains("too-many-requests", ignoreCase = true) -> {
+                        "Quá nhiều lần thử đăng nhập. Vui lòng thử lại sau"
+                    }
+                    else -> {
+                        // Fallback: check error code or message for common patterns
+                        val message = e.message ?: ""
+                        when {
+                            message.contains("wrong-password", ignoreCase = true) -> "Mật khẩu không đúng"
+                            message.contains("user-not-found", ignoreCase = true) -> "Email không tồn tại trong hệ thống"
+                            message.contains("invalid-email", ignoreCase = true) -> "Email không hợp lệ"
+                            message.contains("incorrect", ignoreCase = true) && 
+                            (message.contains("credential", ignoreCase = true) || message.contains("password", ignoreCase = true)) -> "Mật khẩu không đúng"
+                            message.contains("incorrect", ignoreCase = true) -> "Thông tin đăng nhập không đúng"
+                            message.contains("malformed", ignoreCase = true) -> "Thông tin đăng nhập không hợp lệ"
+                            message.contains("expired", ignoreCase = true) -> "Phiên đăng nhập đã hết hạn. Vui lòng thử lại"
+                            else -> "Mật khẩu không đúng"
+                        }
+                    }
+                }
+                onError(IllegalStateException(errorMessage))
+            }
     }
 
     /**

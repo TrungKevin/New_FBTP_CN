@@ -38,7 +38,9 @@ fun LoginBottomSheet(
     onLogin: (String, String) -> Unit,
     onGoogleLogin: () -> Unit,
     onForgotPassword: () -> Unit,
-    onSwitchToRegister: () -> Unit
+    onSwitchToRegister: () -> Unit,
+    errorMessage: String? = null,
+    onErrorDismiss: (() -> Unit)? = null
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val context = LocalContext.current
@@ -47,6 +49,23 @@ fun LoginBottomSheet(
     var password by remember { mutableStateOf(prefs.getString("password", "") ?: "") }
     var passwordVisible by remember { mutableStateOf(false) }
     var rememberAccount by remember { mutableStateOf(prefs.getBoolean("remember", true)) }
+    var previousUsername by remember { mutableStateOf(username) }
+    var previousPassword by remember { mutableStateOf(password) }
+    
+    // Reset error when user starts typing
+    LaunchedEffect(username, password) {
+        if (errorMessage != null && (username != previousUsername || password != previousPassword)) {
+            onErrorDismiss?.invoke()
+        }
+        previousUsername = username
+        previousPassword = password
+    }
+    
+    val hasError = errorMessage != null && errorMessage.isNotBlank()
+    
+    // When there's any login error, highlight both fields in red
+    val emailError = hasError
+    val passwordError = hasError
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -97,68 +116,102 @@ fun LoginBottomSheet(
             }
 
             // Email
-            OutlinedTextField(
-                value = username,
-                onValueChange = { username = it },
-                label = { Text("Email") },
-                leadingIcon = {
-                    Icon(imageVector = Icons.Filled.Person, contentDescription = null, tint = OnSecondary.copy(alpha = 0.8f), modifier = Modifier.size(20.dp))
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = GreenPrimary,
-                    unfocusedBorderColor = OnSecondary.copy(alpha = 0.25f),
-                    focusedLabelColor = GreenPrimary,
-                    unfocusedLabelColor = OnSecondary.copy(alpha = 0.8f),
-                    focusedTextColor = OnSecondary,
-                    unfocusedTextColor = OnSecondary,
-                    cursorColor = GreenPrimary
-                ),
-                shape = RoundedCornerShape(12.dp),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Text,
-                    imeAction = ImeAction.Next
+            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { 
+                        username = it
+                        if (errorMessage != null) {
+                            onErrorDismiss?.invoke()
+                        }
+                    },
+                    label = { Text("Email") },
+                    leadingIcon = {
+                        Icon(imageVector = Icons.Filled.Person, contentDescription = null, tint = OnSecondary.copy(alpha = 0.8f), modifier = Modifier.size(20.dp))
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = emailError,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = if (emailError) Color(0xFFD32F2F) else GreenPrimary,
+                        unfocusedBorderColor = if (emailError) Color(0xFFD32F2F) else OnSecondary.copy(alpha = 0.25f),
+                        errorBorderColor = Color(0xFFD32F2F),
+                        focusedLabelColor = if (emailError) Color(0xFFD32F2F) else GreenPrimary,
+                        unfocusedLabelColor = if (emailError) Color(0xFFD32F2F) else OnSecondary.copy(alpha = 0.8f),
+                        errorLabelColor = Color(0xFFD32F2F),
+                        focusedTextColor = OnSecondary,
+                        unfocusedTextColor = OnSecondary,
+                        errorTextColor = OnSecondary,
+                        cursorColor = if (emailError) Color(0xFFD32F2F) else GreenPrimary
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Text,
+                        imeAction = ImeAction.Next
+                    )
                 )
-            )
+                if (emailError && errorMessage != null) {
+                    Text(
+                        text = errorMessage,
+                        color = Color(0xFFD32F2F),
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(start = 16.dp, top = 4.dp)
+                    )
+                }
+            }
 
             // Password
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text("Mật khẩu") },
-                leadingIcon = {
-                    Icon(imageVector = Icons.Filled.Lock, contentDescription = null, tint = OnSecondary.copy(alpha = 0.8f), modifier = Modifier.size(20.dp))
-                },
-                trailingIcon = {
-                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                        Icon(
-                            imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
-                            contentDescription = null,
-                            tint = OnSecondary.copy(alpha = 0.8f)
-                        )
-                    }
-                },
-                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = GreenPrimary,
-                    unfocusedBorderColor = OnSecondary.copy(alpha = 0.25f),
-                    focusedLabelColor = GreenPrimary,
-                    unfocusedLabelColor = OnSecondary.copy(alpha = 0.8f),
-                    focusedTextColor = OnSecondary,
-                    unfocusedTextColor = OnSecondary,
-                    cursorColor = GreenPrimary
-                ),
-                shape = RoundedCornerShape(12.dp),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Done
+            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { 
+                        password = it
+                        if (errorMessage != null) {
+                            onErrorDismiss?.invoke()
+                        }
+                    },
+                    label = { Text("Mật khẩu") },
+                    leadingIcon = {
+                        Icon(imageVector = Icons.Filled.Lock, contentDescription = null, tint = OnSecondary.copy(alpha = 0.8f), modifier = Modifier.size(20.dp))
+                    },
+                    trailingIcon = {
+                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                            Icon(
+                                imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                contentDescription = null,
+                                tint = OnSecondary.copy(alpha = 0.8f)
+                            )
+                        }
+                    },
+                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = passwordError,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = if (passwordError) Color(0xFFD32F2F) else GreenPrimary,
+                        unfocusedBorderColor = if (passwordError) Color(0xFFD32F2F) else OnSecondary.copy(alpha = 0.25f),
+                        errorBorderColor = Color(0xFFD32F2F),
+                        focusedLabelColor = if (passwordError) Color(0xFFD32F2F) else GreenPrimary,
+                        unfocusedLabelColor = if (passwordError) Color(0xFFD32F2F) else OnSecondary.copy(alpha = 0.8f),
+                        errorLabelColor = Color(0xFFD32F2F),
+                        focusedTextColor = OnSecondary,
+                        unfocusedTextColor = OnSecondary,
+                        errorTextColor = OnSecondary,
+                        cursorColor = if (passwordError) Color(0xFFD32F2F) else GreenPrimary
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = ImeAction.Done
+                    )
                 )
-            )
+                if (passwordError && errorMessage != null) {
+                    Text(
+                        text = errorMessage,
+                        color = Color(0xFFD32F2F),
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(start = 16.dp, top = 4.dp)
+                    )
+                }
+            }
 
             // Remember + Forgot
             Row(
@@ -246,7 +299,9 @@ private fun LoginBottomSheetPreview() {
         onLogin = { _, _ -> },
         onGoogleLogin = {},
         onForgotPassword = {},
-        onSwitchToRegister = {}
+        onSwitchToRegister = {},
+        errorMessage = null,
+        onErrorDismiss = null
     )
 }
 

@@ -84,7 +84,10 @@ fun MainSplashScreen(
     // Login bottom sheet via component
     if (showLoginSheet) {
         LoginBottomSheet(
-            onDismiss = { showLoginSheet = false },
+            onDismiss = { 
+                showLoginSheet = false
+                authViewModel.handleEvent(AuthEvent.ResetState)
+            },
             onLogin = { email, password ->
                 authViewModel.handleEvent(AuthEvent.Login(email = email, password = password))
             },
@@ -102,6 +105,11 @@ fun MainSplashScreen(
             onSwitchToRegister = {
                 showLoginSheet = false
                 showRegisterSheet = true
+                authViewModel.handleEvent(AuthEvent.ResetState)
+            },
+            errorMessage = if (authState.op == "LOGIN" && !authState.isLoading) authState.error else null,
+            onErrorDismiss = {
+                authViewModel.handleEvent(AuthEvent.ResetState)
             }
         )
     }
@@ -148,11 +156,12 @@ fun MainSplashScreen(
             Toast.makeText(context, "Đã gửi email khôi phục mật khẩu", Toast.LENGTH_SHORT).show()
             authViewModel.handleEvent(AuthEvent.ResetState)
         }
+        // Show toast error for login failures
         if (!authState.isLoading && authState.error != null && authState.op == "LOGIN") {
-            Toast.makeText(context, authState.error ?: "Đăng nhập thất bại", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, authState.error ?: "Đăng nhập thất bại", Toast.LENGTH_LONG).show()
         }
         if (!authState.isLoading && authState.error != null && authState.op == "FORGOT") {
-            Toast.makeText(context, authState.error ?: "Gửi email khôi phục thất bại", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, authState.error ?: "Gửi email khôi phục thất bại", Toast.LENGTH_LONG).show()
         }
     }
 }
