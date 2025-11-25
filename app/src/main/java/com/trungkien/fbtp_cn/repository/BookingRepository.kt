@@ -636,9 +636,17 @@ class BookingRepository(
                         }
                     }
                     
+                    // ✅ NEW: Lấy toàn bộ bookings liên quan đến matchId này (kể cả renter A, B)
+                    val matchBookingDocs = firestore.collection(BOOKINGS_COLLECTION)
+                        .whereEqualTo("matchId", matchId)
+                        .get()
+                        .await()
+                    val matchBookings = matchBookingDocs.documents.mapNotNull { it.toObject(Booking::class.java) }
                     val participantBookingIds = match.participants.mapNotNull { it.bookingId }
-                    println("🔍 DEBUG: updateMatchStatus - cancelling bookings: $participantBookingIds")
-                    participantBookingIds.forEach { bId ->
+                    val bookingIdsFromQuery = matchBookings.mapNotNull { it.bookingId }
+                    val allBookingIds = (participantBookingIds + bookingIdsFromQuery).toSet()
+                    println("🔍 DEBUG: updateMatchStatus - cancelling bookings: $allBookingIds")
+                    allBookingIds.forEach { bId ->
                         try {
                             // ✅ DEBUG: Get booking info before cancelling
                             val bookingBeforeDoc = firestore.collection(BOOKINGS_COLLECTION)
@@ -673,13 +681,10 @@ class BookingRepository(
 
                             // ✅ NEW: Đặt lại các khe giờ về trạng thái trống cho booking này
                             try {
-                                val bSnap = firestore.collection(BOOKINGS_COLLECTION)
-                                    .document(bId)
-                                    .get()
-                                    .await()
-                                val booking = bSnap.toObject(com.trungkien.fbtp_cn.model.Booking::class.java)
+                                val booking = matchBookings.firstOrNull { it.bookingId == bId }
+                                    ?: updatedBookingDoc.toObject(Booking::class.java)
                                 if (booking != null) {
-                                    resetSlotsForBooking(booking)
+                                    resetSlotsForBooking(booking.copy(status = "CANCELLED"))
                                 }
                             } catch (e: Exception) {
                                 println("❌ ERROR: Failed to reset slots for booking $bId: ${e.message}")
