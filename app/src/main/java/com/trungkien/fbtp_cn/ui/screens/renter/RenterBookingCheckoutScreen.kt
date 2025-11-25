@@ -407,6 +407,9 @@ fun RenterBookingCheckoutScreen(
     // ✅ DEBUG: Kiểm tra data consistency và sync nếu cần
     val vmWaitingTimes = fieldViewModel.uiState.collectAsState().value.waitingOpponentTimes
     val vmLockedTimes = fieldViewModel.uiState.collectAsState().value.lockedOpponentTimes
+    val effectiveLockedSlots = remember(lockedSlots, vmLockedTimes) {
+        lockedSlots + vmLockedTimes
+    }
     
     if (vmWaitingTimes.isNotEmpty() && waitingOpponentSlots.isEmpty()) {
         println("⚠️ WARNING: Data inconsistency detected!")
@@ -873,7 +876,7 @@ fun RenterBookingCheckoutScreen(
                             }
                             
                             // Handle click rules with priority: locked(red) → toast; waiting(yellow) → join; booked(grey) → toast; else toggle
-                            if (lockedSlots.contains(slot)) {
+                            if (effectiveLockedSlots.contains(slot)) {
                                 println("🎯 DEBUG: Slot is locked - showing toast")
                                 OpponentDialogUtils.showSlotBookedToast(context)
                                 return@BookingTimeSlotGrid

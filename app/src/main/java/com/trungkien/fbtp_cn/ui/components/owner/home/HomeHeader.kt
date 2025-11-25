@@ -131,14 +131,7 @@ fun HomeHeader(
                     )
                 }
 
-                Spacer(modifier = Modifier.weight(1f))
-                IconButton(onClick = onCalendarClick) {
-                    Icon(
-                        imageVector = Icons.Default.DateRange,
-                        contentDescription = "Lịch sắp tới",
-                        tint = GreenPrimary
-                    )
-                }
+
             }
 
             Spacer(modifier = Modifier.height(12.dp))
