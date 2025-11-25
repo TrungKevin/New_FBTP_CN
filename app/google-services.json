@@ -12,7 +12,20 @@
           "package_name": "com.trungkien.fbtp_cn"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "359067036801-b7vfs8b5jrmavlefj3jf8fgnkotkk0n5.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.trungkien.fbtp_cn",
+            "certificate_hash": "81244d755df67a2395b608be9f1fea13c34cce7f"
+          }
+        },
+        {
+          "client_id": "359067036801-ecvhmsorhgrgf8ujr0ci92l584cbpmfb.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyD7DgSTmC9cjgJRMoP9WMq5s9xdGz_PKB4"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "359067036801-ecvhmsorhgrgf8ujr0ci92l584cbpmfb.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

@@ -95,6 +95,9 @@ dependencies {
     implementation("com.google.firebase:firebase-storage-ktx")
     implementation("com.google.firebase:firebase-messaging-ktx")
     
+    // GOOGLE SIGN-IN
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
+    
     // IMAGE PICKER DEPENDENCIES
     implementation("com.github.dhaval2404:imagepicker:2.1")
     

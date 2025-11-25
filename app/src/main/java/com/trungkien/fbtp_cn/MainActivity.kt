@@ -2,6 +2,7 @@ package com.trungkien.fbtp_cn
 
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -11,6 +12,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.messaging.FirebaseMessaging
 import com.trungkien.fbtp_cn.ui.screens.MainSplashScreen
 import com.trungkien.fbtp_cn.ui.screens.owner.OwnerMainScreen
@@ -42,7 +46,11 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     var currentScreen by remember { mutableStateOf("splash") }
-                    
+                    val logoutAndNavigate: () -> Unit = {
+                        performFullLogout()
+                        currentScreen = "splash"
+                    }
+
                     when (currentScreen) {
                         "splash" -> {
                             MainSplashScreen(
@@ -57,18 +65,42 @@ class MainActivity : ComponentActivity() {
                         "owner" -> {
                             OwnerMainScreen(
                                 modifier = Modifier.fillMaxSize(),
-                                onLogoutToSplash = { currentScreen = "splash" }
+                                onLogoutToSplash = logoutAndNavigate
                             )
                         }
                         "renter" -> {
                             RenterMainScreen(
                                 modifier = Modifier.fillMaxSize(),
-                                onLogoutToSplash = { currentScreen = "splash" }
+                                onLogoutToSplash = logoutAndNavigate
                             )
                         }
                     }
                 }
             }
+        }
+    }
+
+    private fun performFullLogout() {
+        try {
+            FirebaseAuth.getInstance().signOut()
+        } catch (e: Exception) {
+            Log.w("Logout", "Firebase signOut failed", e)
+        }
+        try {
+            val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestIdToken(getString(com.trungkien.fbtp_cn.R.string.default_web_client_id))
+                .requestEmail()
+                .build()
+            val googleClient = GoogleSignIn.getClient(this, gso)
+            googleClient.signOut()
+            googleClient.revokeAccess()
+        } catch (e: Exception) {
+            Log.w("Logout", "Google signOut failed", e)
+        }
+        try {
+            viewModelStore.clear()
+        } catch (e: Exception) {
+            Log.w("Logout", "ViewModelStore clear failed", e)
         }
     }
 }

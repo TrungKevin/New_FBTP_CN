@@ -30,27 +30,71 @@ import com.trungkien.fbtp_cn.ui.components.auth.RegisterBottomSheet
 import com.trungkien.fbtp_cn.ui.theme.*
 import androidx.compose.ui.res.painterResource
 import com.trungkien.fbtp_cn.R
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.ActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trungkien.fbtp_cn.viewmodel.AuthViewModel
 import com.trungkien.fbtp_cn.viewmodel.AuthEvent
+import com.trungkien.fbtp_cn.viewmodel.SocialAuthViewModel
+import com.trungkien.fbtp_cn.viewmodel.SocialAuthEvent
 import com.trungkien.fbtp_cn.ui.components.common.LoadingDialog
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
+
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainSplashScreen(
     onNavigateToOwner: () -> Unit = {},
     onNavigateToRenter: () -> Unit = {},
-    authViewModel: AuthViewModel = viewModel()
+    authViewModel: AuthViewModel = viewModel(),
+    socialAuthViewModel: SocialAuthViewModel = viewModel()
 ) {
     val context = LocalContext.current
     var showLoginSheet by remember { mutableStateOf(false) }
     var showRegisterSheet by remember { mutableStateOf(false) }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    
     // Observe auth state
     val authState by authViewModel.authState.collectAsState()
+    val socialAuthState by socialAuthViewModel.socialAuthState.collectAsState()
+    
+    // Google Sign-In launcher
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result: ActivityResult ->
+        try {
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            val account = task.getResult(ApiException::class.java)
+            account?.idToken?.let { idToken ->
+                socialAuthViewModel.handleEvent(SocialAuthEvent.GoogleSignIn(idToken))
+            } ?: run {
+                Toast.makeText(context, "Đăng nhập Google thất bại", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: ApiException) {
+            android.util.Log.e("GoogleSignIn", "Google sign-in failed", e)
+            Toast.makeText(
+                context,
+                "Đăng nhập Google thất bại: ${e.statusCode}",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+    
+    // Handle Google Sign-In
+    fun handleGoogleSignIn() {
+        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestIdToken(context.getString(com.trungkien.fbtp_cn.R.string.default_web_client_id))
+            .requestEmail()
+            .build()
+        val googleSignInClient = GoogleSignIn.getClient(context, gso)
+        // Always sign out first so account picker is forced to show every time
+        googleSignInClient.signOut().addOnCompleteListener {
+            googleSignInLauncher.launch(googleSignInClient.signInIntent)
+        }
+    }
     
     // Handle REGISTER result only (không thông báo khi LOGIN)
     LaunchedEffect(authState.isSuccess, authState.error, authState.op) {
@@ -76,8 +120,7 @@ fun MainSplashScreen(
         onLoginClick = { showLoginSheet = true },
         onRegisterClick = { showRegisterSheet = true },
         onCustomerServiceClick = { /* Handle customer service */ },
-        onDownloadAppClick = { /* Handle download app */ },
-        onTryPlayingClick = { /* Handle try playing */ },
+        onGoogleLoginClick = { handleGoogleSignIn() },
         onComputerVersionClick = { /* Handle computer version */ }
     )
 
@@ -91,7 +134,7 @@ fun MainSplashScreen(
             onLogin = { email, password ->
                 authViewModel.handleEvent(AuthEvent.Login(email = email, password = password))
             },
-            onGoogleLogin = {},
+            onGoogleLogin = { handleGoogleSignIn() },
             onForgotPassword = {
                 // Lấy lại email đang nhập từ SharedPreferences
                 val email = context.getSharedPreferences("auth_prefs", android.content.Context.MODE_PRIVATE)
@@ -139,8 +182,27 @@ fun MainSplashScreen(
     }
     
     // Global loading dialog
-    if (authState.isLoading) {
+    if (authState.isLoading || socialAuthState.isLoading) {
         LoadingDialog(message = "Đang xử lý...")
+    }
+    
+    // Handle social auth success
+    LaunchedEffect(socialAuthState.isSuccess, socialAuthState.role) {
+        if (socialAuthState.isSuccess && socialAuthState.role != null) {
+            Toast.makeText(context, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()
+            val role = socialAuthState.role!!.uppercase()
+            showLoginSheet = false
+            if (role == "OWNER") onNavigateToOwner() else onNavigateToRenter()
+            socialAuthViewModel.handleEvent(SocialAuthEvent.ResetState)
+        }
+    }
+    
+    // Handle social auth error
+    LaunchedEffect(socialAuthState.error) {
+        socialAuthState.error?.let { error ->
+            Toast.makeText(context, error, Toast.LENGTH_LONG).show()
+            socialAuthViewModel.handleEvent(SocialAuthEvent.ResetState)
+        }
     }
 
     // Navigate by role after login success

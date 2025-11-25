@@ -1,6 +1,7 @@
 package com.trungkien.fbtp_cn.ui.screens
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -12,10 +13,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.trungkien.fbtp_cn.R
 import com.trungkien.fbtp_cn.ui.components.animation.AnimatedStar
 import com.trungkien.fbtp_cn.ui.components.animation.BallType
 import com.trungkien.fbtp_cn.ui.components.animation.FloatingBall
@@ -32,8 +35,7 @@ fun SplashScreen(
     onLoginClick: () -> Unit = {},
     onRegisterClick: () -> Unit = {},
     onCustomerServiceClick: () -> Unit = {},
-    onDownloadAppClick: () -> Unit = {},
-    onTryPlayingClick: () -> Unit = {},
+    onGoogleLoginClick: () -> Unit = {},
     onComputerVersionClick: () -> Unit = {}
 ) {
     // Background gradient
@@ -202,23 +204,18 @@ fun SplashScreen(
                     .padding(bottom = 24.dp)
             ) {
                 UtilityIcon(
-                    icon = "🎧",
                     label = "Listens",
+                    iconEmoji = "🎧",
                     onClick = onCustomerServiceClick
                 )
                 UtilityIcon(
-                    icon = "📱",
-                    label = "Phone",
-                    onClick = onDownloadAppClick
+                    iconResId = R.drawable.googleicon,
+                    label = "Google",
+                    onClick = onGoogleLoginClick
                 )
                 UtilityIcon(
-                    icon = "🎮",
-                    label = "PS4/5",
-                    onClick = onTryPlayingClick
-                )
-                UtilityIcon(
-                    icon = "💻",
                     label = "Computer",
+                    iconEmoji = "💻",
                     onClick = onComputerVersionClick
                 )
             }
@@ -251,24 +248,38 @@ fun SplashScreen(
 
 @Composable
 private fun UtilityIcon(
-    icon: String,
     label: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    iconResId: Int? = null,
+    iconEmoji: String? = null
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.clickable { onClick() }
     ) {
-        Text(
-            text = icon,
-            fontSize = 24.sp
-        )
-                                        Text(
-                    text = label,
-                    fontSize = 12.sp,
-                    color = Color(0xFF263238).copy(alpha = 0.8f),
-                    fontWeight = FontWeight.Medium
+        when {
+            iconResId != null -> {
+                Image(
+                    painter = painterResource(id = iconResId),
+                    contentDescription = label,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .padding(bottom = 4.dp)
                 )
+            }
+            iconEmoji != null -> {
+                Text(
+                    text = iconEmoji,
+                    fontSize = 24.sp
+                )
+            }
+        }
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = Color(0xFF263238).copy(alpha = 0.8f),
+            fontWeight = FontWeight.Medium
+        )
     }
 }
 
@@ -279,8 +290,7 @@ fun SplashScreenPreview() {
         onLoginClick = { /* Login action */ },
         onRegisterClick = { /* Register action */ },
         onCustomerServiceClick = { /* Customer service action */ },
-        onDownloadAppClick = { /* Download app action */ },
-        onTryPlayingClick = { /* Try playing action */ },
+        onGoogleLoginClick = { /* Google login action */ },
         onComputerVersionClick = { /* Computer version action */ }
     )
 }

@@ -4,6 +4,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
+import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 
@@ -181,6 +182,59 @@ class AuthRepository(
         firebaseAuth.sendPasswordResetEmail(email)
             .addOnSuccessListener { onSuccess() }
             .addOnFailureListener { e -> onError(e) }
+    }
+
+    /**
+     * Signs in with Google ID token and creates/updates user document in Firestore.
+     */
+    fun signInWithGoogle(
+        idToken: String,
+        onSuccess: (role: String) -> Unit,
+        onError: (Throwable) -> Unit
+    ) {
+        val credential = GoogleAuthProvider.getCredential(idToken, null)
+        firebaseAuth.signInWithCredential(credential)
+            .addOnSuccessListener { result ->
+                val user = result.user
+                val uid = user?.uid ?: return@addOnSuccessListener onError(IllegalStateException("UID null"))
+                val email = user.email ?: ""
+                val displayName = user.displayName ?: ""
+                val photoUrl = user.photoUrl?.toString() ?: ""
+                
+                // Check if user document exists
+                firestore.collection("users").document(uid).get()
+                    .addOnSuccessListener { doc ->
+                        if (doc.exists()) {
+                            // User exists, get role
+                            val role = (doc.getString("role") ?: "RENTER").uppercase()
+                            onSuccess(role)
+                        } else {
+                            // New user, create document with default role RENTER
+                            val userDoc = hashMapOf(
+                                "userId" to uid,
+                                "role" to "RENTER",
+                                "name" to displayName,
+                                "email" to email,
+                                "phone" to "",
+                                "avatarUrl" to photoUrl,
+                                "createdAt" to FieldValue.serverTimestamp()
+                            )
+                            firestore.collection("users").document(uid)
+                                .set(userDoc)
+                                .addOnSuccessListener { onSuccess("RENTER") }
+                                .addOnFailureListener { e -> onError(e) }
+                        }
+                    }
+                    .addOnFailureListener { e -> onError(e) }
+            }
+            .addOnFailureListener { e ->
+                val errorMessage = when {
+                    (e.message ?: "").contains("network", ignoreCase = true) -> "Lỗi kết nối mạng. Vui lòng thử lại"
+                    (e.message ?: "").contains("timeout", ignoreCase = true) -> "Kết nối quá chậm. Vui lòng thử lại"
+                    else -> "Đăng nhập Google thất bại. Vui lòng thử lại"
+                }
+                onError(IllegalStateException(errorMessage))
+            }
     }
 
     /**
