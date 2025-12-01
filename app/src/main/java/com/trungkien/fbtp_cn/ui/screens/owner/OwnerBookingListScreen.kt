@@ -1313,30 +1313,30 @@ private fun EnhancedBookingListItem(
                             )
                         }
 
-                        // Button gợi ý với design mới
-                        OutlinedButton(
-                            onClick = { onActionClick("suggest") },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = MaterialTheme.colorScheme.primary
-                            ),
-                            border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary),
-                            shape = RoundedCornerShape(14.dp)
-                        ) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.schedule),
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                "Gợi ý",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
+//                        // Button gợi ý với design mới
+//                        OutlinedButton(
+//                            onClick = { onActionClick("suggest") },
+//                            modifier = Modifier
+//                                .weight(1f)
+//                                .height(48.dp),
+//                            colors = ButtonDefaults.outlinedButtonColors(
+//                                contentColor = MaterialTheme.colorScheme.primary
+//                            ),
+//                            border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary),
+//                            shape = RoundedCornerShape(14.dp)
+//                        ) {
+//                            Icon(
+//                                painter = painterResource(id = R.drawable.schedule),
+//                                contentDescription = null,
+//                                modifier = Modifier.size(16.dp)
+//                            )
+//                            Spacer(modifier = Modifier.width(4.dp))
+//                            Text(
+//                                "Gợi ý",
+//                                fontSize = 14.sp,
+//                                fontWeight = FontWeight.SemiBold
+//                            )
+//                        }
                     }
                 }
             }
