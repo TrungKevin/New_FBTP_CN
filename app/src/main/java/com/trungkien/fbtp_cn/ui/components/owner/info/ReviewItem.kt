@@ -154,10 +154,6 @@ fun ReviewItem(
             onDelete = {
                 onDelete()
                 showMoreOptions = false
-            },
-            onReport = {
-                onReport()
-                showMoreOptions = false
             }
         )
     }
@@ -424,25 +420,25 @@ private fun ReviewActions(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
-        // Like button
-        Row(
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onLike) {
-                val isLiked = currentUser?.userId in review.likedBy
-                Icon(
-                    imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = if (isLiked) "Bỏ thích" else "Thích",
-                    tint = if (isLiked) Color(0xFFE91E63) else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            
-            Text(
-                text = "${review.likes}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
+//        // Like button
+//        Row(
+//            verticalAlignment = Alignment.CenterVertically
+//        ) {
+//            IconButton(onClick = onLike) {
+//                val isLiked = currentUser?.userId in review.likedBy
+//                Icon(
+//                    imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+//                    contentDescription = if (isLiked) "Bỏ thích" else "Thích",
+//                    tint = if (isLiked) Color(0xFFE91E63) else MaterialTheme.colorScheme.onSurfaceVariant
+//                )
+//            }
+//
+////            Text(
+////                text = "${review.likes}",
+////                style = MaterialTheme.typography.bodyMedium,
+////                color = MaterialTheme.colorScheme.onSurface
+////            )
+//        }
         
         // Reply button
         Row(
@@ -462,25 +458,25 @@ private fun ReviewActions(
             )
         }
         
-        // Report button
-        if (currentUser != null && currentUser.userId != review.renterId) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onReport) {
-                    Icon(
-                        imageVector = Icons.Default.Report,
-                        contentDescription = "Báo cáo"
-                    )
-                }
-                
-                Text(
-                    text = "Báo cáo",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-        }
+//        // Report button
+//        if (currentUser != null && currentUser.userId != review.renterId) {
+//            Row(
+//                verticalAlignment = Alignment.CenterVertically
+//            ) {
+//                IconButton(onClick = onReport) {
+//                    Icon(
+//                        imageVector = Icons.Default.Report,
+//                        contentDescription = "Báo cáo"
+//                    )
+//                }
+//
+//                Text(
+//                    text = "Báo cáo",
+//                    style = MaterialTheme.typography.bodyMedium,
+//                    color = MaterialTheme.colorScheme.onSurface
+//                )
+//            }
+//        }
     }
 }
 
@@ -718,8 +714,7 @@ private fun MoreOptionsDialog(
     currentUser: User?,
     owner: Boolean,
     onDismiss: () -> Unit,
-    onDelete: () -> Unit,
-    onReport: () -> Unit
+    onDelete: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -727,7 +722,12 @@ private fun MoreOptionsDialog(
             Text("Tùy chọn")
         },
         text = {
-            Column {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 // Delete option (chỉ owner hoặc người tạo)
                 if (currentUser != null && (owner || currentUser.userId == review.renterId)) {
                     TextButton(
@@ -739,26 +739,11 @@ private fun MoreOptionsDialog(
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.error
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
                         Text(
                             text = "Xóa đánh giá",
                             color = MaterialTheme.colorScheme.error
                         )
-                    }
-                }
-                
-                // Report option (chỉ người khác)
-                if (currentUser != null && currentUser.userId != review.renterId) {
-                    TextButton(
-                        onClick = onReport,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Report,
-                            contentDescription = null
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Báo cáo")
                     }
                 }
             }
